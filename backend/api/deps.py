@@ -6,8 +6,25 @@ from core.security import get_user_from_token
 security = HTTPBearer()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
-    """Dependency to get current authenticated user from JWT token"""
-    return get_user_from_token(credentials.credentials)
+    """Dependency to get current authenticated user from JWT token with role"""
+    from core.supabase_client import supabase_service
+    
+    user_data = get_user_from_token(credentials.credentials)
+    user_id = user_data.get("id")
+    
+    if user_id:
+        try:
+            # Fetch user role from profiles table
+            result = supabase_service.table("profiles").select("role").eq("user_id", user_id).execute()
+            if result.data:
+                user_data["role"] = result.data[0].get("role", "user")
+            else:
+                user_data["role"] = "user"
+        except Exception as e:
+            print(f"⚠️ Warning: Could not fetch user role: {e}")
+            user_data["role"] = "user"
+    
+    return user_data
 
 def get_current_user_id(current_user: Dict[str, Any] = Depends(get_current_user)) -> str:
     """Dependency to extract user ID from current user"""

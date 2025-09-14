@@ -36,6 +36,7 @@ export interface Team {
   id: string;
   name: string;
   description?: string;
+  logo_url?: string;
   created_at: string;
   created_by?: string;
   member_count?: number;
@@ -60,6 +61,7 @@ export interface ListUsersResponse {
 export interface CreateTeamRequest {
   name: string;
   description?: string;
+  logo_url?: string;
 }
 
 export interface CreateTeamResponse {

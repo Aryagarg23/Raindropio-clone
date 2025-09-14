@@ -7,6 +7,7 @@ class Team(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    logo_url: Optional[str] = None  # URL to team logo/avatar
     created_at: datetime
     created_by: Optional[str] = None
     member_count: Optional[int] = None  # For views with member counts
@@ -19,6 +20,7 @@ class TeamMembership(BaseModel):
 class CreateTeamRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=80, description="Team name")
     description: Optional[str] = Field(None, max_length=500, description="Team description")
+    logo_url: Optional[str] = Field(None, max_length=500, description="Team logo URL")
 
 class CreateTeamResponse(BaseModel):
     team: Team
@@ -46,6 +48,7 @@ class TeamWithMembers(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    logo_url: Optional[str] = None
     created_at: datetime
     created_by: Optional[str] = None
     members: List['UserProfile'] = []

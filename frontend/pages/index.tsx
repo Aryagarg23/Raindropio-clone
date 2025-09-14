@@ -13,118 +13,69 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [teamsLoading, setTeamsLoading] = useState(false);
 
+  // Always fetch teams when profile is set and complete
+  useEffect(() => {
+    if (profile && profile.full_name && profile.avatar_url && profile.favorite_color) {
+      fetchTeams();
+    }
+  }, [profile]);
+
   useEffect(() => {
     async function fetchUserAndProfile() {
-      console.log("🔄 Starting fetchUserAndProfile...");
       setLoading(true);
-      
       try {
         // Check if we have access_token in URL hash (OAuth redirect)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
-        
         if (accessToken) {
-          console.log("🔑 Found access token in URL, setting session...");
-          
-          // Manually set the session with the tokens from URL
-          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || '',
           });
-          
-          if (sessionError) {
-            console.error("❌ Failed to set session:", sessionError.message);
-          } else {
-            console.log("✅ Session set successfully");
-            // Clear the URL hash
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
-        
-        // Get the current session
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        console.log("📱 Session data:", sessionData?.session ? "Session found" : "No session", sessionError?.message || "");
-        
         const { data } = await supabase.auth.getUser();
-        console.log("👤 User from Supabase:", data?.user?.id ? "Found user" : "No user");
         setUser(data?.user as AuthUser);
-        
         if (data?.user) {
           try {
-            console.log("🚀 Calling backend API to sync profile...");
             const response = await apiClient.syncProfile();
-            console.log("✅ Profile sync successful:", response);
             setProfile(response.profile);
           } catch (error) {
-            console.error("❌ Profile sync failed:", error);
-            if (error instanceof ApiError) {
-              console.error("Profile sync error:", error.message, error.code);
-              if (error.status === 401) {
-                setUser(null);
-              }
-            } else {
-              console.error("Unexpected error:", error);
+            if (error instanceof ApiError && error.status === 401) {
+              setUser(null);
             }
           }
-        } else {
-          console.log("⚠️ No user found, skipping profile sync");
         }
       } catch (error) {
         console.error("❌ Auth initialization failed:", error);
       }
-      
       setLoading(false);
     }
-
     // Listen for auth state changes (handles OAuth redirects)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("🔄 Auth state change:", event, session ? "Session exists" : "No session");
-      
       if (event === 'SIGNED_IN' && session) {
-        console.log("✅ User signed in, fetching profile...");
-        console.log("🔍 Session details:", {
-          expires_at: session.expires_at,
-          current_time: Math.floor(Date.now() / 1000),
-          time_diff: session.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown'
-        });
-        
         setUser(session.user as AuthUser);
-        
         try {
-          console.log("🚀 Calling backend API to sync profile...");
           const response = await apiClient.syncProfile();
-          console.log("✅ Profile sync successful:", response);
           setProfile(response.profile);
-          
-          // Fetch teams if profile is complete
-          const profileComplete = response.profile.full_name && 
-                                  response.profile.avatar_url && 
-                                  response.profile.favorite_color;
-          
-          if (profileComplete) {
-            await fetchTeams();
-          }
         } catch (error) {
-          console.error("❌ Profile sync failed:", error);
+          if (error instanceof ApiError && error.status === 401) {
+            setUser(null);
+          }
         }
         setLoading(false);
       } else if (event === 'SIGNED_OUT') {
-        console.log("🚪 User signed out");
         setUser(null);
         setProfile(null);
         setTeams([]);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session) {
-        console.log("🔄 Token refreshed, updating user");
         setUser(session.user as AuthUser);
       }
     });
-
-    // Initial load
     fetchUserAndProfile();
-
-    // Cleanup subscription
     return () => subscription.unsubscribe();
   }, []);
 

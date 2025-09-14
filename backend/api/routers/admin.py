@@ -59,12 +59,15 @@ async def create_team(
     
     try:
         # Insert new team
+        print(f"🔄 Creating team with data: {team_data}")
         result = supabase_service.table("teams").insert({
             "name": team_data.name,
             "description": team_data.description,
+            "logo_url": team_data.logo_url,
             "created_by": user_id
         }).execute()
         
+        print(f"📊 Team creation result: {result}")
         if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -76,6 +79,7 @@ async def create_team(
             id=team_record["id"],
             name=team_record["name"],
             description=team_record.get("description"),
+            logo_url=team_record.get("logo_url"),
             created_at=team_record["created_at"],
             created_by=team_record.get("created_by")
         )
@@ -134,11 +138,13 @@ async def add_team_member(
             )
         
         # Add the membership
+        print(f"🔄 Inserting membership: team_id={team_id}, user_id={user_id}")
         result = supabase_service.table("team_memberships").insert({
             "team_id": team_id,
             "user_id": user_id
         }).execute()
         
+        print(f"📊 Insert result: {result}")
         if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -193,4 +199,128 @@ async def list_all_teams(current_user: Dict[str, Any] = Depends(require_admin)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching teams"
+        )
+
+@router.delete("/teams/{team_id}/members/{user_id}")
+async def remove_team_member(
+    team_id: str,
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(require_admin)
+):
+    """
+    Admin only: Remove a user from a team
+    """
+    admin_id = current_user.get("id")
+    print(f"👑 Admin {admin_id} removing user {user_id} from team {team_id}")
+    
+    try:
+        # Check if membership exists
+        membership_check = supabase_service.table("team_memberships").select("*").match({
+            "team_id": team_id,
+            "user_id": user_id
+        }).execute()
+        
+        if not membership_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User is not a member of this team"
+            )
+        
+        # Remove the membership
+        print(f"🔄 Removing membership: team_id={team_id}, user_id={user_id}")
+        result = supabase_service.table("team_memberships").delete().match({
+            "team_id": team_id,
+            "user_id": user_id
+        }).execute()
+        
+        print(f"📊 Delete result: {result}")
+        print(f"✅ User {user_id} removed from team {team_id}")
+        return {"message": "User removed from team successfully", "team_id": team_id, "user_id": user_id}
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        print(f"❌ Error removing team member: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error removing user from team"
+        )
+
+@router.get("/teams/{team_id}/members")
+async def get_team_members(
+    team_id: str,
+    current_user: Dict[str, Any] = Depends(require_admin)
+):
+    """
+    Admin only: Get all members of a specific team
+    """
+    print(f"👑 Admin {current_user.get('id')} requesting members for team {team_id}")
+    
+    try:
+        # Get team memberships with user profiles
+        result = supabase_service.table("team_memberships").select(
+            "user_id, joined_at, profiles!inner(user_id, email, full_name, avatar_url, favorite_color, role)"
+        ).eq("team_id", team_id).execute()
+        
+        members = []
+        if result.data:
+            for membership in result.data:
+                profile_data = membership["profiles"]
+                member = UserProfile(
+                    user_id=profile_data["user_id"],
+                    email=profile_data["email"],
+                    full_name=profile_data.get("full_name"),
+                    avatar_url=profile_data.get("avatar_url"),
+                    favorite_color=profile_data.get("favorite_color"),
+                    role=profile_data.get("role", "user")
+                )
+                members.append(member)
+        
+        print(f"✅ Found {len(members)} members for team {team_id}")
+        return {"members": members, "team_id": team_id}
+        
+    except Exception as e:
+        print(f"❌ Error fetching team members: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching team members"
+        )
+
+@router.get("/users/{user_id}/teams")
+async def get_user_teams(
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(require_admin)
+):
+    """
+    Admin only: Get all teams for a specific user
+    """
+    print(f"👑 Admin {current_user.get('id')} requesting teams for user {user_id}")
+    
+    try:
+        # Get user's team memberships with team details
+        result = supabase_service.table("team_memberships").select(
+            "team_id, joined_at, teams!inner(id, name, description, logo_url, created_at)"
+        ).eq("user_id", user_id).execute()
+        
+        teams = []
+        if result.data:
+            for membership in result.data:
+                team_data = membership["teams"]
+                team = Team(
+                    id=team_data["id"],
+                    name=team_data["name"],
+                    description=team_data.get("description"),
+                    logo_url=team_data.get("logo_url"),
+                    created_at=team_data["created_at"]
+                )
+                teams.append(team)
+        
+        print(f"✅ Found {len(teams)} teams for user {user_id}")
+        return {"teams": teams, "user_id": user_id}
+        
+    except Exception as e:
+        print(f"❌ Error fetching user teams: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching user teams"
         )

@@ -9,31 +9,34 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 @router.get("", response_model=ListTeamsResponse)
 async def get_user_teams(current_user: Dict[str, Any] = Depends(get_current_user)):
     """
-    Get all teams that the current user belongs to
+    Get all teams that the current user belongs to (or all teams if admin)
     """
     user_id = current_user.get("id")
-    print(f"🏢 Getting teams for user: {user_id}")
+    user_role = current_user.get("role", "user")
+    print(f"🏢 Getting teams for user: {user_id} (role: {user_role})")
     
     try:
-        # First get team IDs that the user is a member of
-        membership_result = supabase_service.table("team_memberships").select("team_id").eq("user_id", user_id).execute()
-        
-        if not membership_result.data:
-            # User is not a member of any teams
-            print(f"✅ Found 0 teams for user")
-            return ListTeamsResponse(teams=[])
-        
-        # Extract team IDs
-        team_ids = [membership["team_id"] for membership in membership_result.data]
-        
-        # Get team details for those IDs
-        result = supabase_service.table("teams").select("""
-            id,
-            name,
-            description,
-            created_at,
-            created_by
-        """).in_("id", team_ids).execute()
+        # If user is admin, return all teams
+        if user_role == "admin":
+            print("👑 Admin user - fetching all teams")
+            result = supabase_service.table("teams").select("*").execute()
+            print(f"📊 Admin query result: {result.data}")
+        else:
+            # For regular users, get teams they're members of
+            # First get team IDs that the user is a member of
+            membership_result = supabase_service.table("team_memberships").select("team_id").eq("user_id", user_id).execute()
+            
+            if not membership_result.data:
+                # User is not a member of any teams
+                print(f"✅ Found 0 teams for user")
+                return ListTeamsResponse(teams=[])
+            
+            # Extract team IDs
+            team_ids = [membership["team_id"] for membership in membership_result.data]
+            
+            # Get team details for those IDs
+            result = supabase_service.table("teams").select("*").in_("id", team_ids).execute()
+            print(f"📊 Member query result: {result.data}")
         
         teams = []
         if result.data:
@@ -42,6 +45,7 @@ async def get_user_teams(current_user: Dict[str, Any] = Depends(get_current_user
                     id=team_data["id"],
                     name=team_data["name"],
                     description=team_data.get("description"),
+                    logo_url=team_data.get("logo_url"),
                     created_at=team_data["created_at"],
                     created_by=team_data.get("created_by")
                 )

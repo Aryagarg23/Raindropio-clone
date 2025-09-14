@@ -112,6 +112,10 @@ export const apiClient = {
   },
 
   // Admin operations
+  getUsers: async () => {
+    return makeAuthenticatedRequest('/admin/users');
+  },
+
   listUsers: async () => {
     return makeAuthenticatedRequest('/admin/users');
   },
@@ -120,10 +124,17 @@ export const apiClient = {
     return makeAuthenticatedRequest('/admin/teams');
   },
 
-  createTeam: async (name: string, description?: string) => {
+  createTeam: async (teamRequest: { name: string; description?: string; logo_url?: string }) => {
     return makeAuthenticatedRequest('/admin/teams', {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify(teamRequest),
+    });
+  },
+
+  addMemberToTeam: async (teamId: string, memberRequest: { user_id: string }) => {
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(memberRequest),
     });
   },
 
@@ -132,5 +143,19 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
     });
+  },
+
+  removeMemberFromTeam: async (teamId: string, userId: string) => {
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getTeamMembers: async (teamId: string) => {
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}/members`);
+  },
+
+  getUserTeams: async (userId: string) => {
+    return makeAuthenticatedRequest(`/admin/users/${userId}/teams`);
   },
 };
