@@ -4,12 +4,14 @@ import supabase from "../modules/supabaseClient";
 import { getClosestColorName } from "../utils/colors";
 import ProfileForm from "../components/ProfileForm";
 import { apiClient, ApiError } from "../modules/apiClient";
-import { AuthUser, UserProfile } from "../types/api";
+import { AuthUser, UserProfile, Team, ListTeamsResponse } from "../types/api";
 
 export default function Home() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamsLoading, setTeamsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchUserAndProfile() {
@@ -94,6 +96,15 @@ export default function Home() {
           const response = await apiClient.syncProfile();
           console.log("✅ Profile sync successful:", response);
           setProfile(response.profile);
+          
+          // Fetch teams if profile is complete
+          const profileComplete = response.profile.full_name && 
+                                  response.profile.avatar_url && 
+                                  response.profile.favorite_color;
+          
+          if (profileComplete) {
+            await fetchTeams();
+          }
         } catch (error) {
           console.error("❌ Profile sync failed:", error);
         }
@@ -102,6 +113,7 @@ export default function Home() {
         console.log("🚪 User signed out");
         setUser(null);
         setProfile(null);
+        setTeams([]);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session) {
         console.log("🔄 Token refreshed, updating user");
@@ -116,14 +128,37 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function refreshProfile() {
+    const refreshProfile = async () => {
+    console.log("🔄 Refreshing profile...");
     try {
       const response = await apiClient.syncProfile();
+      console.log("🔍 Sync response:", response);
+      console.log("🔍 Profile from response:", response.profile);
       setProfile(response.profile);
+      
+      // Fetch teams after profile is refreshed
+      await fetchTeams();
     } catch (error) {
-      console.error("Profile refresh error:", error);
+      console.error("❌ Error refreshing profile:", error);
     }
-  }
+  };
+
+  const fetchTeams = async () => {
+    if (!user || !profile) return;
+    
+    setTeamsLoading(true);
+    try {
+      console.log("🏢 Fetching user teams...");
+      const response: ListTeamsResponse = await apiClient.getTeams();
+      setTeams(response.teams || []);
+      console.log(`✅ Loaded ${response.teams?.length || 0} teams`);
+    } catch (error) {
+      console.error("❌ Error fetching teams:", error);
+      setTeams([]);
+    } finally {
+      setTeamsLoading(false);
+    }
+  };
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({ provider: "google" });
@@ -165,24 +200,134 @@ export default function Home() {
         >
           Sign in with Google
         </button>
-      ) : (!profile ||
-        !profile.full_name || profile.full_name === "" ||
-        !profile.avatar_url || profile.avatar_url === "" ||
-        !profile.favorite_color || profile.favorite_color === ""
-      ) ? (
+      ) : (() => {
+        // Debug profile completion check
+        console.log("🔍 Profile completion check:", {
+          profile_exists: !!profile,
+          full_name: profile?.full_name,
+          avatar_url: profile?.avatar_url,
+          favorite_color: profile?.favorite_color,
+          full_name_valid: !!(profile?.full_name && profile.full_name !== ""),
+          avatar_url_valid: !!(profile?.avatar_url && profile.avatar_url !== ""),
+          favorite_color_valid: !!(profile?.favorite_color && profile.favorite_color !== ""),
+        });
+        
+        const isProfileIncomplete = !profile ||
+          !profile.full_name || profile.full_name === "" ||
+          !profile.avatar_url || profile.avatar_url === "" ||
+          !profile.favorite_color || profile.favorite_color === "";
+          
+        console.log("🔍 Profile incomplete:", isProfileIncomplete);
+        return isProfileIncomplete;
+      })() ? (
         <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
       ) : (
         profile ? (
-          <div style={{ textAlign: "center", marginTop: 32 }}>
-            <img
-              src={profile.avatar_url || "/default-avatar.png"}
-              alt="Avatar"
-              style={{ width: 96, height: 96, borderRadius: "9999px", boxShadow: "var(--shadow-md)", marginBottom: 16 }}
-            />
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 600 }}>{profile.full_name || "Unnamed User"}</h2>
-            <p style={{ color: profile.favorite_color || "#A0D2EB", fontWeight: 600 }}>
-              Favorite Color: {getClosestColorName(profile.favorite_color || "#A0D2EB")}
-            </p>
+          <div style={{ textAlign: "center", width: "100%", maxWidth: "800px", padding: "0 20px" }}>
+            {/* User Profile Header */}
+            <div style={{ marginBottom: 48 }}>
+              <img
+                src={profile.avatar_url || "/default-avatar.png"}
+                alt="Avatar"
+                style={{ width: 96, height: 96, borderRadius: "9999px", boxShadow: "var(--shadow-md)", marginBottom: 16 }}
+              />
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: 8 }}>{profile.full_name || "Unnamed User"}</h2>
+              <p style={{ color: profile.favorite_color || "#A0D2EB", fontWeight: 600, marginBottom: 4 }}>
+                Favorite Color: {getClosestColorName(profile.favorite_color || "#A0D2EB")}
+              </p>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                Role: {profile.role === 'admin' ? '👑 Admin' : '👤 User'}
+              </p>
+              {profile.role === 'admin' && (
+                <a 
+                  href="/admin" 
+                  style={{ 
+                    display: "inline-block", 
+                    marginTop: 12, 
+                    padding: "8px 16px", 
+                    background: "var(--primary)", 
+                    color: "#212529", 
+                    textDecoration: "none", 
+                    borderRadius: "6px",
+                    fontSize: "0.9rem",
+                    fontWeight: 600
+                  }}
+                >
+                  Admin Panel
+                </a>
+              )}
+            </div>
+
+            {/* Teams Section */}
+            <div style={{ textAlign: "left" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>My Teams</h3>
+                <button 
+                  onClick={fetchTeams}
+                  disabled={teamsLoading}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-primary)",
+                    padding: "6px 12px",
+                    borderRadius: "4px",
+                    fontSize: "0.8rem",
+                    cursor: teamsLoading ? "not-allowed" : "pointer",
+                    opacity: teamsLoading ? 0.6 : 1
+                  }}
+                >
+                  {teamsLoading ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
+
+              {teamsLoading ? (
+                <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)" }}>
+                  Loading teams...
+                </div>
+              ) : teams.length === 0 ? (
+                <div style={{ 
+                  padding: "40px", 
+                  textAlign: "center", 
+                  border: "2px dashed var(--border)", 
+                  borderRadius: "8px",
+                  background: "var(--surface)"
+                }}>
+                  <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, color: "var(--text-secondary)" }}>
+                    Welcome to the Lobby!
+                  </h4>
+                  <p style={{ color: "var(--text-secondary)", margin: 0 }}>
+                    You haven't been assigned to any teams yet. Contact an admin to get started.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "16px" }}>
+                  {teams.map((team) => (
+                    <div 
+                      key={team.id}
+                      style={{ 
+                        padding: "20px", 
+                        border: "1px solid var(--border)", 
+                        borderRadius: "8px",
+                        background: "var(--surface)",
+                        boxShadow: "var(--shadow-sm)"
+                      }}
+                    >
+                      <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, margin: 0 }}>
+                        {team.name}
+                      </h4>
+                      {team.description && (
+                        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: 8 }}>
+                          {team.description}
+                        </p>
+                      )}
+                      <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: 0 }}>
+                        Created: {new Date(team.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : null
       )}

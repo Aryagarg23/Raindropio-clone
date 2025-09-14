@@ -106,10 +106,31 @@ export const apiClient = {
     return makeAuthenticatedFormRequest('/users/profile', formData);
   },
 
-  // Future endpoints can be added here
-  // getTeams: async () => makeAuthenticatedRequest('/teams'),
-  // createTeam: async (name: string) => makeAuthenticatedRequest('/admin/teams', {
-  //   method: 'POST',
-  //   body: JSON.stringify({ name }),
-  // }),
+  // Team operations
+  getTeams: async () => {
+    return makeAuthenticatedRequest('/teams');
+  },
+
+  // Admin operations
+  listUsers: async () => {
+    return makeAuthenticatedRequest('/admin/users');
+  },
+
+  listAllTeams: async () => {
+    return makeAuthenticatedRequest('/admin/teams');
+  },
+
+  createTeam: async (name: string, description?: string) => {
+    return makeAuthenticatedRequest('/admin/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    });
+  },
+
+  addTeamMember: async (teamId: string, userId: string) => {
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
 };

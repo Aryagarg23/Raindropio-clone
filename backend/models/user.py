@@ -8,6 +8,7 @@ class UserProfile(BaseModel):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     favorite_color: Optional[str] = None
+    role: str = "user"  # Add role field
     created_at: Optional[datetime] = None
 
 class SyncResponse(BaseModel):

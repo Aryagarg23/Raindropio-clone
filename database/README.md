@@ -7,13 +7,21 @@ This folder documents the Supabase setup for Raindropio-clone.
 - See `phase1.md` for keys and URLs.
 - See `PROJECT_PLAN.md` for schema, migrations, and RLS policies.
 
-No local database files are stored here; use Supabase dashboard for migrations and storage.
+## Migration Files
+
+- `001_create_users_profile.sql` - Initial profiles table with RLS policies
+- `002_fix_service_role_policies.sql` - Service role access policies  
+- `003_create_teams_memberships.sql` - Teams and team memberships tables with RLS
+- `004_promote_admin_user.sql` - Script to promote users to admin role
 
 ## Setup Instructions
 
-1. **Create Users Table**
-	- Run the SQL in `schema.sql` via Supabase SQL editor or CLI.
-	- This creates the `users` table, trigger for syncing from `auth.users`, and RLS policies.
+1. **Run Migrations in Order**
+	- Run each SQL file in Supabase SQL Editor in numerical order:
+	- `001_create_users_profile.sql` - Creates profiles table and auth trigger
+	- `002_fix_service_role_policies.sql` - Adds service role policies
+	- `003_create_teams_memberships.sql` - Creates teams and memberships tables
+	- `004_promote_admin_user.sql` - Promotes your user to admin (edit email first)
 
 2. **Enable Storage Bucket**
 	- Create a bucket named `nis` in Supabase Storage.

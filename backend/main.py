@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import users
+from api.routers import users, teams, admin
 
 app = FastAPI(title="Raindropio Clone API", version="1.0.0")
 
@@ -15,6 +15,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(users.router)
+app.include_router(teams.router)
+app.include_router(admin.router)
 
 @app.get("/health")
 def health():
