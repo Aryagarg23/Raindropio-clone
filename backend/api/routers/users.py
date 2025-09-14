@@ -118,9 +118,24 @@ async def update_profile(
         
         # Handle avatar upload if provided
         if avatar:
-            print("⚠️ Avatar upload temporarily disabled for debugging")
-            # For now, skip avatar upload to test basic profile update
-            # We'll implement this after fixing the storage bucket setup
+            print("🖼️ Uploading avatar to Supabase Storage...")
+            try:
+                contents = await avatar.read()
+                # Use a unique filename per user
+                filename = f"avatars/{user_id}_{avatar.filename}"
+                # Upload to Supabase Storage (public bucket 'avatars')
+                upload_response = supabase_service.storage.from_("avatars").upload(filename, contents)
+                if hasattr(upload_response, 'error') and upload_response.error:
+                    print(f"❌ Avatar upload error: {upload_response.error}")
+                else:
+                    print(f"✅ Avatar uploaded: {filename}")
+                    # Get public URL
+                    public_url = supabase_service.storage.from_("avatars").get_public_url(filename)
+                    avatar_url = public_url if public_url else avatar_url
+            except Exception as avatar_error:
+                print(f"❌ Avatar upload failed: {avatar_error}")
+                # Fallback to previous avatar_url
+                pass
         
         # Update profile
         update_data = {

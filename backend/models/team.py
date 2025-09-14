@@ -22,9 +22,18 @@ class CreateTeamRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Team description")
     logo_url: Optional[str] = Field(None, max_length=500, description="Team logo URL")
 
+class UpdateTeamRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=80, description="New team name")
+    description: Optional[str] = Field(None, max_length=500, description="New team description")
+    logo_url: Optional[str] = Field(None, max_length=500, description="New team logo URL")
+
 class CreateTeamResponse(BaseModel):
     team: Team
     message: str = "Team created successfully"
+
+class UpdateTeamResponse(BaseModel):
+    team: Team
+    message: str = "Team updated successfully"
 
 class AddMemberRequest(BaseModel):
     user_id: str = Field(..., description="User ID to add to team")

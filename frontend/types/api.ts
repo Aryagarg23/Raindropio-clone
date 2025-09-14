@@ -64,7 +64,18 @@ export interface CreateTeamRequest {
   logo_url?: string;
 }
 
+export interface UpdateTeamRequest {
+  name?: string;
+  description?: string;
+  logo_url?: string;
+}
+
 export interface CreateTeamResponse {
+  team: Team;
+  message: string;
+}
+
+export interface UpdateTeamResponse {
   team: Team;
   message: string;
 }

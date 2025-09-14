@@ -5,9 +5,10 @@ interface AdminTeamCardProps {
   team: Team;
   selected?: boolean;
   onSelect?: (team: Team) => void;
+  onModify?: (team: Team) => void;
 }
 
-export default function AdminTeamCard({ team, selected, onSelect }: AdminTeamCardProps) {
+export default function AdminTeamCard({ team, selected, onSelect, onModify }: AdminTeamCardProps) {
   return (
     <div
       className={`admin-team-card${selected ? " selected" : ""}`}
@@ -43,6 +44,23 @@ export default function AdminTeamCard({ team, selected, onSelect }: AdminTeamCar
             <div style={{ fontSize: "0.95rem", color: "var(--text-secondary)", marginTop: 4 }}>{team.description}</div>
           )}
         </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onModify?.(team);
+          }}
+          style={{
+            background: "var(--surface)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--rounded-md)",
+            padding: "8px 16px",
+            cursor: "pointer",
+            transition: "background var(--transition-speed) var(--transition-ease)",
+          }}
+        >
+          Modify
+        </button>
       </div>
     </div>
   );

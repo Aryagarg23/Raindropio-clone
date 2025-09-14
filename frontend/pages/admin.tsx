@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import supabase from '../modules/supabaseClient';
 import { apiClient } from '../modules/apiClient';
-import { UserProfile, Team, CreateTeamRequest } from '../types/api';
+import { UserProfile, Team, CreateTeamRequest, UpdateTeamRequest } from '../types/api';
 import AdminPanelLayout from '../components/admin/AdminPanelLayout';
 import AdminTeamCard from '../components/admin/AdminTeamCard';
 import AdminUserCard from '../components/admin/AdminUserCard';
@@ -22,7 +22,9 @@ export default function AdminPanel() {
   
   // Teams tab states
   const [showCreateTeam, setShowCreateTeam] = useState(false);
-  const [teamForm, setTeamForm] = useState<CreateTeamRequest>({
+  const [showEditTeam, setShowEditTeam] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [teamForm, setTeamForm] = useState<CreateTeamRequest | UpdateTeamRequest>({
     name: '',
     description: '',
     logo_url: ''
@@ -84,7 +86,7 @@ export default function AdminPanel() {
       return;
     }
     try {
-      const response = await apiClient.createTeam(teamForm);
+      const response = await apiClient.createTeam(teamForm as CreateTeamRequest);
       const newTeam = response.team;
       if (newTeamMembers.length > 0) {
         for (const userId of newTeamMembers) {
@@ -99,6 +101,32 @@ export default function AdminPanel() {
     } catch (error: any) {
       setError(error.message || 'Failed to create team');
     }
+  };
+
+  const handleUpdateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeam) return;
+
+    try {
+      const response = await apiClient.updateTeam(editingTeam.id, teamForm as UpdateTeamRequest);
+      const updatedTeam = response.team;
+      setTeams(teams.map(t => t.id === updatedTeam.id ? updatedTeam : t));
+      setShowEditTeam(false);
+      setEditingTeam(null);
+      setError(null);
+    } catch (error: any) {
+      setError(error.message || 'Failed to update team');
+    }
+  };
+
+  const handleOpenEditModal = (team: Team) => {
+    setEditingTeam(team);
+    setTeamForm({
+      name: team.name,
+      description: team.description || '',
+      logo_url: team.logo_url || ''
+    });
+    setShowEditTeam(true);
   };
 
   const handleAddMember = async (teamId: string, userId: string) => {
@@ -259,6 +287,7 @@ export default function AdminPanel() {
                   team={team}
                   selected={selectedTeam?.id === team.id}
                   onSelect={() => handleTeamSelection(team)}
+                  onModify={() => handleOpenEditModal(team)}
                 />
               ))}
               {teams.length === 0 && (
@@ -500,6 +529,75 @@ export default function AdminPanel() {
               }}
               error={error}
               loading={loading}
+              mode="create"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Edit Team Modal */}
+      {showEditTeam && editingTeam && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'var(--background)',
+            borderRadius: 'var(--rounded-lg)',
+            padding: '32px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            boxShadow: 'var(--shadow-xl)',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Edit Team
+              </h2>
+              <button
+                onClick={() => {
+                  setShowEditTeam(false);
+                  setEditingTeam(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: 'var(--rounded-md)',
+                  transition: 'color var(--transition-speed) var(--transition-ease)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <AdminTeamForm
+              teamForm={teamForm}
+              setTeamForm={setTeamForm}
+              users={users}
+              selectedMembers={[]}
+              setSelectedMembers={() => {}}
+              onSubmit={handleUpdateTeam}
+              onCancel={() => {
+                setShowEditTeam(false);
+                setEditingTeam(null);
+              }}
+              error={error}
+              loading={loading}
+              mode="edit"
             />
           </div>
         </div>

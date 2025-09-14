@@ -1,4 +1,5 @@
 import supabase from './supabaseClient';
+import { UpdateTeamRequest } from '../types/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -127,6 +128,13 @@ export const apiClient = {
   createTeam: async (teamRequest: { name: string; description?: string; logo_url?: string }) => {
     return makeAuthenticatedRequest('/admin/teams', {
       method: 'POST',
+      body: JSON.stringify(teamRequest),
+    });
+  },
+
+  updateTeam: async (teamId: string, teamRequest: UpdateTeamRequest) => {
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}`, {
+      method: 'PUT',
       body: JSON.stringify(teamRequest),
     });
   },

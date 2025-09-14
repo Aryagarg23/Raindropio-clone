@@ -3,7 +3,8 @@ from typing import Dict, Any, List
 from api.deps import require_admin
 from models.user import UserProfile
 from models.team import (
-    Team, CreateTeamRequest, CreateTeamResponse, 
+    Team, CreateTeamRequest, CreateTeamResponse,
+    UpdateTeamRequest, UpdateTeamResponse,
     AddMemberRequest, AddMemberResponse, ListUsersResponse
 )
 from core.supabase_client import supabase_service
@@ -92,6 +93,48 @@ async def create_team(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating team"
+        )
+
+@router.put("/teams/{team_id}", response_model=UpdateTeamResponse)
+async def update_team(
+    team_id: str,
+    team_data: UpdateTeamRequest,
+    current_user: Dict[str, Any] = Depends(require_admin)
+):
+    """
+    Admin only: Update a team
+    """
+    user_id = current_user.get("id")
+    print(f"👑 Admin {user_id} updating team: {team_id}")
+    
+    try:
+        update_data = team_data.dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        result = supabase_service.table("teams").update(update_data).eq("id", team_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Team not found")
+        
+        team_record = result.data[0]
+        team = Team(
+            id=team_record["id"],
+            name=team_record["name"],
+            description=team_record.get("description"),
+            logo_url=team_record.get("logo_url"),
+            created_at=team_record["created_at"],
+            created_by=team_record.get("created_by")
+        )
+        
+        print(f"✅ Team updated successfully: {team.id}")
+        return UpdateTeamResponse(team=team)
+        
+    except Exception as e:
+        print(f"❌ Error updating team: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating team"
         )
 
 @router.post("/teams/{team_id}/members", response_model=AddMemberResponse)
