@@ -1,151 +1,133 @@
 
-import { useEffect, useState, ChangeEvent } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  }
-);
-
-const namedColors: { [hex: string]: string } = {
-  "#A0D2EB": "Light Blue",
-  "#E57373": "Light Coral",
-  "#C41230": "UC Red",
-  "#1A202C": "Dark Slate",
-  "#2D3748": "Light Slate",
-  "#F7FAFC": "Off-White",
-  "#A0AEC0": "Light Gray",
-  "#4A5568": "Gray",
-  "#F8F9FA": "Off-White",
-  "#FFFFFF": "Pure White",
-  "#212529": "Dark Gray",
-  "#6C757D": "Lighter Gray",
-  "#E9ECEF": "Light Gray"
-};
-
-function getClosestColorName(hex: string) {
-  // Simple snap: if exact match, return name; else return hex
-  return namedColors[hex.toUpperCase()] || hex;
-}
+import { useEffect, useState } from "react";
+import supabase from "../modules/supabaseClient";
+import { getClosestColorName } from "../utils/colors";
+import ProfileForm from "../components/ProfileForm";
+import { apiClient, ApiError } from "../modules/apiClient";
+import { AuthUser, UserProfile } from "../types/api";
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [name, setName] = useState("");
-  const [avatar, setAvatar] = useState<File | null>(null);
-  const [color, setColor] = useState("#A0D2EB");
-  const [submitting, setSubmitting] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchUserAndProfile() {
+      console.log("🔄 Starting fetchUserAndProfile...");
       setLoading(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      const { data } = await supabase.auth.getUser();
-      setUser(data?.user);
-      if (data?.user) {
-        // Wait for Supabase trigger to create profile row
-        let tries = 0;
-        let profileRow = null;
-        while (tries < 10) {
-          const { data: existing } = await supabase
-            .from("profiles")
-            .select("user_id")
-            .eq("user_id", data.user.id)
-            .single();
-          if (existing) {
-            profileRow = existing;
-            break;
+      
+      try {
+        // Check if we have access_token in URL hash (OAuth redirect)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        
+        if (accessToken) {
+          console.log("🔑 Found access token in URL, setting session...");
+          
+          // Manually set the session with the tokens from URL
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+          
+          if (sessionError) {
+            console.error("❌ Failed to set session:", sessionError.message);
+          } else {
+            console.log("✅ Session set successfully");
+            // Clear the URL hash
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
-          await new Promise(res => setTimeout(res, 500));
-          tries++;
         }
-        if (!profileRow) {
-          alert("Profile row was not created by Supabase trigger. Please try signing in again or check Supabase configuration.");
+        
+        // Get the current session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log("📱 Session data:", sessionData?.session ? "Session found" : "No session", sessionError?.message || "");
+        
+        const { data } = await supabase.auth.getUser();
+        console.log("👤 User from Supabase:", data?.user?.id ? "Found user" : "No user");
+        setUser(data?.user as AuthUser);
+        
+        if (data?.user) {
+          try {
+            console.log("🚀 Calling backend API to sync profile...");
+            const response = await apiClient.syncProfile();
+            console.log("✅ Profile sync successful:", response);
+            setProfile(response.profile);
+          } catch (error) {
+            console.error("❌ Profile sync failed:", error);
+            if (error instanceof ApiError) {
+              console.error("Profile sync error:", error.message, error.code);
+              if (error.status === 401) {
+                setUser(null);
+              }
+            } else {
+              console.error("Unexpected error:", error);
+            }
+          }
         } else {
-          await fetchProfile(data.user.id);
+          console.log("⚠️ No user found, skipping profile sync");
         }
+      } catch (error) {
+        console.error("❌ Auth initialization failed:", error);
       }
+      
       setLoading(false);
     }
+
+    // Listen for auth state changes (handles OAuth redirects)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔄 Auth state change:", event, session ? "Session exists" : "No session");
+      
+      if (event === 'SIGNED_IN' && session) {
+        console.log("✅ User signed in, fetching profile...");
+        console.log("🔍 Session details:", {
+          expires_at: session.expires_at,
+          current_time: Math.floor(Date.now() / 1000),
+          time_diff: session.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown'
+        });
+        
+        setUser(session.user as AuthUser);
+        
+        try {
+          console.log("🚀 Calling backend API to sync profile...");
+          const response = await apiClient.syncProfile();
+          console.log("✅ Profile sync successful:", response);
+          setProfile(response.profile);
+        } catch (error) {
+          console.error("❌ Profile sync failed:", error);
+        }
+        setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        console.log("🚪 User signed out");
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log("🔄 Token refreshed, updating user");
+        setUser(session.user as AuthUser);
+      }
+    });
+
+    // Initial load
     fetchUserAndProfile();
+
+    // Cleanup subscription
+    return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchProfile(userId: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, avatar_url, favorite_color")
-      .eq("user_id", userId)
-      .single();
-    setProfile(data);
-    if (data) {
-      setName(data.full_name || "");
-      setColor(data.favorite_color || "#A0D2EB");
+  async function refreshProfile() {
+    try {
+      const response = await apiClient.syncProfile();
+      setProfile(response.profile);
+    } catch (error) {
+      console.error("Profile refresh error:", error);
     }
-    if (error) {
-      console.log("Profile fetch error:", error);
-    }
-    console.log("Fetched profile:", data);
   }
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({ provider: "google" });
   };
-
-  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setAvatar(e.target.files[0]);
-    }
-  };
-
-  async function handleProfileSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    let avatarUrl = profile?.avatar_url || "";
-    // Only update profile fields (name, avatar, color)
-    if (avatar && user?.id) {
-      const fileExt = avatar.name.split(".").pop();
-      const safeExt = fileExt ? fileExt.replace(/[^a-zA-Z0-9]/g, "") : "png";
-      const fileName = `${user.id}.${safeExt}`;
-      const filePath = `avatars/${fileName}`;
-      try {
-        const { data, error } = await supabase.storage
-          .from("nis")
-          .upload(filePath, avatar, { upsert: true });
-        if (error) {
-          alert("Avatar upload failed: " + error.message);
-        } else {
-          const { data: urlData } = supabase.storage
-            .from("nis")
-            .getPublicUrl(filePath);
-          avatarUrl = urlData?.publicUrl || "";
-        }
-      } catch (err: any) {
-        alert("Avatar upload error: " + err?.message);
-      }
-    }
-    // Update profile fields
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ full_name: name, avatar_url: avatarUrl, favorite_color: color })
-      .eq("user_id", user.id);
-    if (updateError) {
-      alert("Error updating profile: " + updateError.message);
-      console.error("Supabase update error:", updateError);
-    } else {
-      console.log("Profile updated successfully");
-    }
-    setSubmitting(false);
-    fetchProfile(user.id);
-  }
 
   return (
     <main
@@ -166,116 +148,29 @@ export default function Home() {
       {loading ? (
         <div>Loading...</div>
       ) : !user ? (
-        <>
-          <div style={{ marginBottom: 16, color: "#E57373" }}>
-            {/* Debug output for user state */}
-            <pre>{JSON.stringify(user, null, 2)}</pre>
-          </div>
-          <button
-            onClick={signInWithGoogle}
-            style={{
-              background: "var(--primary)",
-              color: "#212529",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              fontSize: "1.2em",
-              fontWeight: 600,
-              boxShadow: "var(--shadow-md)",
-              border: "none",
-              cursor: "pointer",
-              transition: "background 200ms ease-out, box-shadow 200ms ease-out"
-            }}
-          >
-            Sign in with Google
-          </button>
-        </>
+        <button
+          onClick={signInWithGoogle}
+          style={{
+            background: "var(--primary)",
+            color: "#212529",
+            padding: "12px 24px",
+            borderRadius: "8px",
+            fontSize: "1.2em",
+            fontWeight: 600,
+            boxShadow: "var(--shadow-md)",
+            border: "none",
+            cursor: "pointer",
+            transition: "background 200ms ease-out, box-shadow 200ms ease-out"
+          }}
+        >
+          Sign in with Google
+        </button>
       ) : (!profile ||
         !profile.full_name || profile.full_name === "" ||
         !profile.avatar_url || profile.avatar_url === "" ||
         !profile.favorite_color || profile.favorite_color === ""
       ) ? (
-        <>
-          <div style={{ marginBottom: 16, color: "#E57373" }}>
-            {/* Debug output for user and profile state */}
-            <div>User:</div>
-            <pre>{JSON.stringify(user, null, 2)}</pre>
-            <div>Profile:</div>
-            <pre>{JSON.stringify(profile, null, 2)}</pre>
-          </div>
-          <form
-            onSubmit={handleProfileSubmit}
-            style={{
-              background: "var(--surface)",
-              borderRadius: "16px",
-              boxShadow: "var(--shadow-md)",
-              padding: "32px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "24px",
-              minWidth: "320px"
-            }}
-          >
-            <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>Complete Your Profile</h2>
-            <label style={{ fontWeight: 600 }}>
-              Name
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                style={{
-                  background: "var(--surface)",
-                  color: "var(--text-primary)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  padding: "8px",
-                  marginTop: "8px",
-                  fontSize: "1rem"
-                }}
-              />
-            </label>
-            <label style={{ fontWeight: 600 }}>
-              Avatar (PNG/JPG)
-              <input
-                type="file"
-                accept="image/png, image/jpeg"
-                onChange={handleAvatarChange}
-                required={!profile || !profile.avatar_url || profile.avatar_url === ""}
-                style={{ marginTop: "8px" }}
-              />
-            </label>
-            <label style={{ fontWeight: 600 }}>
-              Favorite Color
-              <input
-                type="color"
-                value={color}
-                onChange={e => setColor(e.target.value)}
-                style={{ marginLeft: "8px", verticalAlign: "middle" }}
-              />
-              <span style={{ marginLeft: "16px", fontWeight: 400 }}>
-                {getClosestColorName(color)}
-              </span>
-            </label>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                background: "var(--primary)",
-                color: "#212529",
-                padding: "12px 24px",
-                borderRadius: "8px",
-                fontSize: "1.1em",
-                fontWeight: 600,
-                boxShadow: "var(--shadow-md)",
-                border: "none",
-                cursor: "pointer",
-                transition: "background 200ms ease-out, box-shadow 200ms ease-out"
-              }}
-            >
-              {submitting ? "Saving..." : "Save Profile"}
-            </button>
-          </form>
-        </>
+        <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
       ) : (
         profile ? (
           <div style={{ textAlign: "center", marginTop: 32 }}>

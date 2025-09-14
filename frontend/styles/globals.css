@@ -1,0 +1,40 @@
+/* Dark Mode Variables (Default) */
+:root {
+  --primary: #A0D2EB;
+  --secondary: #E57373;
+  --accent: #C41230;
+  --background: #1A202C;
+  --surface: #2D3748;
+  --text-primary: #F7FAFC;
+  --text-secondary: #A0AEC0;
+  --border: #4A5568;
+
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 16px;
+  --rounded-full: 9999px;
+
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  
+  --transition-speed: 200ms;
+  --transition-ease: ease-out;
+}
+
+/* Light Mode Variable Overrides */
+[data-theme='light'] {
+  --background: #F8F9FA;
+  --surface: #FFFFFF;
+  --text-primary: #212529;
+  --text-secondary: #6C757D;
+  --border: #E9ECEF;
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Nunito Sans', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}

@@ -2,3 +2,7 @@ fastapi
 uvicorn
 httpx
 python-dotenv
+supabase
+pyjwt
+python-multipart
+requests
