@@ -121,17 +121,19 @@ async def update_profile(
             print("🖼️ Uploading avatar to Supabase Storage...")
             try:
                 contents = await avatar.read()
-                # Use a unique filename per user
+                # Use a unique filename per user in the 'avatars/' subfolder of 'nis' bucket
                 filename = f"avatars/{user_id}_{avatar.filename}"
-                # Upload to Supabase Storage (public bucket 'avatars')
-                upload_response = supabase_service.storage.from_("avatars").upload(filename, contents)
+                # Upload to Supabase Storage (bucket 'nis', subfolder 'avatars')
+                upload_response = supabase_service.storage.from_("nis").upload(filename, contents)
                 if hasattr(upload_response, 'error') and upload_response.error:
                     print(f"❌ Avatar upload error: {upload_response.error}")
                 else:
                     print(f"✅ Avatar uploaded: {filename}")
                     # Get public URL
-                    public_url = supabase_service.storage.from_("avatars").get_public_url(filename)
-                    avatar_url = public_url if public_url else avatar_url
+                    public_url = supabase_service.storage.from_("nis").get_public_url(filename)
+                    # Remove trailing '?' if present
+                    if public_url:
+                        avatar_url = public_url.rstrip('?')
             except Exception as avatar_error:
                 print(f"❌ Avatar upload failed: {avatar_error}")
                 # Fallback to previous avatar_url

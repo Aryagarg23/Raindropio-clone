@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from typing import Dict, Any, List
 from api.deps import require_admin
 from models.user import UserProfile
@@ -49,22 +49,35 @@ async def list_all_users(current_user: Dict[str, Any] = Depends(require_admin)):
 
 @router.post("/teams", response_model=CreateTeamResponse)
 async def create_team(
-    team_data: CreateTeamRequest,
+    name: str = Form(...),
+    description: str = Form(''),
+    logo: UploadFile = File(None),
     current_user: Dict[str, Any] = Depends(require_admin)
 ):
     """
     Admin only: Create a new team
     """
     user_id = current_user.get("id")
-    print(f"👑 Admin {user_id} creating team: {team_data.name}")
+    print(f"👑 Admin {user_id} creating team: {name}")
     
     try:
-        # Insert new team
-        print(f"🔄 Creating team with data: {team_data}")
+        logo_url = ''
+        if logo:
+            print("🖼️ Uploading team logo to Supabase Storage...")
+            contents = await logo.read()
+            filename = f"avatars/team_{name}_{logo.filename}"
+            upload_response = supabase_service.storage.from_("nis").upload(filename, contents)
+            if hasattr(upload_response, 'error') and upload_response.error:
+                print(f"❌ Logo upload error: {upload_response.error}")
+            else:
+                public_url = supabase_service.storage.from_("nis").get_public_url(filename)
+                if public_url:
+                    logo_url = public_url.rstrip('?')
+        print(f"🔄 Creating team with name: {name}, description: {description}, logo_url: {logo_url}")
         result = supabase_service.table("teams").insert({
-            "name": team_data.name,
-            "description": team_data.description,
-            "logo_url": team_data.logo_url,
+            "name": name,
+            "description": description,
+            "logo_url": logo_url,
             "created_by": user_id
         }).execute()
         
@@ -98,7 +111,9 @@ async def create_team(
 @router.put("/teams/{team_id}", response_model=UpdateTeamResponse)
 async def update_team(
     team_id: str,
-    team_data: UpdateTeamRequest,
+    name: str = Form(None),
+    description: str = Form(None),
+    logo: UploadFile = File(None),
     current_user: Dict[str, Any] = Depends(require_admin)
 ):
     """
@@ -108,15 +123,33 @@ async def update_team(
     print(f"👑 Admin {user_id} updating team: {team_id}")
     
     try:
-        update_data = team_data.dict(exclude_unset=True)
+        print(f"🔄 Update request: name={name}, description={description}, logo={logo is not None}")
+        
+        update_data = {}
+        if name is not None and name.strip():
+            update_data['name'] = name.strip()
+        if description is not None:
+            update_data['description'] = description
+        if logo:
+            print("🖼️ Uploading updated team logo to Supabase Storage...")
+            contents = await logo.read()
+            filename = f"avatars/team_{name or 'unknown'}_{logo.filename}"
+            upload_response = supabase_service.storage.from_("nis").upload(filename, contents)
+            if hasattr(upload_response, 'error') and upload_response.error:
+                print(f"❌ Logo upload error: {upload_response.error}")
+            else:
+                public_url = supabase_service.storage.from_("nis").get_public_url(filename)
+                if public_url:
+                    update_data['logo_url'] = public_url.rstrip('?')
+        
+        print(f"📝 Update data: {update_data}")
+        
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
-
+            
         result = supabase_service.table("teams").update(update_data).eq("id", team_id).execute()
-        
         if not result.data:
             raise HTTPException(status_code=404, detail="Team not found")
-        
         team_record = result.data[0]
         team = Team(
             id=team_record["id"],

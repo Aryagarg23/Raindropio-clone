@@ -53,7 +53,7 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
   return response.json();
 }
 
-async function makeAuthenticatedFormRequest(endpoint: string, formData: FormData) {
+async function makeAuthenticatedFormRequest(endpoint: string, formData: FormData, method: string = 'PUT') {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.access_token) {
@@ -61,7 +61,7 @@ async function makeAuthenticatedFormRequest(endpoint: string, formData: FormData
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'PUT',
+    method: method,
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
       // Don't set Content-Type for FormData, let browser set it with boundary
@@ -125,18 +125,33 @@ export const apiClient = {
     return makeAuthenticatedRequest('/admin/teams');
   },
 
-  createTeam: async (teamRequest: { name: string; description?: string; logo_url?: string }) => {
-    return makeAuthenticatedRequest('/admin/teams', {
-      method: 'POST',
-      body: JSON.stringify(teamRequest),
-    });
+  createTeam: async (teamRequest: any) => {
+    // If FormData, use multipart/form-data
+    if (teamRequest instanceof FormData) {
+      return makeAuthenticatedRequest('/admin/teams', {
+        method: 'POST',
+        body: teamRequest,
+      });
+    } else {
+      return makeAuthenticatedRequest('/admin/teams', {
+        method: 'POST',
+        body: JSON.stringify(teamRequest),
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   },
 
-  updateTeam: async (teamId: string, teamRequest: UpdateTeamRequest) => {
-    return makeAuthenticatedRequest(`/admin/teams/${teamId}`, {
-      method: 'PUT',
-      body: JSON.stringify(teamRequest),
-    });
+  updateTeam: async (teamId: string, teamRequest: any) => {
+    if (teamRequest instanceof FormData) {
+      // Use makeAuthenticatedFormRequest for FormData
+      return makeAuthenticatedFormRequest(`/admin/teams/${teamId}`, teamRequest, 'PUT');
+    } else {
+      return makeAuthenticatedRequest(`/admin/teams/${teamId}`, {
+        method: 'PUT',
+        body: JSON.stringify(teamRequest),
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   },
 
   addMemberToTeam: async (teamId: string, memberRequest: { user_id: string }) => {

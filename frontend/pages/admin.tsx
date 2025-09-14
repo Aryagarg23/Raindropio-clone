@@ -79,14 +79,26 @@ export default function AdminPanel() {
     }
   };
 
+  // ...existing code...
+  // Store logo file for create/edit
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamForm.name.trim()) {
+    const trimmedName = (teamForm.name ?? '').trim();
+    if (!trimmedName) {
       setError('Team name is required');
       return;
     }
+    // Prepare FormData for file upload
+    const formData = new FormData();
+    formData.append('name', trimmedName);
+    formData.append('description', teamForm.description ?? '');
+    if (logoFile) {
+      formData.append('logo', logoFile);
+    }
+    // logo_url is not sent directly; backend will set it from upload
     try {
-      const response = await apiClient.createTeam(teamForm as CreateTeamRequest);
+      const response = await apiClient.createTeam(formData);
       const newTeam = response.team;
       if (newTeamMembers.length > 0) {
         for (const userId of newTeamMembers) {
@@ -95,6 +107,7 @@ export default function AdminPanel() {
       }
       setTeams([...teams, newTeam]);
       setTeamForm({ name: '', description: '', logo_url: '' });
+      setLogoFile(null);
       setNewTeamMembers([]);
       setShowCreateTeam(false);
       setError(null);
@@ -106,13 +119,39 @@ export default function AdminPanel() {
   const handleUpdateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTeam) return;
-
+    const trimmedName = (teamForm.name ?? '').trim();
+    const currentName = editingTeam.name;
+    const currentDesc = editingTeam.description ?? '';
+    const newDesc = teamForm.description ?? '';
+    // Check if any field changed
+    const nameChanged = trimmedName !== currentName;
+    const descChanged = newDesc !== currentDesc;
+    const logoChanged = !!logoFile;
+    
+    console.log('Update check:', { nameChanged, descChanged, logoChanged, trimmedName, currentName, newDesc, currentDesc });
+    
+    if (!nameChanged && !descChanged && !logoChanged) {
+      setError('No changes to update');
+      return;
+    }
+    
+    // Always send current values, let backend decide what changed
+    const formData = new FormData();
+    formData.append('name', trimmedName);
+    formData.append('description', newDesc);
+    if (logoFile) {
+      formData.append('logo', logoFile);
+    }
+    
+    console.log('FormData contents:', Array.from(formData.entries()));
+    
     try {
-      const response = await apiClient.updateTeam(editingTeam.id, teamForm as UpdateTeamRequest);
+      const response = await apiClient.updateTeam(editingTeam.id, formData);
       const updatedTeam = response.team;
       setTeams(teams.map(t => t.id === updatedTeam.id ? updatedTeam : t));
       setShowEditTeam(false);
       setEditingTeam(null);
+      setLogoFile(null);
       setError(null);
     } catch (error: any) {
       setError(error.message || 'Failed to update team');
@@ -525,11 +564,14 @@ export default function AdminPanel() {
               onCancel={() => {
                 setTeamForm({ name: '', description: '', logo_url: '' });
                 setNewTeamMembers([]);
+                setLogoFile(null);
                 setShowCreateTeam(false);
               }}
               error={error}
               loading={loading}
               mode="create"
+              logoFile={logoFile}
+              setLogoFile={setLogoFile}
             />
           </div>
         </div>
@@ -594,10 +636,13 @@ export default function AdminPanel() {
               onCancel={() => {
                 setShowEditTeam(false);
                 setEditingTeam(null);
+                setLogoFile(null);
               }}
               error={error}
               loading={loading}
               mode="edit"
+              logoFile={logoFile}
+              setLogoFile={setLogoFile}
             />
           </div>
         </div>

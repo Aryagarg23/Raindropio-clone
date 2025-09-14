@@ -13,6 +13,8 @@ interface AdminTeamFormProps {
   error?: string | null;
   loading?: boolean;
   mode: 'create' | 'edit';
+  logoFile: File | null;
+  setLogoFile: (file: File | null) => void;
 }
 
 export default function AdminTeamForm({
@@ -25,7 +27,9 @@ export default function AdminTeamForm({
   onCancel,
   error,
   loading,
-  mode
+  mode,
+  logoFile,
+  setLogoFile
 }: AdminTeamFormProps) {
   const toggleMember = (userId: string) => {
     setSelectedMembers(
@@ -35,6 +39,11 @@ export default function AdminTeamForm({
     );
   };
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogoFile(e.target.files[0]);
+    }
+  };
   return (
     <form onSubmit={onSubmit} style={{ background: "var(--surface)", borderRadius: "var(--rounded-lg)", boxShadow: "var(--shadow-md)", padding: 32, marginBottom: 24, maxWidth: 480 }}>
       <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: 24 }}>
@@ -62,13 +71,12 @@ export default function AdminTeamForm({
         />
       </div>
       <div style={{ marginBottom: 16 }}>
-        <label style={{ display: "block", fontWeight: 500, marginBottom: 8, color: "var(--text-secondary)" }}>Logo URL</label>
+        <label style={{ display: "block", fontWeight: 500, marginBottom: 8, color: "var(--text-secondary)" }}>Team Logo (PNG/JPG, optional)</label>
         <input
-          type="url"
-          value={teamForm.logo_url}
-          onChange={(e) => setTeamForm({ ...teamForm, logo_url: e.target.value })}
-          style={{ width: "100%", padding: "12px", borderRadius: "var(--rounded-md)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", fontSize: "1rem", marginBottom: 8 }}
-          placeholder="https://example.com/logo.png"
+          type="file"
+          accept="image/png, image/jpeg"
+          onChange={handleLogoChange}
+          style={{ marginTop: "8px" }}
         />
       </div>
       {mode === 'create' && (
