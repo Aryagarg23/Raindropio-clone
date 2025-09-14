@@ -18,6 +18,10 @@ app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(admin.router)
 
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "API is running!"}
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
