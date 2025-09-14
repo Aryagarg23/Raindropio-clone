@@ -6,4 +6,5 @@ __pycache__/
 .DS_Store
 node_modules/
 .env.local
-phase1.mdbackend/venv/
+phase1.md
+backend/venv/
