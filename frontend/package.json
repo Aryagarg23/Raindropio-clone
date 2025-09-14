@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
+    "@fontsource/inter": "^5.0.0",
+    "@fontsource/nunito-sans": "^4.5.0",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
