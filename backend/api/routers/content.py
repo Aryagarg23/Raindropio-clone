@@ -158,6 +158,34 @@ async def extract_content(request: ContentExtractionRequest):
                     if meta_info['image']:
                         meta_info['image'] = urljoin(url, meta_info['image'])
             
+            # Extract favicon
+            favicon_url = ""
+            
+            # Try different favicon sources in order of preference
+            icon_link = soup.find('link', attrs={'rel': 'icon'})
+            if icon_link:
+                favicon_url = icon_link.get('href', '')
+            
+            if not favicon_url:
+                shortcut_icon = soup.find('link', attrs={'rel': 'shortcut icon'})
+                if shortcut_icon:
+                    favicon_url = shortcut_icon.get('href', '')
+            
+            if not favicon_url:
+                apple_touch_icon = soup.find('link', attrs={'rel': 'apple-touch-icon'})
+                if apple_touch_icon:
+                    favicon_url = apple_touch_icon.get('href', '')
+            
+            # Convert relative URLs to absolute
+            if favicon_url:
+                favicon_url = urljoin(url, favicon_url)
+            else:
+                # Fallback to standard favicon location
+                parsed_url = urlparse(url)
+                favicon_url = f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.ico"
+            
+            meta_info['favicon'] = favicon_url
+            
             # Extract site name
             site_name_el = soup.find('meta', attrs={'property': 'og:site_name'})
             if site_name_el:

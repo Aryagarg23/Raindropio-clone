@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import supabase from '../modules/supabaseClient';
+import { getApiBaseUrl } from '../modules/apiClient';
 import { 
   Collection, 
   Bookmark, 
@@ -616,23 +617,48 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   // Create bookmark with optimistic updates
   const createBookmark = async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
     if (!actualTeamId || !user) return;
-    
+
     try {
       // Find the collection for the optimistic update
-      const selectedCollection = collectionId 
+      const selectedCollection = collectionId
         ? collections.find(c => c.id === collectionId)
         : null;
-      
+
+      // Extract content and metadata from the URL
+      let extractedData = null;
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/content/extract`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url })
+        });
+
+        if (response.ok) {
+          extractedData = await response.json();
+        }
+      } catch (error) {
+        console.log('Content extraction failed, continuing without metadata:', error);
+      }
+
+      // Use extracted data or fallbacks
+      // Prioritize user-provided title over extracted title
+      const finalTitle = title || extractedData?.title || url;
+      const extractedDescription = extractedData?.description || null;
+      const extractedImage = extractedData?.meta_info?.image || null;
+      const extractedFavicon = extractedData?.meta_info?.favicon || null;
+
       // Create optimistic bookmark with full structure
       const optimisticBookmark: any = {
         id: `temp-${Date.now()}`, // Temporary ID
         team_id: actualTeamId,
         collection_id: collectionId || null,
         url,
-        title: title || url,
-        description: null,
-        favicon_url: null,
-        preview_image: null,
+        title: finalTitle,
+        description: extractedDescription,
+        favicon_url: extractedFavicon,
+        preview_image: extractedImage,
         tags: tags || [],
         created_by: user.id,
         created_at: new Date().toISOString(),
@@ -658,7 +684,10 @@ export function useTeamSite(teamId: string | string[] | undefined) {
           team_id: actualTeamId,
           collection_id: collectionId,
           url,
-          title,
+          title: finalTitle,
+          description: extractedDescription,
+          preview_image: extractedImage,
+          favicon_url: extractedFavicon,
           tags: tags || [],
           created_by: user.id
         })
