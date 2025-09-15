@@ -38,15 +38,20 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Auth check and initialization
   const checkAuth = async () => {
+    console.log('=== AUTH CHECK START ===', { teamId: actualTeamId });
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('Auth user check:', { user: user?.id, email: user?.email });
+      
       if (!user) {
+        console.log('No authenticated user, redirecting to home');
         router.push('/');
         return;
       }
       setUser(user);
       
       // Verify team membership
+      console.log('Checking team membership:', { teamId: actualTeamId, userId: user.id });
       const { data: membership, error: membershipError } = await supabase
         .from('team_memberships')
         .select('*')
@@ -54,20 +59,28 @@ export function useTeamSite(teamId: string | string[] | undefined) {
         .eq('user_id', user.id)
         .single();
       
+      console.log('Team membership result:', { membership, membershipError });
+      
       if (membershipError || !membership) {
+        console.error('Team membership denied:', { membershipError, membership });
         setError('You are not a member of this team');
         return;
       }
       
       // Get user profile
+      console.log('Loading user profile for:', user.id);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
       
+      console.log('Profile result:', { profileData, profileError });
+      
       if (profileData) {
         setProfile(profileData);
+      } else if (profileError) {
+        console.warn('Profile loading failed, continuing without profile:', profileError);
       }
       
       await loadTeamSiteData();
@@ -80,7 +93,13 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       // Set up new subscriptions and store cleanup function
       const cleanup = setupRealtimeSubscriptions();
       subscriptionCleanupRef.current = cleanup;
-      updatePresence();
+      
+      // Delay presence update to ensure router is fully initialized
+      setTimeout(() => {
+        if (user?.id) {
+          updatePresence();
+        }
+      }, 100);
     } catch (err) {
       console.error('Auth check failed:', err);
       setError('Failed to authenticate');
@@ -174,9 +193,29 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       console.log('Loaded presence data:', presenceData);
       setPresence(presenceData || []);
       
-    } catch (err) {
-      console.error('Failed to load team site data:', err);
-      setError('Failed to load team data');
+    } catch (err: any) {
+      console.error('Failed to load team site data:', {
+        error: err,
+        teamId: actualTeamId,
+        userId: user?.id,
+        message: err.message,
+        code: err.code,
+        details: err.details,
+        hint: err.hint
+      });
+      
+      // More specific error messages
+      if (err.code === 'PGRST301') {
+        setError('Permission denied: Check your team membership status');
+      } else if (err.code === '42501') {
+        setError('Database permission error: Contact your team administrator');
+      } else if (err.message?.includes('policy')) {
+        setError('Access denied: You may not be a member of this team');
+      } else if (err.message?.includes('network')) {
+        setError('Network error: Check your internet connection');
+      } else {
+        setError(`Failed to load team data: ${err.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -419,17 +458,24 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Update user presence
   const updatePresence = async () => {
-    if (!actualTeamId || !user) {
-      console.log('updatePresence skipped - missing actualTeamId or user:', { actualTeamId, userId: user?.id });
+    // Check if we have valid teamId from router
+    const currentTeamId = Array.isArray(teamId) ? teamId[0] : teamId;
+    
+    if (!currentTeamId || !user || currentTeamId === '[teamId]') {
+      console.log('updatePresence skipped - missing or invalid teamId/user:', { 
+        teamId: currentTeamId, 
+        userId: user?.id,
+        originalTeamId: teamId 
+      });
       return;
     }
     
     try {
-      console.log('Updating presence for user:', user.id, 'in team:', actualTeamId);
+      console.log('Updating presence for user:', user.id, 'in team:', currentTeamId);
       const { data, error } = await supabase
         .from('presence')
         .upsert({
-          team_id: actualTeamId,
+          team_id: currentTeamId,
           user_id: user.id,
           current_page: 'team-overview',
           is_online: true,
@@ -901,7 +947,9 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     // Initial setup
-    updatePresence(); // Set initial online status
+    if (user?.id) {
+      updatePresence(); // Set initial online status
+    }
     resetActivityTimer(); // Start activity tracking
 
     // Periodic heartbeat (every 2 minutes) to update last_seen

@@ -1,251 +1,533 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Bookmark, Collection } from '../../types/api';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Card, CardContent } from '../ui/card';
+import { Search, ChevronDown, ChevronRight, ExternalLink, Plus, Heart } from 'lucide-react';
+import { FaviconImage } from './FaviconImage';
+
+interface BookmarkFilters {
+  searchQuery: string;
+  selectedTags: string[];
+  selectedCollections: string[];
+  selectedCreators: string[];
+  dateRange: { start: Date; end: Date } | null;
+  sortBy: 'created_at' | 'updated_at' | 'title';
+  sortOrder: 'asc' | 'desc';
+}
 
 interface BookmarksViewProps {
   bookmarks: Bookmark[];
   collections: Collection[];
-  selectedCollection: string | null;
-  onCollectionFilter: (collectionId: string | null) => void;
   onDeleteBookmark: (bookmarkId: string) => void;
   onCreateBookmark: (collectionId?: string) => void;
+  updateBookmarkTags: (bookmarkId: string, tags: string[]) => void;
 }
 
 export default function BookmarksView({
   bookmarks,
   collections,
-  selectedCollection,
-  onCollectionFilter,
   onDeleteBookmark,
-  onCreateBookmark
+  onCreateBookmark,
+  updateBookmarkTags
 }: BookmarksViewProps) {
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
-
-  const filteredBookmarks = selectedCollection
-    ? bookmarks.filter(b => b.collection_id === selectedCollection)
-    : bookmarks;
-
-  const sortedBookmarks = [...filteredBookmarks].sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      case 'oldest':
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      case 'title':
-        return (a.title || '').localeCompare(b.title || '');
-      default:
-        return 0;
-    }
+  const [showFilters, setShowFilters] = useState(false);
+  const [editingTags, setEditingTags] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState('');
+  
+  const [bookmarkFilters, setBookmarkFilters] = useState<BookmarkFilters>({
+    searchQuery: '',
+    selectedTags: [],
+    selectedCollections: [],
+    selectedCreators: [],
+    dateRange: null,
+    sortBy: 'created_at',
+    sortOrder: 'desc'
   });
 
-  const getCollectionName = (collectionId?: string) => {
-    if (!collectionId) return 'Uncategorized';
-    const collection = collections.find(c => c.id === collectionId);
-    return collection?.name || 'Unknown Collection';
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
+  // Extract all unique tags
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    bookmarks.forEach(bookmark => {
+      if (bookmark.tags) {
+        bookmark.tags.forEach(tag => tagSet.add(tag));
+      }
     });
-  };
+    return Array.from(tagSet).sort();
+  }, [bookmarks]);
 
-  const getDomain = (url: string) => {
-    try {
-      return new URL(url).hostname.replace('www.', '');
-    } catch {
-      return url;
-    }
-  };
+  // Extract all unique creators
+  const allCreators = useMemo(() => {
+    const creatorSet = new Set<string>();
+    bookmarks.forEach(bookmark => {
+      const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
+      creatorSet.add(creatorName);
+    });
+    return Array.from(creatorSet).sort();
+  }, [bookmarks]);
 
-  const getFavicon = (url: string) => {
-    try {
-      const domain = new URL(url).hostname;
-      return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-    } catch {
-      return null;
+  // Advanced filtered bookmarks
+  const advancedFilteredBookmarks = useMemo(() => {
+    let filtered = bookmarks;
+
+    // Search query
+    if (bookmarkFilters.searchQuery.trim()) {
+      const query = bookmarkFilters.searchQuery.toLowerCase();
+      filtered = filtered.filter(bookmark =>
+        (bookmark.title?.toLowerCase().includes(query)) ||
+        (bookmark.description?.toLowerCase().includes(query)) ||
+        (bookmark.url.toLowerCase().includes(query))
+      );
     }
-  };
+
+    // Tags filter
+    if (bookmarkFilters.selectedTags.length > 0) {
+      filtered = filtered.filter(bookmark =>
+        bookmark.tags && bookmarkFilters.selectedTags.some(tag => bookmark.tags.includes(tag))
+      );
+    }
+
+    // Collections filter
+    if (bookmarkFilters.selectedCollections.length > 0) {
+      filtered = filtered.filter(bookmark =>
+        bookmarkFilters.selectedCollections.includes(bookmark.collection_id || '')
+      );
+    }
+
+    // Creators filter
+    if (bookmarkFilters.selectedCreators.length > 0) {
+      filtered = filtered.filter(bookmark => {
+        const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
+        return bookmarkFilters.selectedCreators.includes(creatorName);
+      });
+    }
+
+    // Date range filter
+    if (bookmarkFilters.dateRange) {
+      filtered = filtered.filter(bookmark => {
+        const bookmarkDate = new Date(bookmark.created_at);
+        return bookmarkDate >= bookmarkFilters.dateRange!.start && 
+               bookmarkDate <= bookmarkFilters.dateRange!.end;
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (bookmarkFilters.sortBy) {
+        case 'created_at':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'updated_at':
+          comparison = new Date(a.updated_at || a.created_at).getTime() - new Date(b.updated_at || b.created_at).getTime();
+          break;
+        case 'title':
+          comparison = (a.title || '').localeCompare(b.title || '');
+          break;
+      }
+      
+      return bookmarkFilters.sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return filtered;
+  }, [bookmarks, bookmarkFilters]);
 
   return (
     <div className="space-y-6">
-      {/* Filters and Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          {/* Collection Filter */}
-          <select
-            value={selectedCollection || ''}
-            onChange={(e) => onCollectionFilter(e.target.value || null)}
-            className="rounded-lg border px-3 py-2 text-sm transition-all duration-200"
-            style={{
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)'
-            }}
+      {/* Advanced Filters Header */}
+      <div className="bg-white rounded-lg border border-grey-accent-200 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-grey-accent-900">Advanced Filters</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
           >
-            <option value="">All Collections</option>
-            {collections.map(collection => (
-              <option key={collection.id} value={collection.id}>
-                {collection.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Sort Options */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="rounded-lg border px-3 py-2 text-sm transition-all duration-200"
-            style={{
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)'
-            }}
-          >
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="title">By Title</option>
-          </select>
+            {showFilters ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {showFilters ? 'Hide' : 'Show'} Filters
+          </Button>
         </div>
 
-        <button
-          onClick={() => onCreateBookmark(selectedCollection || undefined)}
-          className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium hover:transform hover:-translate-y-1"
-          style={{ 
-            backgroundColor: 'var(--primary)',
-            color: 'var(--background)',
-            boxShadow: 'var(--shadow-md)'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          <span>Add Bookmark</span>
-        </button>
-      </div>
-
-      {/* Results Count */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {sortedBookmarks.length} bookmark{sortedBookmarks.length !== 1 ? 's' : ''}
-          {selectedCollection && (
-            <span> in {getCollectionName(selectedCollection)}</span>
-          )}
-        </p>
-      </div>
-
-      {/* Bookmarks Grid */}
-      {sortedBookmarks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="text-6xl mb-4">🔖</div>
-          <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-            No bookmarks found
-          </h3>
-          <p className="text-center max-w-md" style={{ color: 'var(--text-secondary)' }}>
-            {selectedCollection 
-              ? "This collection doesn't have any bookmarks yet."
-              : "Start building your team's knowledge base by adding your first bookmark."
-            }
-          </p>
+        {/* Quick Stats */}
+        <div className="flex items-center gap-6 text-sm text-grey-accent-600 mb-4">
+          <span>{advancedFilteredBookmarks.length} bookmarks found</span>
+          <span>{allTags.length} unique tags</span>
+          <span>{collections.length} collections</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setBookmarkFilters({
+              searchQuery: '',
+              selectedTags: [],
+              selectedCollections: [],
+              selectedCreators: [],
+              dateRange: null,
+              sortBy: 'created_at',
+              sortOrder: 'desc'
+            })}
+            className="text-xs text-grey-accent-500 hover:text-grey-accent-700"
+          >
+            Clear All Filters
+          </Button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedBookmarks.map((bookmark) => (
-            <div
-              key={bookmark.id}
-              className="group rounded-xl p-4 transition-all duration-200 hover:transform hover:-translate-y-1"
-              style={{ 
-                backgroundColor: 'var(--surface)',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-sm)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-              }}
-            >
-              {/* Bookmark Header */}
-              <div className="flex items-start space-x-3 mb-3">
-                <img
-                  src={getFavicon(bookmark.url) || '/favicon.ico'}
-                  alt=""
-                  className="w-6 h-6 rounded flex-shrink-0 mt-1"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-grey-accent-400" />
+                <Input
+                  placeholder="Search title, description, URL..."
+                  value={bookmarkFilters.searchQuery}
+                  onChange={(e) => setBookmarkFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                  className="pl-10"
                 />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm line-clamp-2 mb-1" style={{ color: 'var(--text-primary)' }}>
-                    {bookmark.title || 'Untitled'}
-                  </h3>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    {getDomain(bookmark.url)}
-                  </p>
+              </div>
+            </div>
+
+            {/* Tags Filter with Autocomplete */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Tags</label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  {bookmarkFilters.selectedTags.map(tag => (
+                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      {tag}
+                      <button
+                        onClick={() => setBookmarkFilters(prev => ({
+                          ...prev,
+                          selectedTags: prev.selectedTags.filter(t => t !== tag)
+                        }))}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !bookmarkFilters.selectedTags.includes(e.target.value)) {
+                      setBookmarkFilters(prev => ({
+                        ...prev,
+                        selectedTags: [...prev.selectedTags, e.target.value]
+                      }))
+                    }
+                  }}
+                  className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                >
+                  <option value="">Select tags...</option>
+                  {allTags.filter(tag => !bookmarkFilters.selectedTags.includes(tag)).map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Collections Filter with Autocomplete */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Collections</label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  {bookmarkFilters.selectedCollections.map(collectionId => {
+                    const collection = collections.find(c => c.id === collectionId)
+                    return (
+                      <span key={collectionId} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                        {collection?.name || 'Unknown'}
+                        <button
+                          onClick={() => setBookmarkFilters(prev => ({
+                            ...prev,
+                            selectedCollections: prev.selectedCollections.filter(c => c !== collectionId)
+                          }))}
+                          className="text-green-600 hover:text-green-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !bookmarkFilters.selectedCollections.includes(e.target.value)) {
+                      setBookmarkFilters(prev => ({
+                        ...prev,
+                        selectedCollections: [...prev.selectedCollections, e.target.value]
+                      }))
+                    }
+                  }}
+                  className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                >
+                  <option value="">Select collections...</option>
+                  {collections.filter(c => !bookmarkFilters.selectedCollections.includes(c.id)).map(collection => (
+                    <option key={collection.id} value={collection.id}>{collection.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Creators Filter */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Created By</label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  {bookmarkFilters.selectedCreators.map(creator => (
+                    <span key={creator} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                      {creator}
+                      <button
+                        onClick={() => setBookmarkFilters(prev => ({
+                          ...prev,
+                          selectedCreators: prev.selectedCreators.filter(c => c !== creator)
+                        }))}
+                        className="text-purple-600 hover:text-purple-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !bookmarkFilters.selectedCreators.includes(e.target.value)) {
+                      setBookmarkFilters(prev => ({
+                        ...prev,
+                        selectedCreators: [...prev.selectedCreators, e.target.value]
+                      }))
+                    }
+                  }}
+                  className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                >
+                  <option value="">Select creators...</option>
+                  {allCreators.filter(creator => !bookmarkFilters.selectedCreators.includes(creator)).map(creator => (
+                    <option key={creator} value={creator}>{creator}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Sort Options */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Sort By</label>
+              <div className="flex gap-2">
+                <select
+                  value={bookmarkFilters.sortBy}
+                  onChange={(e) => setBookmarkFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+                  className="flex-1 p-2 border border-grey-accent-300 rounded-md text-sm"
+                >
+                  <option value="created_at">Date Created</option>
+                  <option value="updated_at">Date Modified</option>
+                  <option value="title">Title</option>
+                </select>
+                <select
+                  value={bookmarkFilters.sortOrder}
+                  onChange={(e) => setBookmarkFilters(prev => ({ ...prev, sortOrder: e.target.value as any }))}
+                  className="p-2 border border-grey-accent-300 rounded-md text-sm"
+                >
+                  <option value="desc">Newest First</option>
+                  <option value="asc">Oldest First</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Date Range - Basic for now */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Date Range</label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  placeholder="From"
+                  onChange={(e) => {
+                    const date = e.target.value ? new Date(e.target.value) : null
+                    setBookmarkFilters(prev => ({
+                      ...prev,
+                      dateRange: date ? { start: date, end: prev.dateRange?.end || date } : null
+                    }))
+                  }}
+                  className="text-sm"
+                />
+                <Input
+                  type="date"
+                  placeholder="To"
+                  onChange={(e) => {
+                    const date = e.target.value ? new Date(e.target.value) : null
+                    setBookmarkFilters(prev => ({
+                      ...prev,
+                      dateRange: prev.dateRange?.start && date ? { start: prev.dateRange.start, end: date } : null
+                    }))
+                  }}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Filtered Bookmarks Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {advancedFilteredBookmarks.map((bookmark) => (
+          <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300">
+            <div className="aspect-video relative overflow-hidden bg-muted">
+              <img
+                src={bookmark.preview_image || "/placeholder.svg"}
+                alt={bookmark.title || bookmark.url}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              />
+              {/* Favicon overlay */}
+              <div className="absolute bottom-2 left-2">
+                <div className="w-8 h-8 rounded bg-white shadow-lg flex items-center justify-center border border-grey-accent-200">
+                  <FaviconImage 
+                    url={bookmark.url} 
+                    faviconUrl={bookmark.favicon_url} 
+                    size="w-5 h-5" 
+                  />
                 </div>
               </div>
-
-              {/* Description */}
+            </div>
+            <CardContent className="p-4">
+              <h3 className="font-medium text-sm line-clamp-2 mb-2">
+                {bookmark.title || bookmark.url}
+              </h3>
               {bookmark.description && (
-                <p className="text-sm line-clamp-3 mb-3" style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
                   {bookmark.description}
                 </p>
               )}
-
-              {/* Metadata */}
-              <div className="flex items-center justify-between text-xs mb-3">
-                <span 
-                  className="px-2 py-1 rounded-full"
-                  style={{ 
-                    backgroundColor: 'var(--background)',
-                    color: 'var(--text-secondary)'
-                  }}
-                >
-                  {getCollectionName(bookmark.collection_id)}
+              
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1 mb-3 items-center">
+                {bookmark.tags && bookmark.tags.length > 0 && (
+                  <>
+                    {bookmark.tags.slice(0, 3).map((tag, index) => (
+                      <span 
+                        key={tag}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full cursor-pointer hover:bg-blue-100 hover:text-blue-800"
+                        onClick={() => {
+                          // Add tag to filter when clicked
+                          if (!bookmarkFilters.selectedTags.includes(tag)) {
+                            setBookmarkFilters(prev => ({
+                              ...prev,
+                              selectedTags: [...prev.selectedTags, tag]
+                            }))
+                          }
+                        }}
+                      >
+                        {tag}
+                        {editingTags === bookmark.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateBookmarkTags(bookmark.id, bookmark.tags.filter(t => t !== tag));
+                            }}
+                            className="text-grey-accent-500 hover:text-red-600"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {bookmark.tags.length > 3 && (
+                      <span className="px-2 py-1 bg-grey-accent-100 text-grey-accent-600 text-xs rounded-full">
+                        +{bookmark.tags.length - 3}
+                      </span>
+                    )}
+                  </>
+                )}
+                {editingTags === bookmark.id ? (
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (tagInput.trim() && !bookmark.tags.includes(tagInput.trim())) {
+                          updateBookmarkTags(bookmark.id, [...bookmark.tags, tagInput.trim()]);
+                        }
+                        setTagInput('');
+                        setEditingTags(null);
+                      } else if (e.key === 'Escape') {
+                        setTagInput('');
+                        setEditingTags(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (tagInput.trim() && !bookmark.tags.includes(tagInput.trim())) {
+                        updateBookmarkTags(bookmark.id, [...bookmark.tags, tagInput.trim()]);
+                      }
+                      setTagInput('');
+                      setEditingTags(null);
+                    }}
+                    placeholder="Add tag..."
+                    className="w-20 h-6 text-xs px-2 py-1 border border-grey-accent-300 rounded"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingTags(bookmark.id);
+                    }}
+                    className="w-5 h-5 rounded-full bg-grey-accent-200 hover:bg-grey-accent-300 flex items-center justify-center text-grey-accent-600 hover:text-grey-accent-800 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2 mt-2">
+                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                  {((bookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
+                </div>
+                <span className="text-xs text-grey-accent-600">
+                  {(bookmark as any).profiles?.full_name || 'Unknown'}
                 </span>
-                <span style={{ color: 'var(--text-secondary)' }}>
-                  {formatDate(bookmark.created_at)}
+                <span className="text-xs text-grey-accent-400">•</span>
+                <span className="text-xs text-grey-accent-600">
+                  {new Date(bookmark.created_at).toLocaleDateString()}
                 </span>
               </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between">
-                <a
-                  href={bookmark.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
-                  style={{ 
-                    backgroundColor: 'var(--primary)',
-                    color: 'var(--background)'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
-                  </svg>
-                  <span>Visit</span>
+            </CardContent>
+            <div className="flex items-center gap-2 p-4 pt-0">
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                <Heart className="w-4 h-4" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" asChild>
+                <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4" />
                 </a>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Are you sure you want to delete "${bookmark.title || 'this bookmark'}"?`)) {
-                      onDeleteBookmark(bookmark.id);
-                    }
-                  }}
-                  className="p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                  </svg>
-                </button>
-              </div>
+              </Button>
             </div>
-          ))}
+          </Card>
+        ))}
+      </div>
+
+      {advancedFilteredBookmarks.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">🔍</div>
+          <h3 className="text-xl font-semibold mb-2">No bookmarks match your filters</h3>
+          <p className="text-muted-foreground mb-6">
+            Try adjusting your search criteria or clear some filters
+          </p>
+          <Button
+            onClick={() => setBookmarkFilters({
+              searchQuery: '',
+              selectedTags: [],
+              selectedCollections: [],
+              selectedCreators: [],
+              dateRange: null,
+              sortBy: 'created_at',
+              sortOrder: 'desc'
+            })}
+          >
+            Clear All Filters
+          </Button>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import users, teams, admin
+from api.routers import users, teams, admin, content
 
 app = FastAPI(title="Raindropio Clone API", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(admin.router)
+app.include_router(content.router)
 
 @app.get("/")
 def read_root():

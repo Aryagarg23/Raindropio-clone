@@ -1,6 +1,13 @@
 "use client"
 
 import React, { useState, useRef, useMemo } from "react"
+
+// Extend window object for highlight clicking
+declare global {
+  interface Window {
+    selectHighlightForAnnotation: (highlightId: string, selectedText: string) => void
+  }
+}
 import { useRouter } from "next/router"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
@@ -9,26 +16,49 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
-import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X } from "lucide-react"
+import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
 
 // Favicon component for bookmarks
 const FaviconImage = ({ url, faviconUrl, size = "w-4 h-4" }: { url: string, faviconUrl?: string, size?: string }) => {
-  const [imgSrc, setImgSrc] = useState(faviconUrl || `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`)
-  const [hasError, setHasError] = useState(false)
+  const [imgSrc, setImgSrc] = useState(() => {
+    try {
+      const hostname = new URL(url).hostname
+      return faviconUrl || `https://favicon.yandex.net/favicon/${hostname}`
+    } catch {
+      return null
+    }
+  })
+  const [fallbackCount, setFallbackCount] = useState(0)
 
   const handleError = () => {
-    if (!hasError) {
-      // Try Google's favicon service as fallback
-      if (imgSrc !== `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`) {
-        setImgSrc(`https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`)
+    try {
+      const hostname = new URL(url).hostname
+      
+      if (fallbackCount === 0) {
+        // Try Google's favicon service
+        setImgSrc(`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`)
+        setFallbackCount(1)
+      } else if (fallbackCount === 1) {
+        // Try DuckDuckGo's favicon service
+        setImgSrc(`https://icons.duckduckgo.com/ip3/${hostname}.ico`)
+        setFallbackCount(2)
+      } else if (fallbackCount === 2) {
+        // Try direct favicon from domain
+        setImgSrc(`https://${hostname}/favicon.ico`)
+        setFallbackCount(3)
       } else {
-        setHasError(true)
+        // All failed, show default icon
+        setImgSrc(null)
+        setFallbackCount(4)
       }
+    } catch {
+      setImgSrc(null)
+      setFallbackCount(4)
     }
   }
 
-  if (hasError) {
+  if (!imgSrc || fallbackCount >= 4) {
     return <ExternalLink className={`${size} text-grey-accent-600`} />
   }
 
@@ -167,6 +197,22 @@ export default function TeamSitePage() {
   const [dragOverData, setDragOverData] = useState<{id: string, position: 'root' | 'child'} | null>(null)
   const [editingTags, setEditingTags] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
+  
+  // Bookmark detail view state
+  const [selectedBookmark, setSelectedBookmark] = useState<any | null>(null)
+  const [bookmarkViewMode, setBookmarkViewMode] = useState<'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details'>('embed')
+  const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([])
+  const [bookmarkHighlights, setBookmarkHighlights] = useState<any[]>([])
+  const [newAnnotation, setNewAnnotation] = useState('')
+  const [highlightColor, setHighlightColor] = useState('#ffeb3b')
+  const [showHighlightTooltip, setShowHighlightTooltip] = useState(false)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const [pendingSelection, setPendingSelection] = useState<{ text: string, startOffset: number, endOffset: number } | null>(null)
+  const [extractedContent, setExtractedContent] = useState<any>(null)
+  const [isLoadingContent, setIsLoadingContent] = useState(false)
+  const [embedError, setEmbedError] = useState<string | null>(null)
+  const [proxyContent, setProxyContent] = useState<string | null>(null)
+  const [isLoadingProxy, setIsLoadingProxy] = useState(false)
 
   // Advanced bookmark filters
   const [bookmarkFilters, setBookmarkFilters] = useState({
@@ -484,6 +530,369 @@ export default function TeamSitePage() {
       console.error('Failed to copy to clipboard:', err)
     }
   }
+
+  // Fetch highlights and annotations for a bookmark
+  const fetchBookmarkData = async (bookmarkId: string) => {
+    if (!bookmarkId || !user) {
+      console.log('Skipping bookmark data fetch - missing bookmarkId or user');
+      return;
+    }
+
+    try {
+      // Fetch highlights using the database function
+      const { data: highlights, error: highlightsError } = await supabase
+        .rpc('get_bookmark_highlights', { bookmark_uuid: bookmarkId })
+      
+      if (highlightsError) {
+        console.error('Error fetching highlights:', highlightsError)
+        // Only show error for critical failures, not permission issues
+        if (!highlightsError.message?.includes('permission') && !highlightsError.message?.includes('not found')) {
+          setError('Failed to load highlights')
+        }
+      } else {
+        setBookmarkHighlights(highlights || [])
+      }
+
+      // Fetch annotations using the database function
+      const { data: annotations, error: annotationsError } = await supabase
+        .rpc('get_annotations', { bookmark_uuid: bookmarkId })
+      
+      if (annotationsError) {
+        console.error('Error fetching annotations:', annotationsError)
+        // Only show error for critical failures, not permission issues
+        if (!annotationsError.message?.includes('permission') && !annotationsError.message?.includes('not found')) {
+          setError('Failed to load annotations')
+        }
+      } else {
+        setBookmarkAnnotations(annotations || [])
+      }
+    } catch (error) {
+      console.error('Error fetching bookmark data:', error)
+      // Don't show generic errors to user - they might be expected
+    }
+  }
+
+  // Create a new highlight
+  const createHighlight = async (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number) => {
+    if (!user) {
+      setError('You must be logged in to create highlights')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('highlights')
+        .insert({
+          bookmark_id: bookmarkId,
+          team_id: teamId,
+          selected_text: selectedText,
+          start_offset: startOffset,
+          end_offset: endOffset,
+          color: highlightColor,
+          created_by: user.id
+        })
+        .select()
+
+      if (error) throw error
+      
+      // Refresh highlights
+      fetchBookmarkData(bookmarkId)
+      return data[0]
+    } catch (error) {
+      console.error('Error creating highlight:', error)
+      setError('Failed to create highlight')
+    }
+  }
+
+  // Handle bookmark click to open detail modal
+  const handleBookmarkClick = async (bookmark: any) => {
+    setSelectedBookmark(bookmark)
+    setBookmarkViewMode('embed') // Default to embed view
+    await fetchBookmarkData(bookmark.id)
+  }
+
+  // Create a new annotation
+  const createAnnotation = async (bookmarkId: string, content: string, highlightId?: string) => {
+    if (!user) {
+      setError('You must be logged in to create annotations')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('annotations')
+        .insert({
+          bookmark_id: bookmarkId,
+          highlight_id: highlightId || null,
+          team_id: teamId,
+          content: content.trim(),
+          annotation_type: 'comment',
+          created_by: user.id
+        })
+        .select()
+
+      if (error) throw error
+      
+      // Refresh annotations
+      fetchBookmarkData(bookmarkId)
+      setNewAnnotation('')
+      return data[0]
+    } catch (error) {
+      console.error('Error creating annotation:', error)
+      setError('Failed to create annotation')
+    }
+  }
+
+  // Toggle annotation reaction (like)
+  const toggleAnnotationLike = async (annotationId: string) => {
+    if (!user) {
+      setError('You must be logged in to react to annotations')
+      return
+    }
+
+    try {
+      // Check if user already liked this annotation
+      const { data: existingReaction } = await supabase
+        .from('annotation_reactions')
+        .select()
+        .eq('annotation_id', annotationId)
+        .eq('created_by', user.id)
+        .eq('reaction_type', 'like')
+        .single()
+
+      if (existingReaction) {
+        // Remove like
+        await supabase
+          .from('annotation_reactions')
+          .delete()
+          .eq('id', existingReaction.id)
+      } else {
+        // Add like
+        await supabase
+          .from('annotation_reactions')
+          .insert({
+            annotation_id: annotationId,
+            team_id: teamId,
+            reaction_type: 'like',
+            created_by: user.id
+          })
+      }
+
+      // Refresh annotations to update like counts
+      if (selectedBookmark) {
+        fetchBookmarkData(selectedBookmark.id)
+      }
+    } catch (error) {
+      console.error('Error toggling annotation like:', error)
+      setError('Failed to update reaction')
+    }
+  }
+
+  // Delete annotation
+  const deleteAnnotation = async (annotationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('annotations')
+        .delete()
+        .eq('id', annotationId)
+
+      if (error) throw error
+      
+      // Refresh annotations
+      if (selectedBookmark) {
+        fetchBookmarkData(selectedBookmark.id)
+      }
+    } catch (error) {
+      console.error('Error deleting annotation:', error)  
+      setError('Failed to delete annotation')
+    }
+  }
+
+  // Extract content from URL for reader mode
+  const extractContent = async (url: string) => {
+    setIsLoadingContent(true)
+    try {
+      // Try our backend content extraction service first
+      try {
+        const response = await fetch('http://localhost:8000/content/extract', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setExtractedContent({
+              title: data.title,
+              description: data.description,
+              content: data.content,
+              url,
+              extractedAt: new Date().toISOString(),
+              meta_info: data.meta_info
+            })
+            return
+          }
+        }
+      } catch (backendError) {
+        console.log('Backend extraction failed, trying fallback:', backendError)
+      }
+
+      // Fallback to client-side extraction with CORS proxy
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`)
+      const data = await response.json()
+      
+      if (data.contents) {
+        // Basic content extraction from HTML
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(data.contents, 'text/html')
+        
+        // Extract title, content, and meta information
+        const title = doc.querySelector('title')?.textContent || 
+                     doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+                     doc.querySelector('h1')?.textContent || 'Untitled'
+                     
+        const description = doc.querySelector('meta[name="description"]')?.getAttribute('content') ||
+                           doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || ''
+        
+        // Try to extract main content
+        const contentSelectors = [
+          'article',
+          '[role="main"]',
+          '.post-content',
+          '.article-content',
+          '.content',
+          'main',
+          '.entry-content'
+        ]
+        
+        let content = ''
+        for (const selector of contentSelectors) {
+          const element = doc.querySelector(selector)
+          if (element) {
+            content = element.innerHTML
+            break
+          }
+        }
+        
+        // Fallback to body content if no specific content found
+        if (!content) {
+          // Remove script, style, nav, header, footer elements
+          const bodyClone = doc.body?.cloneNode(true) as HTMLElement
+          if (bodyClone) {
+            bodyClone.querySelectorAll('script, style, nav, header, footer, aside').forEach(el => el.remove())
+            content = bodyClone.innerHTML
+          }
+        }
+        
+        setExtractedContent({
+          title,
+          description,
+          content,
+          url,
+          extractedAt: new Date().toISOString()
+        })
+      }
+    } catch (error) {
+      console.error('Failed to extract content:', error)
+      setEmbedError('Failed to extract page content')
+    } finally {
+      setIsLoadingContent(false)
+    }
+  }
+
+  // Generate proxy URL to bypass iframe restrictions
+  const getProxyUrl = (url: string) => {
+    // Try our backend proxy service first
+    const backendProxy = `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
+    
+    // Fallback CORS proxy services
+    const corsProxies = [
+      backendProxy,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      `https://cors-anywhere.herokuapp.com/${url}`,
+      `https://proxy.cors.sh/${url}`,
+    ]
+    
+    return corsProxies[0] // Start with our backend proxy
+  }
+
+  // Fetch proxy content for rendering
+  const fetchProxyContent = async (url: string) => {
+    setIsLoadingProxy(true)
+    setProxyContent(null)
+    
+    try {
+      const proxyUrl = getProxyUrl(url)
+      const response = await fetch(proxyUrl)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      // Check if response is JSON (from our backend) or raw HTML
+      const contentType = response.headers.get('content-type')
+      let htmlContent: string
+      
+      if (contentType?.includes('application/json')) {
+        // Our backend returns JSON with content field
+        const data = await response.json()
+        htmlContent = data.content || data
+      } else {
+        // Raw HTML response from other proxy services
+        htmlContent = await response.text()
+      }
+      
+      // Clean up malformed HTML attributes (especially SVG attributes with escaped quotes)
+      htmlContent = htmlContent
+        .replace(/\\"/g, '"')  // Fix escaped quotes
+        .replace(/\\'/g, "'")  // Fix escaped single quotes
+        .replace(/(\w+)=\\"([^"]*)\\"(?=\s|>|\/)/g, '$1="$2"')  // Fix attribute formatting
+      
+      // Fix relative URLs to absolute URLs
+      const baseUrl = new URL(url)
+      htmlContent = htmlContent
+        .replace(/src="\/([^"]*)"?/g, `src="${baseUrl.origin}/$1"`)
+        .replace(/href="\/([^"]*)"?/g, `href="${baseUrl.origin}/$1"`)
+        .replace(/src="([^"]*)"(?=\s|>)/g, (match, src) => {
+          if (src.startsWith('http') || src.startsWith('data:')) return match
+          return `src="${baseUrl.origin}/${src}"`
+        })
+      
+      setProxyContent(htmlContent)
+    } catch (error) {
+      console.error('Failed to fetch proxy content:', error)
+      setEmbedError('Failed to load content through proxy')
+    } finally {
+      setIsLoadingProxy(false)
+    }
+  }
+
+  // Try different embedding strategies
+  const tryEmbedStrategies = async (url: string) => {
+    setEmbedError(null)
+    
+    // Strategy 1: Direct iframe (will fail for many sites)
+    setBookmarkViewMode('embed')
+    
+    // Strategy 2: After 3 seconds, try proxy if direct fails
+    setTimeout(() => {
+      if (embedError || bookmarkViewMode === 'embed') {
+        console.log('Trying proxy embedding...')
+        setBookmarkViewMode('proxy')
+        fetchProxyContent(url)
+      }
+    }, 3000)
+    
+    // Strategy 3: Extract content for reader mode
+    setTimeout(() => {
+      extractContent(url)
+    }, 1000)
+  }
+
+
 
   // Get orphaned bookmarks (bookmarks without a collection or with invalid collection_id)
   const orphanedBookmarks = bookmarks.filter(bookmark => 
@@ -1395,11 +1804,12 @@ export default function TeamSitePage() {
                     {displayedBookmarks.map((bookmark) => (
                       <Card
                         key={bookmark.id}
-                        className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300"
+                        className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer"
+                        onClick={() => handleBookmarkClick(bookmark)}
                       >
                         <div className="aspect-video relative overflow-hidden bg-muted">
                           <img
-                            src={bookmark.preview_image || "/placeholder.svg"}
+                            src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
                             alt={bookmark.title || bookmark.url}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                           />
@@ -1523,12 +1933,12 @@ export default function TeamSitePage() {
                 ) : (
                   <div className="space-y-2">
                     {displayedBookmarks.map((bookmark) => (
-                      <Card key={bookmark.id} className="hover:shadow-md transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300">
+                      <Card key={bookmark.id} className="hover:shadow-md transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer" onClick={() => handleBookmarkClick(bookmark)}>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-4">
                             <div className="relative">
                               <img
-                                src={bookmark.preview_image || "/placeholder.svg"}
+                                src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
                                 alt={bookmark.title || bookmark.url}
                                 className="w-16 h-12 object-cover rounded border border-grey-accent-200"
                               />
@@ -1911,10 +2321,14 @@ export default function TeamSitePage() {
             {/* Filtered Bookmarks Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {advancedFilteredBookmarks.map((bookmark) => (
-                <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300">
+                <Card 
+                  key={bookmark.id} 
+                  className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer"
+                  onClick={() => handleBookmarkClick(bookmark)}
+                >
                   <div className="aspect-video relative overflow-hidden bg-muted">
                     <img
-                      src={bookmark.preview_image || "/placeholder.svg"}
+                      src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
                       alt={bookmark.title || bookmark.url}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
@@ -2490,6 +2904,741 @@ export default function TeamSitePage() {
         </Tabs>
       </div>
 
+      {/* Bookmark Detail View Modal */}
+      {selectedBookmark && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl h-[90vh] overflow-hidden flex">
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-grey-accent-200 bg-grey-accent-50">
+                <div className="flex items-center gap-3">
+                  <FaviconImage 
+                    url={selectedBookmark.url} 
+                    faviconUrl={selectedBookmark.favicon_url} 
+                    size="w-6 h-6" 
+                  />
+                  <div>
+                    <h2 className="text-xl font-semibold text-grey-accent-900 truncate max-w-lg">
+                      {selectedBookmark.title || selectedBookmark.url}
+                    </h2>
+                    <p className="text-sm text-grey-accent-600 truncate max-w-lg">
+                      {selectedBookmark.url}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* View Mode Toggle */}
+                  <div className="flex bg-grey-accent-200 rounded-lg p-1">
+                    <button
+                      onClick={() => {
+                        setBookmarkViewMode('embed')
+                        setEmbedError(null)
+                      }}
+                      className={`px-2 py-1 text-sm rounded-md transition-all ${
+                        bookmarkViewMode === 'embed' 
+                          ? 'bg-white text-grey-accent-900 shadow-sm' 
+                          : 'text-grey-accent-600 hover:text-grey-accent-900'
+                      }`}
+                    >
+                      Embed
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBookmarkViewMode('proxy')
+                        if (selectedBookmark) {
+                          fetchProxyContent(selectedBookmark.url)
+                        }
+                      }}
+                      className={`px-2 py-1 text-sm rounded-md transition-all ${
+                        bookmarkViewMode === 'proxy' 
+                          ? 'bg-white text-grey-accent-900 shadow-sm' 
+                          : 'text-grey-accent-600 hover:text-grey-accent-900'
+                      }`}
+                    >
+                      Proxy
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBookmarkViewMode('reader')
+                        if (!extractedContent && selectedBookmark) {
+                          extractContent(selectedBookmark.url)
+                        }
+                      }}
+                      className={`px-2 py-1 text-sm rounded-md transition-all ${
+                        bookmarkViewMode === 'reader' 
+                          ? 'bg-white text-grey-accent-900 shadow-sm' 
+                          : 'text-grey-accent-600 hover:text-grey-accent-900'
+                      }`}
+                    >
+                      Reader
+                    </button>
+                    <button
+                      onClick={() => setBookmarkViewMode('archive')}
+                      className={`px-2 py-1 text-sm rounded-md transition-all ${
+                        bookmarkViewMode === 'archive' 
+                          ? 'bg-white text-grey-accent-900 shadow-sm' 
+                          : 'text-grey-accent-600 hover:text-grey-accent-900'
+                      }`}
+                    >
+                      Archive
+                    </button>
+                    <button
+                      onClick={() => setBookmarkViewMode('text')}
+                      className={`px-2 py-1 text-sm rounded-md transition-all ${
+                        bookmarkViewMode === 'text' 
+                          ? 'bg-white text-grey-accent-900 shadow-sm' 
+                          : 'text-grey-accent-600 hover:text-grey-accent-900'
+                      }`}
+                    >
+                      Details
+                    </button>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(selectedBookmark.url, '_blank', 'noopener,noreferrer')}
+                    className="flex items-center gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open Link
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedBookmark(null)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Content View */}
+              <div className="flex-1 overflow-hidden">
+                {bookmarkViewMode === 'embed' ? (
+                  <div className="h-full w-full relative">
+                    <iframe
+                      ref={(iframe) => {
+                        if (iframe) {
+                          // Set up iframe load monitoring
+                          const checkIframeAccess = () => {
+                            try {
+                              // This will throw if blocked by X-Frame-Options or CSP
+                              const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                              if (!doc) {
+                                throw new Error('No document access');
+                              }
+                              // Successfully accessed - iframe loaded
+                              console.log('Iframe loaded successfully');
+                              setEmbedError(null);
+                            } catch (error) {
+                              console.log('Iframe blocked by security policy:', error);
+                              setEmbedError('Site blocks embedding');
+                              // Show proxy suggestion
+                              setTimeout(() => {
+                                if (bookmarkViewMode === 'embed') {
+                                  // Don't auto-switch, let user choose
+                                  console.log('Consider switching to proxy or reader mode');
+                                }
+                              }, 1000);
+                            }
+                          };
+                          
+                          iframe.onload = checkIframeAccess;
+                          iframe.onerror = () => {
+                            setEmbedError('Failed to load page');
+                          };
+                          
+                          // Also check after a delay in case onload doesn't fire
+                          setTimeout(checkIframeAccess, 3000);
+                        }
+                      }}
+                      src={selectedBookmark.url}
+                      className="w-full h-full border-0"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                      loading="lazy"
+                    />
+                    
+                    {/* Error overlay for blocked embeds */}
+                    {embedError && (
+                      <div className="absolute inset-0 bg-grey-accent-50 flex items-center justify-center">
+                        <div className="text-center p-8 max-w-md">
+                          <div className="text-6xl mb-4">🔒</div>
+                          <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
+                            {embedError}
+                          </h3>
+                          <p className="text-grey-accent-600 mb-6">
+                            This website doesn't allow direct embedding. Try one of the alternatives below.
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              onClick={() => setBookmarkViewMode('proxy')}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              🌐 Try Proxy View
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setBookmarkViewMode('reader')
+                                if (!extractedContent) extractContent(selectedBookmark.url)
+                              }}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              📖 Try Reader Mode
+                            </Button>
+                            <Button
+                              onClick={() => setBookmarkViewMode('archive')}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              📚 Try Archive View
+                            </Button>
+                            <Button
+                              onClick={() => window.open(selectedBookmark.url, '_blank', 'noopener,noreferrer')}
+                              className="w-full"
+                            >
+                              🔗 Open Original Link
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : bookmarkViewMode === 'proxy' ? (
+                  <div className="h-full w-full relative">
+                    {isLoadingProxy ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-grey-accent-600 mx-auto mb-4"></div>
+                          <p className="text-grey-accent-600">Loading proxy content...</p>
+                        </div>
+                      </div>
+                    ) : proxyContent ? (
+                      <div className="h-full w-full overflow-auto bg-white">
+                        <iframe
+                          srcDoc={proxyContent}
+                          className="w-full h-full border-0"
+                          sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                          onError={() => {
+                            setEmbedError('Failed to render proxy content')
+                          }}
+                          onLoad={() => {
+                            // Clear any error once iframe loads successfully
+                            setEmbedError(null)
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full mt-8">
+                        <div className="text-center">
+                          <div className="text-6xl mb-4">🌐</div>
+                          <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
+                            Proxy Service Unavailable
+                          </h3>
+                          <p className="text-grey-accent-600 mb-6">
+                            Unable to load content through proxy server.
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              onClick={() => fetchProxyContent(selectedBookmark.url)}
+                              variant="outline"
+                            >
+                              🔄 Try Again
+                            </Button>
+                            <Button
+                              onClick={() => setBookmarkViewMode('reader')}
+                              variant="outline"
+                            >
+                              📖 Try Reader Mode
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : bookmarkViewMode === 'reader' ? (
+                  <div className="h-full overflow-auto bg-grey-accent-25 p-6">
+                    {isLoadingContent ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-grey-accent-600 mx-auto mb-4"></div>
+                          <p className="text-grey-accent-600">Extracting content...</p>
+                        </div>
+                      </div>
+                    ) : extractedContent ? (
+                      <div className="max-w-4xl mx-auto bg-white rounded-lg p-8 shadow-sm">
+                        <div className="prose prose-lg max-w-none">
+                          <h1 className="text-3xl font-bold text-grey-accent-900 mb-4">
+                            {extractedContent.title}
+                          </h1>
+                          
+                          {extractedContent.description && (
+                            <p className="text-xl text-grey-accent-600 mb-8 italic">
+                              {extractedContent.description}
+                            </p>
+                          )}
+                          
+                          <div className="border-b border-grey-accent-200 pb-4 mb-8">
+                            <div className="flex items-center gap-2 text-sm text-grey-accent-500">
+                              <span>📅 Extracted {new Date(extractedContent.extractedAt).toLocaleDateString()}</span>
+                              <span>•</span>
+                              <a 
+                                href={extractedContent.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline"
+                              >
+                                View Original →
+                              </a>
+                            </div>
+                          </div>
+                          
+                          <div 
+                            className="reader-content user-select-text relative"
+                            dangerouslySetInnerHTML={{ __html: extractedContent.content }}
+                            style={{
+                              lineHeight: '1.8',
+                              fontSize: '16px',
+                              color: '#374151',
+                              userSelect: 'text',
+                              WebkitUserSelect: 'text',
+                              MozUserSelect: 'text',
+                              msUserSelect: 'text'
+                            }}
+                            onMouseUp={(e) => {
+                              const selection = window.getSelection()
+                              if (selection && selection.toString().trim() && selectedBookmark) {
+                                const selectedText = selection.toString().trim()
+                                
+                                if (selectedText.length > 3) { // Minimum selection length
+                                  const range = selection.getRangeAt(0)
+                                  const rect = range.getBoundingClientRect()
+                                  
+                                  // Set tooltip position and show it
+                                  setTooltipPosition({
+                                    x: rect.right + window.scrollX,
+                                    y: rect.top + window.scrollY - 10
+                                  })
+                                  
+                                  setPendingSelection({
+                                    text: selectedText,
+                                    startOffset: range.startOffset,
+                                    endOffset: range.endOffset
+                                  })
+                                  
+                                  setShowHighlightTooltip(true)
+                                }
+                              } else {
+                                setShowHighlightTooltip(false)
+                                setPendingSelection(null)
+                              }
+                            }}
+                            onClick={() => {
+                              setShowHighlightTooltip(false)
+                              setPendingSelection(null)
+                            }}
+                          />
+                          
+                          {/* Highlights Section in Reader Mode */}
+                          {bookmarkHighlights.length > 0 && (
+                            <div className="mt-8 border-t border-grey-accent-200 pt-6">
+                              <h4 className="font-semibold text-grey-accent-800 mb-4 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                                Team Highlights ({bookmarkHighlights.length})
+                              </h4>
+                              <div className="space-y-3">
+                                {bookmarkHighlights.map((highlight) => (
+                                  <div key={highlight.highlight_id} className="group">
+                                    <div 
+                                      className="p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow"
+                                      style={{ 
+                                        backgroundColor: `${highlight.color}20`,
+                                        borderLeftColor: highlight.color 
+                                      }}
+                                    >
+                                      <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed">
+                                        "{highlight.selected_text}"
+                                      </p>
+                                      <div className="flex items-center gap-3 text-xs text-grey-accent-600">
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                            {(highlight.creator_name || 'U')[0].toUpperCase()}
+                                          </div>
+                                          <span>{highlight.creator_name}</span>
+                                        </div>
+                                        <span>•</span>
+                                        <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                                        <button 
+                                          className="opacity-0 group-hover:opacity-100 text-grey-accent-500 hover:text-blue-600 transition-all ml-auto"
+                                          onClick={() => {
+                                            // Add annotation to this highlight
+                                            const annotationText = `Regarding: "${highlight.selected_text.substring(0, 50)}${highlight.selected_text.length > 50 ? '...' : ''}"`
+                                            setNewAnnotation(annotationText)
+                                          }}
+                                        >
+                                          <MessageCircle className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="text-6xl mb-4">📄</div>
+                          <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
+                            Reader Mode Unavailable
+                          </h3>
+                          <p className="text-grey-accent-600 mb-6">
+                            Unable to extract readable content from this page.
+                          </p>
+                          <Button
+                            onClick={() => extractContent(selectedBookmark.url)}
+                            variant="outline"
+                          >
+                            Try Again
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : bookmarkViewMode === 'archive' ? (
+                  <div className="h-full w-full relative">
+                    <iframe
+                      src={`https://web.archive.org/web/${selectedBookmark.url}`}
+                      className="w-full h-full border-0"
+                      loading="lazy"
+                      onError={() => {
+                        setEmbedError('No archived version available')
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full overflow-auto p-6 bg-grey-accent-25">
+                    <div className="max-w-4xl mx-auto bg-white rounded-lg p-8 shadow-sm">
+                      <div 
+                        className="prose prose-grey max-w-none user-select-text relative"
+                        style={{ 
+                          userSelect: 'text',
+                          WebkitUserSelect: 'text',
+                          MozUserSelect: 'text',
+                          msUserSelect: 'text'
+                        }}
+                        onMouseUp={(e) => {
+                          const selection = window.getSelection()
+                          if (selection && selection.toString().trim() && selectedBookmark) {
+                            const selectedText = selection.toString().trim()
+                            
+                            if (selectedText.length > 3) { // Minimum selection length
+                              const range = selection.getRangeAt(0)
+                              const rect = range.getBoundingClientRect()
+                              
+                              // Set tooltip position and show it
+                              setTooltipPosition({
+                                x: rect.right + window.scrollX,
+                                y: rect.top + window.scrollY - 10
+                              })
+                              
+                              setPendingSelection({
+                                text: selectedText,
+                                startOffset: range.startOffset,
+                                endOffset: range.endOffset
+                              })
+                              
+                              setShowHighlightTooltip(true)
+                            }
+                          } else {
+                            setShowHighlightTooltip(false)
+                            setPendingSelection(null)
+                          }
+                        }}
+                        onClick={() => {
+                          setShowHighlightTooltip(false)
+                          setPendingSelection(null)
+                        }}
+                      >
+                        <h1 className="text-2xl font-bold text-grey-accent-900 mb-4">
+                          {selectedBookmark.title || 'Bookmark Details'}
+                        </h1>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                          <p className="text-blue-800 text-sm mb-2">📎 Link:</p>
+                          <a 
+                            href={selectedBookmark.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline break-all"
+                          >
+                            {selectedBookmark.url}
+                          </a>
+                        </div>
+
+                        {selectedBookmark.description && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-semibold text-grey-accent-800 mb-2">Description</h3>
+                            <p className="text-grey-accent-700 leading-relaxed">
+                              {selectedBookmark.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {selectedBookmark.tags && selectedBookmark.tags.length > 0 && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-semibold text-grey-accent-800 mb-3">Tags</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedBookmark.tags.map((tag: string) => (
+                                <span 
+                                  key={tag} 
+                                  className="px-3 py-1 bg-grey-accent-100 text-grey-accent-700 text-sm rounded-full"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t border-grey-accent-200 pt-4 mt-6">
+                          <div className="flex items-center gap-3 text-sm text-grey-accent-600">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                {((selectedBookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
+                              </div>
+                              <span>Added by {(selectedBookmark as any).profiles?.full_name || 'Unknown'}</span>
+                            </div>
+                            <span>•</span>
+                            <span>{new Date(selectedBookmark.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Highlights Section */}
+                        {bookmarkHighlights.length > 0 && (
+                          <div className="mt-8 border-t border-grey-accent-200 pt-6">
+                            <h4 className="font-semibold text-grey-accent-800 mb-4 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                              Team Highlights ({bookmarkHighlights.length})
+                            </h4>
+                            <div className="space-y-3">
+                              {bookmarkHighlights.map((highlight) => (
+                                <div key={highlight.highlight_id} className="group">
+                                  <div 
+                                    className="p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow"
+                                    style={{ 
+                                      backgroundColor: `${highlight.color}20`,
+                                      borderLeftColor: highlight.color 
+                                    }}
+                                  >
+                                    <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed">
+                                      "{highlight.selected_text}"
+                                    </p>
+                                    <div className="flex items-center gap-3 text-xs text-grey-accent-600">
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                          {(highlight.creator_name || 'U')[0].toUpperCase()}
+                                        </div>
+                                        <span>{highlight.creator_name}</span>
+                                      </div>
+                                      <span>•</span>
+                                      <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                                      <button 
+                                        className="opacity-0 group-hover:opacity-100 text-grey-accent-500 hover:text-blue-600 transition-all ml-auto"
+                                        onClick={() => {
+                                          // Add annotation to this highlight
+                                          const annotationText = `Regarding: "${highlight.selected_text.substring(0, 50)}${highlight.selected_text.length > 50 ? '...' : ''}"`
+                                          setNewAnnotation(annotationText)
+                                        }}
+                                      >
+                                        <MessageCircle className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Highlight Tooltip */}
+              {showHighlightTooltip && pendingSelection && (
+                <div 
+                  className="absolute z-10 bg-white border border-grey-accent-200 rounded-lg shadow-lg p-3"
+                  style={{
+                    left: tooltipPosition.x,
+                    top: tooltipPosition.y,
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-grey-accent-800">Highlight this text?</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      {['#ffeb3b', '#ff9800', '#4caf50', '#2196f3', '#9c27b0'].map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => {
+                            if (selectedBookmark && pendingSelection) {
+                              setHighlightColor(color)
+                              createHighlight(
+                                selectedBookmark.id, 
+                                pendingSelection.text, 
+                                pendingSelection.startOffset, 
+                                pendingSelection.endOffset
+                              )
+                              setShowHighlightTooltip(false)
+                              setPendingSelection(null)
+                              window.getSelection()?.removeAllRanges()
+                            }
+                          }}
+                          className={`w-6 h-6 rounded-full border-2 ${
+                            highlightColor === color ? 'border-grey-accent-600' : 'border-grey-accent-300'
+                          } hover:scale-110 transition-transform`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowHighlightTooltip(false)
+                        setPendingSelection(null)
+                        window.getSelection()?.removeAllRanges()
+                      }}
+                      className="text-grey-accent-500 hover:text-grey-accent-700 ml-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Annotations Sidebar */}
+            <div className="w-96 border-l border-grey-accent-200 bg-grey-accent-25 flex flex-col">
+              {/* Sidebar Header */}
+              <div className="p-4 border-b border-grey-accent-200 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-grey-accent-900">Team Discussion</h3>
+                  <span className="text-xs text-grey-accent-600 bg-grey-accent-100 px-2 py-1 rounded-full">
+                    {bookmarkAnnotations.length} comment{bookmarkAnnotations.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                
+                {/* Highlight Color Picker */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs text-grey-accent-600">Highlight Color:</span>
+                  <div className="flex gap-1">
+                    {['#ffeb3b', '#ff9800', '#4caf50', '#2196f3', '#9c27b0'].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setHighlightColor(color)}
+                        className={`w-6 h-6 rounded-full border-2 ${
+                          highlightColor === color ? 'border-grey-accent-600' : 'border-grey-accent-300'
+                        } hover:scale-110 transition-transform`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* New Annotation Input */}
+                <div className="space-y-2">
+                  <textarea
+                    value={newAnnotation}
+                    onChange={(e) => setNewAnnotation(e.target.value)}
+                    placeholder="Add a comment or question about this bookmark..."
+                    className="w-full px-3 py-2 border border-grey-accent-300 rounded-md resize-none text-sm"
+                    rows={3}
+                  />
+                  <Button
+                    onClick={() => {
+                      if (newAnnotation.trim() && selectedBookmark) {
+                        createAnnotation(selectedBookmark.id, newAnnotation)
+                      }
+                    }}
+                    disabled={!newAnnotation.trim()}
+                    size="sm"
+                    className="w-full"
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Add Comment
+                  </Button>
+                </div>
+              </div>
+
+              {/* Annotations List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {bookmarkAnnotations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageCircle className="w-12 h-12 text-grey-accent-300 mx-auto mb-3" />
+                    <p className="text-grey-accent-600 text-sm">No comments yet</p>
+                    <p className="text-grey-accent-500 text-xs">
+                      Be the first to start a discussion!
+                    </p>
+                  </div>
+                ) : (
+                  bookmarkAnnotations.map((annotation) => (
+                    <div key={annotation.annotation_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                          {(annotation.creator_name || 'U')[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-grey-accent-900 text-sm">
+                              {annotation.creator_name || 'Unknown'}
+                            </span>
+                            {user?.id === annotation.creator_id && (
+                              <button
+                                onClick={() => deleteAnnotation(annotation.annotation_id)}
+                                className="text-grey-accent-400 hover:text-red-600 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-grey-accent-800 text-sm leading-relaxed mb-2">
+                            {annotation.content}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-grey-accent-500">
+                            <span>{new Date(annotation.created_at).toLocaleDateString()}</span>
+                            <button 
+                              onClick={() => toggleAnnotationLike(annotation.annotation_id)}
+                              className={`flex items-center gap-1 transition-colors ${
+                                annotation.user_liked 
+                                  ? 'text-red-500 hover:text-red-600' 
+                                  : 'hover:text-red-500'
+                              }`}
+                            >
+                              <Heart className={`w-3 h-3 ${annotation.user_liked ? 'fill-current' : ''}`} />
+                              {annotation.like_count || 0}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Directory Structure Modal */}
       {showDirectoryModal && selectedDirectoryCollection && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -2555,6 +3704,23 @@ export default function TeamSitePage() {
           collections={collections}
           onClose={() => setShowAddBookmark(false)}
           onCreate={createBookmark}
+        />
+      )}
+
+      {/* Bookmark Detail Modal */}
+      {selectedBookmark && (
+        <BookmarkDetailModal
+          bookmark={selectedBookmark}
+          viewMode={bookmarkViewMode}
+          setViewMode={setBookmarkViewMode}
+          highlights={bookmarkHighlights}
+          annotations={bookmarkAnnotations}
+          onClose={() => setSelectedBookmark(null)}
+          onSaveHighlight={createHighlight}
+          onCreateAnnotation={createAnnotation}
+          highlightColor={highlightColor}
+          setHighlightColor={setHighlightColor}
+          user={user}
         />
       )}
     </div>
@@ -2783,6 +3949,746 @@ function AddBookmarkModal({
           </form>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// Bookmark Detail Modal Component
+function BookmarkDetailModal({
+  bookmark,
+  viewMode,
+  setViewMode,
+  highlights,
+  annotations,
+  onClose,
+  onSaveHighlight,
+  onCreateAnnotation,
+  highlightColor,
+  setHighlightColor,
+  user
+}: {
+  bookmark: any
+  viewMode: 'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details'
+  setViewMode: (mode: 'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details') => void
+  highlights: any[]
+  annotations: any[]
+  onClose: () => void
+  onSaveHighlight: (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number) => void
+  onCreateAnnotation: (bookmarkId: string, content: string, highlightId?: string) => void
+  highlightColor: string
+  setHighlightColor: (color: string) => void
+  user: any
+}) {
+  const [extractedContent, setExtractedContent] = useState<any>(null)
+  const [isLoadingContent, setIsLoadingContent] = useState(false)
+  const [embedError, setEmbedError] = useState<string | null>(null)
+  const [showHighlightTooltip, setShowHighlightTooltip] = useState(false)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const [pendingSelection, setPendingSelection] = useState<{ text: string; startOffset: number; endOffset: number } | null>(null)
+  const [newAnnotation, setNewAnnotation] = useState('')
+
+  const colorOptions = [
+    '#ffeb3b', // Yellow
+    '#ff9800', // Orange
+    '#f44336', // Red
+    '#e91e63', // Pink
+    '#9c27b0', // Purple
+    '#3f51b5', // Indigo
+    '#2196f3', // Blue
+    '#00bcd4', // Cyan
+    '#009688', // Teal
+    '#4caf50', // Green
+  ]
+
+  // Extract content when switching to text/reader modes
+  React.useEffect(() => {
+    if ((viewMode === 'reader' || viewMode === 'text') && !extractedContent) {
+      extractContent()
+    }
+  }, [viewMode])
+
+  // Track selected highlight for annotation
+  const [selectedHighlightId, setSelectedHighlightId] = useState<string | null>(null)
+
+  // Add global function for highlight clicking
+  React.useEffect(() => {
+    window.selectHighlightForAnnotation = (highlightId: string, selectedText: string) => {
+      setSelectedHighlightId(highlightId)
+      setNewAnnotation(`Regarding: "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}" - `)
+      // Focus the annotation textarea
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea[placeholder*="Add a comment"]') as HTMLTextAreaElement
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        }
+      }, 100)
+    }
+
+    return () => {
+      if ('selectHighlightForAnnotation' in window) {
+        delete (window as any).selectHighlightForAnnotation
+      }
+    }
+  }, [])
+
+  const extractContent = async () => {
+    setIsLoadingContent(true)
+    setEmbedError(null)
+
+    try {
+      // Try backend content extraction service first
+      try {
+        const response = await fetch('http://localhost:8000/content/extract', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: bookmark.url })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setExtractedContent({
+              title: data.title,
+              description: data.description,
+              content: data.content,
+              url: bookmark.url,
+              extractedAt: new Date().toISOString(),
+              meta_info: data.meta_info
+            })
+            return
+          }
+        }
+      } catch (backendError) {
+        console.log('Backend extraction failed, trying fallback:', backendError)
+      }
+
+      // Fallback to client-side extraction
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(bookmark.url)}`)
+      const data = await response.json()
+      
+      if (data.contents) {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(data.contents, 'text/html')
+        
+        const title = doc.querySelector('title')?.textContent || 
+                     doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+                     doc.querySelector('h1')?.textContent || 'Untitled'
+                     
+        const description = doc.querySelector('meta[name="description"]')?.getAttribute('content') ||
+                           doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || ''
+        
+        // Extract main content
+        const contentSelectors = [
+          'article',
+          '[role="main"]',
+          '.post-content',
+          '.article-content',
+          '.content',
+          'main',
+          '.entry-content'
+        ]
+        
+        let content = ''
+        for (const selector of contentSelectors) {
+          const element = doc.querySelector(selector)
+          if (element) {
+            content = element.innerHTML
+            break
+          }
+        }
+        
+        if (!content) {
+          const bodyClone = doc.body?.cloneNode(true) as HTMLElement
+          if (bodyClone) {
+            bodyClone.querySelectorAll('script, style, nav, header, footer, aside').forEach(el => el.remove())
+            content = bodyClone.innerHTML
+          }
+        }
+        
+        setExtractedContent({
+          title,
+          description,
+          content,
+          url: bookmark.url,
+          extractedAt: new Date().toISOString()
+        })
+      }
+    } catch (error) {
+      console.error('Failed to extract content:', error)
+      setEmbedError('Failed to extract page content')
+    } finally {
+      setIsLoadingContent(false)
+    }
+  }
+
+  const getProxyUrl = (url: string) => {
+    return `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
+  }
+
+  const getArchiveUrl = (url: string) => {
+    return `https://web.archive.org/web/${url}`
+  }
+
+  const saveHighlight = () => {
+    if (pendingSelection && user) {
+      onSaveHighlight(
+        bookmark.id,
+        pendingSelection.text,
+        pendingSelection.startOffset,
+        pendingSelection.endOffset
+      )
+      setShowHighlightTooltip(false)
+      setPendingSelection(null)
+    }
+  }
+
+  const renderHighlights = (content: string) => {
+    if (!highlights.length) return content
+
+    let processedContent = content
+    // Simple highlight rendering - replace text with highlighted version
+    highlights.forEach(highlight => {
+      const highlightedText = `<mark style="background-color: ${highlight.color}; padding: 2px 4px; border-radius: 3px; cursor: pointer; transition: all 0.2s;" data-highlight-id="${highlight.highlight_id}" onclick="window.selectHighlightForAnnotation('${highlight.highlight_id}', '${highlight.selected_text.replace(/'/g, '\\\'')}')" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.2)'" onmouseout="this.style.boxShadow='none'" title="Click to add annotation">${highlight.selected_text}</mark>`
+      processedContent = processedContent.replace(highlight.selected_text, highlightedText)
+    })
+    
+    return processedContent
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex">
+      {/* Left side - bookmark content */}
+      <div className="flex-1 bg-white overflow-hidden relative">
+        <div className="absolute top-0 left-0 right-0 bg-white border-b border-grey-accent-200 z-10 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-5 h-5" />
+                <div>
+                  <h3 className="font-semibold text-grey-accent-900 line-clamp-1">
+                    {bookmark.title || bookmark.url}
+                  </h3>
+                  <p className="text-xs text-grey-accent-600 line-clamp-1">
+                    {bookmark.url}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* View Mode Tabs */}
+            <div className="flex items-center gap-1 bg-grey-accent-100 rounded-lg p-1">
+              {(['embed', 'text', 'reader', 'proxy', 'archive', 'details'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === mode
+                      ? 'bg-white text-grey-accent-900 shadow-sm'
+                      : 'text-grey-accent-600 hover:text-grey-accent-900'
+                  }`}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="pt-20 h-full overflow-auto">
+          {viewMode === 'embed' && (
+            <div className="h-full">
+              {embedError ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">Embed Blocked</h3>
+                    <p className="text-grey-accent-600 mb-4">{embedError}</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button onClick={() => setViewMode('proxy')} variant="outline">
+                        Try Proxy View
+                      </Button>
+                      <Button onClick={() => setViewMode('text')} variant="outline">
+                        Try Text View
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={bookmark.url}
+                  className="w-full h-full border-0"
+                  title={bookmark.title || bookmark.url}
+                  onError={() => setEmbedError('This website cannot be embedded due to security restrictions')}
+                />
+              )}
+            </div>
+          )}
+
+          {viewMode === 'proxy' && (
+            <div className="h-full">
+              <iframe
+                src={getProxyUrl(bookmark.url)}
+                className="w-full h-full border-0"
+                title={bookmark.title || bookmark.url}
+              />
+            </div>
+          )}
+
+          {viewMode === 'archive' && (
+            <div className="h-full">
+              <iframe
+                src={getArchiveUrl(bookmark.url)}
+                className="w-full h-full border-0"
+                title={`Archive: ${bookmark.title || bookmark.url}`}
+              />
+            </div>
+          )}
+
+          {viewMode === 'details' && (
+            <div className="p-6">
+              <div className="max-w-4xl mx-auto">
+                <div className="mb-6">
+                  <h1 className="text-3xl font-bold text-grey-accent-900 mb-2">
+                    {bookmark.title || bookmark.url}
+                  </h1>
+                  <p className="text-grey-accent-600 break-all">
+                    {bookmark.url}
+                  </p>
+                  {bookmark.description && (
+                    <p className="text-lg text-grey-accent-600 leading-relaxed mt-2">
+                      {bookmark.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* All Highlights and Annotations */}
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-semibold text-grey-accent-900 border-b border-grey-accent-200 pb-2">
+                    Team Discussion & Highlights
+                  </h2>
+                  
+                  {/* Combine highlights and general annotations, sort by timestamp */}
+                  {(() => {
+                    const allItems = [
+                      ...highlights.map(h => ({ ...h, type: 'highlight', timestamp: h.created_at })),
+                      ...annotations.filter(a => !a.highlight_id).map(a => ({ ...a, type: 'annotation', timestamp: a.created_at }))
+                    ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+                    if (allItems.length === 0) {
+                      return (
+                        <div className="text-center py-12">
+                          <MessageCircle className="w-16 h-16 text-grey-accent-300 mx-auto mb-4" />
+                          <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">No Discussion Yet</h3>
+                          <p className="text-grey-accent-600 mb-4">
+                            Start by highlighting text or adding a comment to begin the conversation.
+                          </p>
+                          <div className="flex gap-2 justify-center">
+                            <Button onClick={() => setViewMode('reader')} variant="outline">
+                              Start Highlighting
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return allItems.map((item) => (
+                      <div key={`${item.type}-${item.type === 'highlight' ? item.highlight_id : item.annotation_id}`} className="bg-white rounded-lg border border-grey-accent-200 shadow-sm">
+                        {item.type === 'highlight' ? (
+                          <div className="p-4">
+                            {/* Highlight */}
+                            <div className="flex items-start gap-3 mb-4">
+                              <div 
+                                className="w-1 h-full rounded mt-1"
+                                style={{ backgroundColor: item.color, minHeight: '80px' }}
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                    {(item.creator_name || 'U')[0].toUpperCase()}
+                                  </div>
+                                  <span className="font-medium text-grey-accent-900">{item.creator_name}</span>
+                                  <span className="text-grey-accent-500 text-sm">highlighted</span>
+                                  <span className="text-grey-accent-400 text-sm">•</span>
+                                  <span className="text-grey-accent-500 text-sm">{new Date(item.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <div 
+                                  className="p-3 rounded-lg border-l-4 mb-3"
+                                  style={{ 
+                                    backgroundColor: `${item.color}20`,
+                                    borderLeftColor: item.color 
+                                  }}
+                                >
+                                  <p className="text-grey-accent-900 font-medium leading-relaxed">
+                                    "{item.selected_text}"
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Annotations on this highlight */}
+                            <div className="ml-4 space-y-3">
+                              {annotations
+                                .filter(ann => ann.highlight_id === item.highlight_id)
+                                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                .map((annotation) => (
+                                  <div key={annotation.annotation_id} className="flex items-start gap-3 p-3 bg-grey-accent-50 rounded-lg border border-grey-accent-200">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                                      {(annotation.creator_name || 'U')[0].toUpperCase()}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium text-grey-accent-900 text-sm">{annotation.creator_name}</span>
+                                        <span className="text-grey-accent-400 text-xs">•</span>
+                                        <span className="text-grey-accent-500 text-xs">{new Date(annotation.created_at).toLocaleDateString()}</span>
+                                      </div>
+                                      <p className="text-grey-accent-900 text-sm">{annotation.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4">
+                            {/* General annotation */}
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                {(item.creator_name || 'U')[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-medium text-grey-accent-900">{item.creator_name}</span>
+                                  <span className="text-grey-accent-500 text-sm">commented</span>
+                                  <span className="text-grey-accent-400 text-sm">•</span>
+                                  <span className="text-grey-accent-500 text-sm">{new Date(item.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-grey-accent-900 leading-relaxed">{item.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(viewMode === 'text' || viewMode === 'reader') && (
+            <div className="p-6">
+              {isLoadingContent ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-grey-accent-600">Extracting content...</p>
+                  </div>
+                </div>
+              ) : extractedContent ? (
+                <div className="max-w-4xl mx-auto">
+                  <div className="mb-6">
+                    <h1 className="text-3xl font-bold text-grey-accent-900 mb-2">
+                      {extractedContent.title}
+                    </h1>
+                    {extractedContent.description && (
+                      <p className="text-lg text-grey-accent-600 leading-relaxed">
+                        {extractedContent.description}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div 
+                    className="prose prose-lg max-w-none reader-content user-select-text relative"
+                    dangerouslySetInnerHTML={{ 
+                      __html: viewMode === 'reader' ? 
+                        renderHighlights(extractedContent.content) : 
+                        extractedContent.content 
+                    }}
+                    style={{
+                      lineHeight: '1.8',
+                      fontSize: '16px',
+                      color: '#374151',
+                      userSelect: 'text',
+                      WebkitUserSelect: 'text',
+                      MozUserSelect: 'text',
+                      msUserSelect: 'text'
+                    }}
+                    onMouseUp={(e) => {
+                      if (viewMode === 'reader') {
+                        const selection = window.getSelection()
+                        if (selection && selection.toString().trim()) {
+                          const selectedText = selection.toString().trim()
+                          
+                          if (selectedText.length > 3) {
+                            const range = selection.getRangeAt(0)
+                            const rect = range.getBoundingClientRect()
+                            
+                            setTooltipPosition({
+                              x: rect.right + window.scrollX,
+                              y: rect.top + window.scrollY - 10
+                            })
+                            
+                            setPendingSelection({
+                              text: selectedText,
+                              startOffset: range.startOffset,
+                              endOffset: range.endOffset
+                            })
+                            
+                            setShowHighlightTooltip(true)
+                          }
+                        } else {
+                          setShowHighlightTooltip(false)
+                          setPendingSelection(null)
+                        }
+                      }
+                    }}
+                    onClick={() => {
+                      setShowHighlightTooltip(false)
+                      setPendingSelection(null)
+                    }}
+                  />
+
+                  {/* Display highlights for reader mode */}
+                  {viewMode === 'reader' && highlights.length > 0 && (
+                    <div className="mt-8 border-t border-grey-accent-200 pt-6">
+                      <h4 className="font-semibold text-grey-accent-800 mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                        Team Highlights ({highlights.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {highlights.map((highlight) => (
+                          <div key={highlight.highlight_id} className="group">
+                            <div 
+                              className="p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow"
+                              style={{ 
+                                backgroundColor: `${highlight.color}20`,
+                                borderLeftColor: highlight.color 
+                              }}
+                            >
+                              <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed">
+                                "{highlight.selected_text}"
+                              </p>
+                              <div className="flex items-center gap-3 text-xs text-grey-accent-600">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                    {(highlight.creator_name || 'U')[0].toUpperCase()}
+                                  </div>
+                                  <span>{highlight.creator_name}</span>
+                                </div>
+                                <span>•</span>
+                                <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                                <button 
+                                  className="opacity-0 group-hover:opacity-100 text-grey-accent-500 hover:text-blue-600 transition-all ml-auto"
+                                  onClick={() => {
+                                    // Pre-fill annotation for this highlight
+                                    setNewAnnotation(`Regarding: "${highlight.selected_text.substring(0, 50)}${highlight.selected_text.length > 50 ? '...' : ''}" - `)
+                                  }}
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">📄</div>
+                    <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
+                      Failed to Extract Content
+                    </h3>
+                    <p className="text-grey-accent-600 mb-4">
+                      Unable to extract readable content from this page
+                    </p>
+                    <Button onClick={() => setViewMode('embed')} variant="outline">
+                      Try Embed View
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Highlight Tooltip */}
+        {showHighlightTooltip && pendingSelection && (
+          <div
+            className="fixed bg-black text-white px-3 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2"
+            style={{
+              left: tooltipPosition.x,
+              top: tooltipPosition.y,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <button
+              onClick={saveHighlight}
+              className="flex items-center gap-1 hover:bg-white/20 px-2 py-1 rounded"
+            >
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: highlightColor }}></span>
+              Highlight
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Right side - annotations and highlights */}
+      <div className="w-96 bg-grey-accent-50 border-l border-grey-accent-200 flex flex-col">
+        <div className="p-4 border-b border-grey-accent-200">
+          <h3 className="font-semibold text-grey-accent-900 mb-3">Team Discussion</h3>
+          
+          {/* Highlight Color Selector */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+              Highlight Color
+            </label>
+            <div className="flex gap-1">
+              {colorOptions.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setHighlightColor(color)}
+                  className={`w-6 h-6 rounded-full border-2 ${
+                    highlightColor === color ? 'border-grey-accent-600' : 'border-grey-accent-300'
+                  } hover:scale-110 transition-transform`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* New Annotation Input */}
+          <div className="space-y-2">
+            {selectedHighlightId && (
+              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                💬 Replying to highlight
+                <button 
+                  onClick={() => {
+                    setSelectedHighlightId(null)
+                    setNewAnnotation('')
+                  }}
+                  className="ml-2 text-blue-500 hover:text-blue-700"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <textarea
+              value={newAnnotation}
+              onChange={(e) => setNewAnnotation(e.target.value)}
+              placeholder={selectedHighlightId ? "Add a reply to this highlight..." : "Add a comment or question about this bookmark..."}
+              className="w-full px-3 py-2 border border-grey-accent-300 rounded-md resize-none text-sm"
+              rows={3}
+            />
+            <Button
+              onClick={() => {
+                if (newAnnotation.trim()) {
+                  // Pass highlight ID if we have one selected
+                  if (selectedHighlightId) {
+                    onCreateAnnotation(bookmark.id, newAnnotation, selectedHighlightId)
+                  } else {
+                    onCreateAnnotation(bookmark.id, newAnnotation)
+                  }
+                  setNewAnnotation('')
+                  setSelectedHighlightId(null)
+                }
+              }}
+              disabled={!newAnnotation.trim()}
+              size="sm"
+              className="w-full"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              {selectedHighlightId ? 'Reply to Highlight' : 'Add Comment'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Annotations and Highlights List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Show highlights first */}
+          {highlights.map((highlight) => (
+            <div key={highlight.highlight_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
+              <div className="flex items-start gap-3">
+                <div 
+                  className="w-1 h-full rounded"
+                  style={{ backgroundColor: highlight.color, minHeight: '60px' }}
+                />
+                <div className="flex-1">
+                  <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed text-sm">
+                    "{highlight.selected_text}"
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-grey-accent-600 mb-2">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                      {(highlight.creator_name || 'U')[0].toUpperCase()}
+                    </div>
+                    <span>{highlight.creator_name}</span>
+                    <span>•</span>
+                    <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                  </div>
+                  
+                  {/* Show annotations for this highlight */}
+                  {annotations
+                    .filter(ann => ann.highlight_id === highlight.highlight_id)
+                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                    .map((annotation) => (
+                      <div key={annotation.annotation_id} className="ml-2 mt-2 p-2 bg-grey-accent-50 rounded border-l-2 border-grey-accent-300">
+                        <p className="text-grey-accent-900 text-sm mb-1">{annotation.content}</p>
+                        <div className="flex items-center gap-2 text-xs text-grey-accent-600">
+                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                            {(annotation.creator_name || 'U')[0].toUpperCase()}
+                          </div>
+                          <span>{annotation.creator_name}</span>
+                          <span>•</span>
+                          <span>{new Date(annotation.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Show general bookmark annotations (not tied to highlights) */}
+          {annotations
+            .filter(ann => !ann.highlight_id)
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .map((annotation) => (
+              <div key={annotation.annotation_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                    {(annotation.creator_name || 'U')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-grey-accent-900 text-sm mb-2">{annotation.content}</p>
+                    <div className="flex items-center gap-2 text-xs text-grey-accent-600">
+                      <span>{annotation.creator_name}</span>
+                      <span>•</span>
+                      <span>{new Date(annotation.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+          {highlights.length === 0 && annotations.length === 0 && (
+            <div className="text-center py-8">
+              <MessageCircle className="w-12 h-12 text-grey-accent-300 mx-auto mb-3" />
+              <p className="text-grey-accent-600 text-sm">No highlights or comments yet</p>
+              <p className="text-grey-accent-500 text-xs">
+                Start a discussion or highlight important text!
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
