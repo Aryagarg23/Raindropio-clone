@@ -98,9 +98,26 @@ export interface Collection {
   name: string;
   description?: string;
   color: string;
+  parent_id?: string;
+  sort_order?: number;
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+// Extended collection with creator and nesting info
+export interface CollectionWithCreator extends Collection {
+  creator_name?: string;
+  creator_avatar?: string;
+  level?: number;
+  path?: string[];
+  children?: CollectionWithCreator[];
+}
+
+// Extended bookmark with creator info  
+export interface BookmarkWithCreator extends Bookmark {
+  creator_name?: string;
+  creator_avatar?: string;
 }
 
 export interface Bookmark {
@@ -195,12 +212,16 @@ export interface CreateCollectionRequest {
   name: string;
   description?: string;
   color?: string;
+  parent_id?: string;
+  sort_order?: number;
 }
 
 export interface UpdateCollectionRequest {
   name?: string;
   description?: string;
   color?: string;
+  parent_id?: string;
+  sort_order?: number;
 }
 
 export interface CreateBookmarkRequest {

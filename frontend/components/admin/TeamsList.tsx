@@ -21,42 +21,13 @@ export default function TeamsList({
 }: TeamsListProps) {
   return (
     <div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: 24 
-      }}>
-        <h2 style={{ 
-          fontSize: '1.5rem', 
-          fontWeight: 700, 
-          color: 'var(--text-primary)' 
-        }}>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-grey-accent-900">
           Teams ({teams.length})
         </h2>
         <button
           onClick={onCreateTeam}
-          style={{ 
-            background: 'var(--primary)', 
-            color: '#212529', 
-            padding: '12px 24px', 
-            borderRadius: 'var(--rounded-md)', 
-            fontWeight: 600, 
-            fontSize: '1rem', 
-            border: 'none', 
-            boxShadow: 'var(--shadow-md)', 
-            cursor: 'pointer', 
-            transition: 'all var(--transition-speed) var(--transition-ease)',
-            transform: 'translateY(0)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-          }}
+          className="bg-grey-accent-800 hover:bg-grey-accent-900 text-white px-6 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5"
         >
           {showCreateTeam ? 'Cancel' : 'Create Team'}
         </button>
@@ -73,15 +44,10 @@ export default function TeamsList({
           />
         ))}
         {teams.length === 0 && (
-          <div style={{ 
-            color: 'var(--text-secondary)', 
-            textAlign: 'center', 
-            padding: 32,
-            background: 'var(--surface)',
-            borderRadius: 'var(--rounded-lg)',
-            border: '2px dashed var(--border)'
-          }}>
-            No teams created yet. Create your first team!
+          <div className="text-center py-12 px-6 bg-grey-accent-50 rounded-xl border-2 border-dashed border-grey-accent-300">
+            <div className="text-4xl mb-4">👥</div>
+            <h3 className="text-lg font-medium text-grey-accent-800 mb-2">No teams yet</h3>
+            <p className="text-grey-accent-600">Create your first team to get started!</p>
           </div>
         )}
       </div>

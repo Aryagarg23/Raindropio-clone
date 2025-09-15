@@ -6,18 +6,11 @@ interface AdminPanelLayoutProps {
 
 export default function AdminPanelLayout({ children }: AdminPanelLayoutProps) {
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "var(--background)",
-      color: "var(--text-primary)",
-      fontFamily: "Inter, Nunito Sans, sans-serif",
-      padding: "32px 0",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center"
-    }}>
-      <div style={{ width: "100%", maxWidth: 1200, padding: "0 32px" }}>
-        {children}
+    <div className="min-h-screen bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">
+      <div className="flex flex-col items-center">
+        <div className="w-full max-w-7xl px-8 py-8">
+          {children}
+        </div>
       </div>
     </div>
   );

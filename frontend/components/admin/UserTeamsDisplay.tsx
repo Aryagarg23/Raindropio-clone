@@ -9,106 +9,59 @@ interface UserTeamsDisplayProps {
 export default function UserTeamsDisplay({ selectedUser, userTeams }: UserTeamsDisplayProps) {
   if (!selectedUser) {
     return (
-      <div style={{ 
-        color: 'var(--text-secondary)', 
-        textAlign: 'center', 
-        padding: 64,
-        background: 'var(--surface)',
-        borderRadius: 'var(--rounded-lg)',
-        border: '2px dashed var(--border)'
-      }}>
-        <div style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.5 }}>👤</div>
-        <p style={{ fontSize: '1.1rem', margin: 0 }}>Select a member to view their teams</p>
+      <div className="text-center py-16 px-6 bg-grey-accent-50 rounded-xl border-2 border-dashed border-grey-accent-300">
+        <div className="text-5xl mb-4 opacity-50">👤</div>
+        <p className="text-lg text-grey-accent-600">Select a member to view their teams</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h2 style={{ 
-        fontSize: '1.3rem', 
-        fontWeight: 700, 
-        color: 'var(--text-primary)', 
-        marginBottom: 16 
-      }}>
+      <h2 className="text-xl font-semibold text-grey-accent-900 mb-4">
         Teams for "{selectedUser.full_name || selectedUser.email}"
       </h2>
       
-      <div style={{ 
-        maxHeight: 400, 
-        overflowY: 'auto',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--rounded-lg)',
-        background: 'var(--surface)'
-      }}>
-        {userTeams.map((team, index) => (
-          <div key={team.id} style={{ 
-            padding: '16px 20px', 
-            borderBottom: index < userTeams.length - 1 ? '1px solid var(--border)' : 'none',
-            transition: 'background var(--transition-speed) var(--transition-ease)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-              {team.logo_url && (
-                <img 
-                  src={team.logo_url} 
+      <div className="max-h-96 overflow-y-auto scrollbar-hide space-y-3">
+        {userTeams.map((team) => (
+          <div key={team.id} className="p-6 bg-white border border-grey-accent-200 rounded-xl hover:border-grey-accent-300 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center gap-4">
+              {team.logo_url ? (
+                <img
+                  src={team.logo_url}
                   alt={team.name}
-                  style={{ 
-                    width: 32, 
-                    height: 32, 
-                    borderRadius: 'var(--rounded-md)', 
-                    marginRight: 12,
-                    objectFit: 'cover'
-                  }}
+                  className="w-12 h-12 rounded-xl object-cover shadow-md border-2 border-grey-accent-200"
+                  onError={e => (e.currentTarget.style.display = "none")}
                 />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                  {team.name.charAt(0).toUpperCase()}
+                </div>
               )}
-              <h3 style={{ 
-                color: 'var(--text-primary)', 
-                fontSize: '1.1rem', 
-                fontWeight: 600, 
-                margin: 0 
-              }}>
-                {team.name}
-              </h3>
+              <div className="flex-1 min-w-0">
+                <div className="text-lg font-semibold text-grey-accent-900 truncate">
+                  {team.name}
+                </div>
+                {team.description && (
+                  <div className="text-sm text-grey-accent-600 mt-1 line-clamp-2">
+                    {team.description}
+                  </div>
+                )}
+              </div>
             </div>
-            {team.description && (
-              <p style={{ 
-                color: 'var(--text-secondary)', 
-                fontSize: '0.9rem', 
-                margin: 0,
-                marginLeft: team.logo_url ? 44 : 0,
-                lineHeight: 1.4
-              }}>
-                {team.description}
-              </p>
-            )}
           </div>
         ))}
         {userTeams.length === 0 && (
-          <div style={{ 
-            color: 'var(--text-secondary)', 
-            textAlign: 'center', 
-            padding: 32,
-            fontStyle: 'italic'
-          }}>
-            This user is not a member of any teams.
+          <div className="text-center py-12 px-6 bg-white border border-grey-accent-200 rounded-xl">
+            <div className="text-4xl mb-4 opacity-40">📋</div>
+            <p className="text-grey-accent-500 text-base">This user is not a member of any teams.</p>
           </div>
         )}
       </div>
       
       {userTeams.length > 0 && (
-        <div style={{
-          marginTop: 16,
-          padding: '12px 16px',
-          background: 'var(--surface)',
-          borderRadius: 'var(--rounded-md)',
-          border: '1px solid var(--border)',
-          textAlign: 'center'
-        }}>
-          <span style={{ 
-            color: 'var(--text-secondary)', 
-            fontSize: '0.9rem',
-            fontWeight: 500
-          }}>
+        <div className="mt-4 py-3 px-4 bg-grey-accent-50 rounded-lg border border-grey-accent-200 text-center">
+          <span className="text-grey-accent-600 text-sm font-medium">
             Member of {userTeams.length} team{userTeams.length !== 1 ? 's' : ''}
           </span>
         </div>

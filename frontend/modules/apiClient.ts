@@ -166,7 +166,7 @@ export const apiClient = {
   },
 
   getTeamMembers: async (teamId: string) => {
-    return makeAuthenticatedRequest(`/admin/teams/${teamId}/members`);
+    return makeAuthenticatedRequest(`/teams/${teamId}/members`);
   },
 
   getUserTeams: async (userId: string) => {

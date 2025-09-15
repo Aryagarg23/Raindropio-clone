@@ -41,59 +41,18 @@ export default function AdminPanel() {
   return (
     <AdminPanelLayout>
       {/* Header */}
-      <div style={{ 
-        marginBottom: 32, 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        animation: 'slideInFromTop 0.3s ease-out'
-      }}>
+      <div className="mb-8 flex justify-between items-center">
         <div>
-          <h1 style={{ 
-            fontSize: '2.5rem', 
-            fontWeight: 700, 
-            color: 'var(--text-primary)', 
-            marginBottom: 8,
-            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
+          <h1 className="text-4xl font-bold text-grey-accent-900 mb-2">
             Admin Panel
           </h1>
-          <p style={{ 
-            color: 'var(--text-secondary)', 
-            fontSize: '1.1rem',
-            margin: 0
-          }}>
+          <p className="text-grey-accent-600 text-lg">
             Manage teams and users
           </p>
         </div>
         <button
-          onClick={() => router.push('/')}
-          style={{ 
-            background: 'var(--surface)', 
-            color: 'var(--text-secondary)', 
-            padding: '12px 24px', 
-            borderRadius: 'var(--rounded-md)', 
-            fontWeight: 500, 
-            fontSize: '1rem', 
-            border: '1px solid var(--border)', 
-            boxShadow: 'var(--shadow-md)', 
-            cursor: 'pointer', 
-            transition: 'all var(--transition-speed) var(--transition-ease)',
-            transform: 'translateY(0)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-            e.currentTarget.style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-            e.currentTarget.style.color = 'var(--text-secondary)';
-          }}
+          onClick={() => router.push('/dashboard')}
+          className="bg-white text-grey-accent-600 hover:text-grey-accent-800 px-6 py-3 rounded-lg font-medium border border-grey-accent-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
         >
           ← Back to Dashboard
         </button>

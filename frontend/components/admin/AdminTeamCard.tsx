@@ -11,37 +11,34 @@ interface AdminTeamCardProps {
 export default function AdminTeamCard({ team, selected, onSelect, onModify }: AdminTeamCardProps) {
   return (
     <div
-      className={`admin-team-card${selected ? " selected" : ""}`}
-      style={{
-        background: "var(--surface)",
-        border: selected ? "2px solid var(--primary)" : "1px solid var(--border)",
-        borderRadius: "var(--rounded-lg)",
-        boxShadow: "var(--shadow-md)",
-        padding: 24,
-        marginBottom: 16,
-        cursor: "pointer",
-        transition: "box-shadow var(--transition-speed) var(--transition-ease), border-color var(--transition-speed) var(--transition-ease)",
-        transform: selected ? "translateY(-2px) scale(1.02)" : "none"
-      }}
+      className={`p-6 mb-4 rounded-xl cursor-pointer transition-all duration-200 ${
+        selected 
+          ? 'bg-grey-accent-100 border-2 border-grey-accent-400 shadow-lg -translate-y-1' 
+          : 'bg-white border border-grey-accent-200 hover:border-grey-accent-300 hover:shadow-md'
+      }`}
       onClick={() => onSelect?.(team)}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div className="flex items-center gap-4">
         {team.logo_url ? (
           <img
             src={team.logo_url}
             alt={team.name}
-            style={{ width: 48, height: 48, borderRadius: "var(--rounded-full)", objectFit: "cover", boxShadow: "var(--shadow-md)" }}
+            className="w-12 h-12 rounded-xl object-cover shadow-md border-2 border-grey-accent-200"
             onError={e => (e.currentTarget.style.display = "none")}
           />
         ) : (
-          <div style={{ width: 48, height: 48, borderRadius: "var(--rounded-full)", background: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24, color: "#212529" }}>
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white font-bold text-lg shadow-md">
             {team.name.charAt(0).toUpperCase()}
           </div>
         )}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)" }}>{team.name}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-lg font-semibold text-grey-accent-900 truncate">
+            {team.name}
+          </div>
           {team.description && (
-            <div style={{ fontSize: "0.95rem", color: "var(--text-secondary)", marginTop: 4 }}>{team.description}</div>
+            <div className="text-sm text-grey-accent-600 mt-1 line-clamp-2">
+              {team.description}
+            </div>
           )}
         </div>
         <button
@@ -49,15 +46,7 @@ export default function AdminTeamCard({ team, selected, onSelect, onModify }: Ad
             e.stopPropagation();
             onModify?.(team);
           }}
-          style={{
-            background: "var(--surface)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--rounded-md)",
-            padding: "8px 16px",
-            cursor: "pointer",
-            transition: "background var(--transition-speed) var(--transition-ease)",
-          }}
+          className="px-4 py-2 bg-grey-accent-50 hover:bg-grey-accent-100 text-grey-accent-700 border border-grey-accent-300 rounded-lg transition-all duration-200 text-sm font-medium"
         >
           Modify
         </button>

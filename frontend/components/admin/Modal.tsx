@@ -8,68 +8,26 @@ interface ModalProps {
   maxWidth?: string;
 }
 
-export default function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, maxWidth = '600px' }: ModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-      animation: 'fadeIn 0.2s ease-out'
-    }}>
-      <div style={{
-        backgroundColor: 'var(--background)',
-        borderRadius: 'var(--rounded-lg)',
-        padding: '32px',
-        maxWidth,
-        width: '90%',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--border)',
-        animation: 'slideInFromBottom 0.3s ease-out'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '24px' 
-        }}>
-          <h2 style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 700, 
-            color: 'var(--text-primary)', 
-            margin: 0 
-          }}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl border border-grey-accent-200 w-full mx-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300" style={{ maxWidth }}>
+        <div className="flex justify-between items-center p-6 border-b border-grey-accent-100">
+          <h2 className="text-xl font-semibold text-grey-accent-900">
             {title}
           </h2>
           <button
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '1.5rem',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: 'var(--rounded-md)',
-              transition: 'color var(--transition-speed) var(--transition-ease)'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+            className="text-grey-accent-500 hover:text-grey-accent-700 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-grey-accent-100 transition-all duration-200"
           >
             ✕
           </button>
         </div>
-        {children}
+        <div className="p-6">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -106,7 +106,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
           )
         `)
         .eq('team_id', actualTeamId)
-        .order('created_at', { ascending: false });
+        .order('sort_order', { ascending: true });
       
       if (collectionsError) throw collectionsError;
       setCollections(collectionsData || []);
@@ -213,7 +213,8 @@ export function useTeamSite(teamId: string | string[] | undefined) {
         { event: 'UPDATE', schema: 'public', table: 'collections', filter: `team_id=eq.${actualTeamId}` },
         async (payload: any) => {
           console.log('Collection updated:', payload);
-          const { data: updatedCollection } = await supabase
+          // Refetch all collections to maintain proper sort order
+          const { data: collectionsData } = await supabase
             .from('collections')
             .select(`
               *,
@@ -223,13 +224,11 @@ export function useTeamSite(teamId: string | string[] | undefined) {
                 avatar_url
               )
             `)
-            .eq('id', payload.new.id)
-            .single();
+            .eq('team_id', actualTeamId)
+            .order('sort_order', { ascending: true });
           
-          if (updatedCollection) {
-            setCollections(prev => prev.map(col => 
-              col.id === updatedCollection.id ? updatedCollection : col
-            ));
+          if (collectionsData) {
+            setCollections(collectionsData);
           }
         }
       )

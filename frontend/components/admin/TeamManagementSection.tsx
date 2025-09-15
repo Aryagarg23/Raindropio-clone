@@ -29,12 +29,7 @@ export default function TeamManagementSection({
   onRemoveMember
 }: TeamManagementSectionProps) {
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: '1fr 1fr', 
-      gap: 48,
-      animation: 'fadeIn 0.3s ease-out'
-    }}>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <TeamsList
         teams={teams}
         selectedTeam={selectedTeam}

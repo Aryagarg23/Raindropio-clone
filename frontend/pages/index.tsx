@@ -54,48 +54,42 @@ export default function Home() {
   };
 
   return (
-    <main
-      style={{
-        background: "var(--background)",
-        color: "var(--text-primary)",
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "Inter, Nunito Sans, sans-serif"
-      }}
-    >
-      <h1 style={{ fontSize: "2.5rem", fontWeight: 700, marginBottom: 32 }}>
-        Raindropio Clone
-      </h1>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <div style={{ textAlign: "center", maxWidth: "400px" }}>
-          <p style={{ color: "var(--text-secondary)", marginBottom: 32, fontSize: "1.1rem" }}>
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">
+      <div className="max-w-md w-full px-6">
+        <div className="text-center mb-8">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-grey-accent-700 to-grey-accent-800 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-xl border border-grey-accent-200">
+              <span className="text-2xl text-white font-bold">R</span>
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-grey-accent-800 to-grey-accent-900 bg-clip-text text-transparent mb-4">
+            Raindropio Clone
+          </h1>
+          <p className="text-grey-accent-600 text-lg">
             Sign in to access your team workspaces
           </p>
-          <button
-            onClick={signInWithGoogle}
-            style={{
-              background: "var(--primary)",
-              color: "#212529",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              fontSize: "1.2em",
-              fontWeight: 600,
-              boxShadow: "var(--shadow-md)",
-              border: "none",
-              cursor: "pointer",
-              transition: "all 200ms ease-out",
-              width: "100%"
-            }}
-          >
-            Continue with Google
-          </button>
         </div>
-      )}
+        {loading ? (
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-grey-accent-600"></div>
+            <p className="mt-2 text-grey-accent-500">Loading...</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <button
+              onClick={signInWithGoogle}
+              className="w-full bg-gradient-to-r from-grey-accent-700 to-grey-accent-800 hover:from-grey-accent-800 hover:to-grey-accent-900 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-lg transform hover:scale-[1.02] border border-grey-accent-600"
+            >
+              Continue with Google
+            </button>
+            <div className="text-center">
+              <p className="text-xs text-grey-accent-500 bg-grey-accent-50 px-3 py-1 rounded-full inline-block border border-grey-accent-200">
+                🔒 Secure authentication powered by Google
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

@@ -1,16 +1,25 @@
 import { useState } from 'react';
 
+interface Collection {
+  id: string;
+  name: string;
+  parent_id?: string;
+  level?: number;
+}
+
 interface CreateCollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; description: string; color: string }) => void;
+  onSubmit: (data: { name: string; description: string; color: string; parent_id?: string }) => void;
+  collections?: Collection[];
 }
 
-export default function CreateCollectionModal({ isOpen, onClose, onSubmit }: CreateCollectionModalProps) {
+export default function CreateCollectionModal({ isOpen, onClose, onSubmit, collections = [] }: CreateCollectionModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    color: '#6366f1'
+    color: '#6366f1',
+    parent_id: ''
   });
 
   const predefinedColors = [
@@ -27,14 +36,20 @@ export default function CreateCollectionModal({ isOpen, onClose, onSubmit }: Cre
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name.trim()) {
-      onSubmit(formData);
-      setFormData({ name: '', description: '', color: '#6366f1' });
+      const submitData = {
+        name: formData.name,
+        description: formData.description,
+        color: formData.color,
+        ...(formData.parent_id && { parent_id: formData.parent_id })
+      };
+      onSubmit(submitData);
+      setFormData({ name: '', description: '', color: '#6366f1', parent_id: '' });
       onClose();
     }
   };
 
   const handleClose = () => {
-    setFormData({ name: '', description: '', color: '#6366f1' });
+    setFormData({ name: '', description: '', color: '#6366f1', parent_id: '' });
     onClose();
   };
 
@@ -120,6 +135,31 @@ export default function CreateCollectionModal({ isOpen, onClose, onSubmit }: Cre
                 color: 'var(--text-primary)'
               } as React.CSSProperties}
             />
+          </div>
+
+          {/* Parent Collection */}
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+              Parent Collection (Optional)
+            </label>
+            <select
+              value={formData.parent_id}
+              onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
+              className="w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={{
+                backgroundColor: 'var(--background)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)'
+              } as React.CSSProperties}
+            >
+              <option value="">Root Level (No Parent)</option>
+              {collections.map((collection) => (
+                <option key={collection.id} value={collection.id}>
+                  {'  '.repeat((collection.level || 0))}
+                  {collection.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Color Picker */}

@@ -48,79 +48,31 @@ export default function TeamMemberManager({
       </h2>
       
       {/* Current Members */}
-      <div style={{ marginBottom: 32 }}>
-        <h3 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: 600, 
-          color: 'var(--text-primary)', 
-          marginBottom: 12 
-        }}>
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-grey-accent-900 mb-3">
           Current Members ({teamMembers.length})
         </h3>
-        <div style={{ 
-          maxHeight: 200, 
-          overflowY: 'auto',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--rounded-md)',
-          background: 'var(--surface)'
-        }}>
+        <div className="max-h-48 overflow-y-auto scrollbar-hide border border-grey-accent-200 rounded-lg bg-white">
           {teamMembers.map((member) => (
-            <div key={member.user_id} style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: '12px 16px', 
-              borderBottom: '1px solid var(--border)',
-              transition: 'background var(--transition-speed) var(--transition-ease)'
-            }}>
+            <div key={member.user_id} className="flex justify-between items-center p-3 border-b border-grey-accent-100 last:border-b-0 hover:bg-grey-accent-50 transition-colors duration-200">
               <div>
-                <div style={{ 
-                  color: 'var(--text-primary)', 
-                  fontWeight: 500,
-                  marginBottom: 2
-                }}>
+                <div className="text-grey-accent-900 font-medium mb-1">
                   {member.full_name || 'Unnamed User'}
                 </div>
-                <div style={{ 
-                  color: 'var(--text-secondary)', 
-                  fontSize: '0.9rem'
-                }}>
+                <div className="text-grey-accent-600 text-sm">
                   {member.email}
                 </div>
               </div>
               <button
                 onClick={() => onRemoveMember(selectedTeam.id, member.user_id)}
-                style={{ 
-                  background: 'var(--accent)', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: 'var(--rounded-md)', 
-                  padding: '6px 12px', 
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  transition: 'all var(--transition-speed) var(--transition-ease)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                className="bg-red-500 hover:bg-red-600 text-white border-none rounded-md px-3 py-1.5 text-sm cursor-pointer font-medium transition-all duration-200 hover:scale-105 hover:shadow-md"
               >
                 Remove
               </button>
             </div>
           ))}
           {teamMembers.length === 0 && (
-            <div style={{ 
-              color: 'var(--text-secondary)', 
-              textAlign: 'center', 
-              padding: 24,
-              fontStyle: 'italic'
-            }}>
+            <div className="text-grey-accent-500 text-center py-6 italic">
               No members yet. Add some members below!
             </div>
           )}
@@ -129,78 +81,30 @@ export default function TeamMemberManager({
 
       {/* Add Members */}
       <div>
-        <h3 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: 600, 
-          color: 'var(--text-primary)', 
-          marginBottom: 12 
-        }}>
+        <h3 className="text-lg font-semibold text-grey-accent-900 mb-3">
           Add Members
         </h3>
-        <div style={{ 
-          maxHeight: 200, 
-          overflowY: 'auto',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--rounded-md)',
-          background: 'var(--surface)'
-        }}>
+        <div className="max-h-48 overflow-y-auto scrollbar-hide border border-grey-accent-200 rounded-lg bg-white">
           {availableUsers.map((user) => (
-            <div key={user.user_id} style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: '12px 16px', 
-              borderBottom: '1px solid var(--border)',
-              transition: 'background var(--transition-speed) var(--transition-ease)'
-            }}>
+            <div key={user.user_id} className="flex justify-between items-center p-3 border-b border-grey-accent-100 last:border-b-0 hover:bg-grey-accent-50 transition-colors duration-200">
               <div>
-                <div style={{ 
-                  color: 'var(--text-primary)', 
-                  fontWeight: 500,
-                  marginBottom: 2
-                }}>
+                <div className="text-grey-accent-900 font-medium mb-1">
                   {user.full_name || 'Unnamed User'}
                 </div>
-                <div style={{ 
-                  color: 'var(--text-secondary)', 
-                  fontSize: '0.9rem'
-                }}>
+                <div className="text-grey-accent-600 text-sm">
                   {user.email}
                 </div>
               </div>
               <button
                 onClick={() => onAddMember(selectedTeam.id, user.user_id)}
-                style={{ 
-                  background: 'var(--primary)', 
-                  color: '#212529', 
-                  border: 'none', 
-                  borderRadius: 'var(--rounded-md)', 
-                  padding: '6px 12px', 
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all var(--transition-speed) var(--transition-ease)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                  e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                className="bg-green-500 hover:bg-green-600 text-white border-none rounded-md px-3 py-1.5 text-sm cursor-pointer font-semibold transition-all duration-200 hover:scale-105 hover:shadow-md"
               >
                 Add
               </button>
             </div>
           ))}
           {availableUsers.length === 0 && (
-            <div style={{ 
-              color: 'var(--text-secondary)', 
-              textAlign: 'center', 
-              padding: 24,
-              fontStyle: 'italic'
-            }}>
+            <div className="text-grey-accent-500 text-center py-6 italic">
               All users are already members of this team.
             </div>
           )}

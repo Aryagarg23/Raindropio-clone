@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamMembers, setTeamMembers] = useState<Record<string, UserProfile[]>>({});
   const [loading, setLoading] = useState(true);
   const [teamsLoading, setTeamsLoading] = useState(false);
 
@@ -102,6 +103,16 @@ export default function Dashboard() {
     }
   };
 
+  const fetchTeamMembers = async (teamId: string) => {
+    try {
+      const response = await apiClient.getTeamMembers(teamId);
+      return response.members || [];
+    } catch (error) {
+      console.error(`❌ Error fetching members for team ${teamId}:`, error);
+      return [];
+    }
+  };
+
   const fetchTeams = async () => {
     if (!user || !profile) return;
     
@@ -111,6 +122,16 @@ export default function Dashboard() {
       const response: ListTeamsResponse = await apiClient.getTeams();
       setTeams(response.teams || []);
       console.log(`✅ Loaded ${response.teams?.length || 0} teams`);
+      
+      // Fetch members for each team for all users
+      if (response.teams?.length) {
+        const membersData: Record<string, UserProfile[]> = {};
+        for (const team of response.teams) {
+          const members = await fetchTeamMembers(team.id);
+          membersData[team.id] = members;
+        }
+        setTeamMembers(membersData);
+      }
     } catch (error) {
       console.error("❌ Error fetching teams:", error);
       setTeams([]);
@@ -125,19 +146,11 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <main
-        style={{
-          background: "var(--background)",
-          color: "var(--text-primary)",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "Inter, Nunito Sans, sans-serif"
-        }}
-      >
-        <div>Loading...</div>
+      <main className="min-h-screen bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans flex flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-6 h-6 border-2 border-grey-accent-300 border-t-grey-accent-700 rounded-full mx-auto mb-3"></div>
+          <p className="text-sm text-grey-accent-600">Loading...</p>
+        </div>
       </main>
     );
   }
@@ -167,186 +180,264 @@ export default function Dashboard() {
   console.log("🔍 Profile incomplete:", isProfileIncomplete);
 
   return (
-    <main
-      style={{
-        background: "var(--background)",
-        color: "var(--text-primary)",
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "Inter, Nunito Sans, sans-serif"
-      }}
-    >
+    <main className="min-h-screen bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">
       {/* Header with sign out */}
-      <div style={{ position: "absolute", top: 20, right: 20 }}>
+      <div className="absolute top-6 right-6">
         <button
           onClick={signOut}
-          style={{
-            background: "transparent",
-            border: "1px solid var(--border)",
-            color: "var(--text-primary)",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            fontSize: "0.9rem",
-            cursor: "pointer",
-            transition: "all 200ms ease-out"
-          }}
+          className="text-grey-accent-600 hover:text-grey-accent-800 text-sm transition-colors"
         >
           Sign Out
         </button>
       </div>
 
-      <h1 style={{ fontSize: "2.5rem", fontWeight: 700, marginBottom: 32 }}>
-        Dashboard
-      </h1>
-
-      {isProfileIncomplete ? (
-        <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
-      ) : (
-        profile ? (
-          <div style={{ textAlign: "center", width: "100%", maxWidth: "800px", padding: "0 20px" }}>
-            {/* User Profile Header */}
-            <div style={{ marginBottom: 48 }}>
-              <img
-                src={profile.avatar_url || "/default-avatar.png"}
-                alt="Avatar"
-                style={{ width: 96, height: 96, borderRadius: "9999px", boxShadow: "var(--shadow-md)", marginBottom: 16 }}
-              />
-              <h2 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: 8 }}>{profile.full_name || "Unnamed User"}</h2>
-              <p style={{ color: profile.favorite_color || "#A0D2EB", fontWeight: 600, marginBottom: 4 }}>
-                Favorite Color: {getClosestColorName(profile.favorite_color || "#A0D2EB")}
-              </p>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                Role: {profile.role === 'admin' ? '👑 Admin' : '👤 User'}
-              </p>
-              {profile.role === 'admin' && (
+      <div className="flex flex-col min-h-screen">
+        {/* Compact Header */}
+        <div className="pt-20 pb-8 px-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <img
+                    src={profile?.avatar_url || "/default-avatar.png"}
+                    alt="Avatar"
+                    className="w-12 h-12 rounded-full shadow-md ring-2 ring-grey-accent-200"
+                  />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-grey-accent-600 rounded-full flex items-center justify-center border-2 border-white">
+                    <span className="text-white text-xs">✓</span>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <h1 className="text-2xl font-semibold text-grey-accent-900">{profile?.full_name || "Dashboard"}</h1>
+                  <div className="flex items-center space-x-3 mt-1">
+                    <span className="text-xs text-grey-accent-500 bg-grey-accent-100 px-2 py-0.5 rounded-md">
+                      {profile?.role === 'admin' ? '👑 Admin' : '👤 User'}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-md" style={{ 
+                      color: profile?.favorite_color || "#6b7280",
+                      backgroundColor: `${profile?.favorite_color || "#6b7280"}15`
+                    }}>
+                      {getClosestColorName(profile?.favorite_color || "#6b7280")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {profile?.role === 'admin' && (
                 <a 
                   href="/admin" 
-                  style={{ 
-                    display: "inline-block", 
-                    marginTop: 12, 
-                    padding: "8px 16px", 
-                    background: "var(--primary)", 
-                    color: "#212529", 
-                    textDecoration: "none", 
-                    borderRadius: "6px",
-                    fontSize: "0.9rem",
-                    fontWeight: 600
-                  }}
+                  className="inline-flex items-center px-3 py-1.5 bg-grey-accent-800 hover:bg-grey-accent-900 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
                   Admin Panel
                 </a>
               )}
             </div>
 
-            {/* Teams Section */}
-            <div style={{ textAlign: "left" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>My Teams</h3>
-                <button 
-                  onClick={fetchTeams}
-                  disabled={teamsLoading}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
-                    padding: "6px 12px",
-                    borderRadius: "4px",
-                    fontSize: "0.8rem",
-                    cursor: teamsLoading ? "not-allowed" : "pointer",
-                    opacity: teamsLoading ? 0.6 : 1
-                  }}
-                >
-                  {teamsLoading ? "Refreshing..." : "Refresh"}
-                </button>
-              </div>
+        {isProfileIncomplete ? (
+          <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
+        ) : (
+          profile ? (
+            <div className="w-full">{/* Content moved to main area */}
 
-              {teamsLoading ? (
-                <div style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)" }}>
-                  Loading teams...
+              {/* Teams Section */}
+              <div className="text-left">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-grey-accent-900">Teams</h3>
+                  <button 
+                    onClick={fetchTeams}
+                    disabled={teamsLoading}
+                    className="text-grey-accent-600 hover:text-grey-accent-800 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {teamsLoading ? "Refreshing..." : "Refresh"}
+                  </button>
                 </div>
-              ) : teams.length === 0 ? (
-                <div style={{ 
-                  padding: "40px", 
-                  textAlign: "center", 
-                  border: "2px dashed var(--border)", 
-                  borderRadius: "8px",
-                  background: "var(--surface)"
-                }}>
-                  <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, color: "var(--text-secondary)" }}>
-                    Welcome to the Lobby!
-                  </h4>
-                  <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-                    You haven't been assigned to any teams yet. Contact an admin to get started.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: "16px" }}>
-                  {teams.map((team) => (
-                    <div 
-                      key={team.id}
-                      style={{ 
-                        padding: "20px", 
-                        border: "1px solid var(--border)", 
-                        borderRadius: "8px",
-                        background: "var(--surface)",
-                        boxShadow: "var(--shadow-sm)"
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, margin: 0 }}>
-                            {team.name}
-                          </h4>
-                          {team.description && (
-                            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: 8 }}>
-                              {team.description}
-                            </p>
-                          )}
-                          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: 0 }}>
-                            Created: {new Date(team.created_at).toLocaleDateString()}
-                            {team.member_count && (
-                              <span style={{ marginLeft: 8 }}>• {team.member_count} members</span>
-                            )}
-                          </p>
-                        </div>
-                        <a
-                          href={`/team-site/${team.id}`}
-                          style={{
-                            display: "inline-block",
-                            padding: "8px 16px",
-                            background: "var(--primary)",
-                            color: "#212529",
-                            textDecoration: "none",
-                            borderRadius: "6px",
-                            fontSize: "0.85rem",
-                            fontWeight: 600,
-                            marginLeft: 16,
-                            transition: "all 200ms ease-out",
-                            boxShadow: "var(--shadow-sm)"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = "translateY(-1px)";
-                            e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = "translateY(0)";
-                            e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-                          }}
-                        >
-                          Open Workspace →
-                        </a>
-                      </div>
+
+                {teamsLoading ? (
+                  <div className="p-4 text-center">
+                    <div className="inline-flex items-center space-x-2 text-sm text-grey-accent-600">
+                      <div className="animate-spin w-4 h-4 border-2 border-grey-accent-300 border-t-grey-accent-600 rounded-full"></div>
+                      <span>Loading teams...</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ) : teams.length === 0 ? (
+                  <div className="p-12 text-center border-2 border-dashed border-grey-accent-300 rounded-xl bg-grey-accent-50">
+                    <div className="w-16 h-16 bg-gradient-to-br from-grey-accent-500 to-grey-accent-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-md border border-grey-accent-300">
+                      <span className="text-2xl text-white">👥</span>
+                    </div>
+                    <h4 className="text-lg font-semibold mb-3 text-grey-accent-800">
+                      No teams yet
+                    </h4>
+                    <p className="text-grey-accent-600 mb-4">
+                      You haven't been assigned to any teams yet. Contact an admin to get started.
+                    </p>
+                    <div className="text-xs text-grey-accent-500 bg-white px-4 py-2 rounded-full inline-block border border-grey-accent-200 shadow-sm">
+                      Teams will appear here once you're added
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-6">
+                    {teams.map((team: Team) => (
+                      <div 
+                        key={team.id}
+                        className="p-6 border border-grey-accent-200 rounded-xl bg-white hover:border-grey-accent-300 hover:shadow-lg transition-all duration-200 min-h-[160px]"
+                      >
+                        {/* Top Row: Logo/Name (Left) + Pictures/Members (Right) */}
+                        <div className="flex items-start justify-between mb-6">
+                          {/* Top Left: Team logo and name */}
+                          <div className="flex items-start space-x-4">
+                            <div className="w-12 h-12 rounded-xl overflow-hidden shadow-md border-2 border-grey-accent-200 flex-shrink-0">
+                              {team.logo_url ? (
+                                <img 
+                                  src={team.logo_url} 
+                                  alt={`${team.name} logo`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div 
+                                className="w-full h-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center"
+                                style={{ display: team.logo_url ? 'none' : 'flex' }}
+                              >
+                                <span className="text-white text-sm font-bold">{team.name.charAt(0).toUpperCase()}</span>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-lg font-semibold text-grey-accent-900 mb-1">
+                                {team.name}
+                              </h4>
+                              <div className="flex items-center space-x-2 text-xs text-grey-accent-500">
+                                <span>{new Date(team.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Top Right: Profile pictures and member count */}
+                          <div className="flex flex-col items-end space-y-2">
+                            {/* Member avatars */}
+                            <div className="flex -space-x-2">
+                              {teamMembers[team.id] && teamMembers[team.id].length > 0 ? (
+                                <>
+                                  {teamMembers[team.id].slice(0, 5).map((member, i) => (
+                                    <div key={member.user_id} className="relative">
+                                      <div className="group relative inline-block">
+                                        <img
+                                          src={member.avatar_url || `/api/placeholder/32/32`}
+                                          alt={member.full_name || member.email}
+                                          className="w-8 h-8 rounded-full border-2 border-white shadow-sm object-cover hover:scale-110 transition-transform cursor-pointer"
+                                          onError={(e) => {
+                                            // Fallback to initials if avatar fails to load
+                                            const target = e.target as HTMLImageElement;
+                                            const name = member.full_name || member.email;
+                                            const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                                            target.style.display = 'none';
+                                            const fallback = target.nextElementSibling as HTMLElement;
+                                            if (fallback) {
+                                              fallback.style.display = 'flex';
+                                              fallback.textContent = initials;
+                                            }
+                                          }}
+                                        />
+                                        <div 
+                                          className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-400 to-grey-accent-600 border-2 border-white shadow-sm flex items-center justify-center absolute inset-0"
+                                          style={{ display: 'none' }}
+                                        >
+                                          <span className="text-white text-sm font-medium"></span>
+                                        </div>
+
+                                        {/* Individual tooltip placed inside the group so group-hover works */}
+                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-grey-accent-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all whitespace-nowrap pointer-events-auto z-50 shadow-lg">
+                                          <div className="font-medium">{member.full_name || 'Unknown'}</div>
+                                          <div className="text-grey-accent-300 text-xs">{member.email}</div>
+                                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-grey-accent-900"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {teamMembers[team.id].length > 5 && (
+                                    <div className="relative inline-block">
+                                      <div className="group inline-block">
+                                        <div className="w-8 h-8 rounded-full bg-grey-accent-200 border-2 border-white shadow-sm flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
+                                          <span className="text-grey-accent-600 text-xs font-medium">
+                                            +{teamMembers[team.id].length - 5}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Tooltip for extra members placed inside group wrapper */}
+                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-grey-accent-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all whitespace-normal pointer-events-auto z-50 shadow-lg max-w-xs">
+                                        <div className="font-medium">{teamMembers[team.id].length - 5} more</div>
+                                        <div className="text-grey-accent-300 text-xs">
+                                          {teamMembers[team.id].slice(5).map(m => m.full_name || m.email.split('@')[0]).join(', ')}
+                                        </div>
+                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-grey-accent-900"></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                // Fallback for teams without member data
+                                Array.from({ length: Math.min(team.member_count || 0, 5) }, (_, i) => (
+                                  <div 
+                                    key={i}
+                                    className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-400 to-grey-accent-600 border-2 border-white shadow-sm flex items-center justify-center hover:scale-110 transition-transform"
+                                  >
+                                    <span className="text-white text-sm font-medium">
+                                      {String.fromCharCode(65 + i)}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            {/* Member count */}
+                            <div className="text-xs text-grey-accent-500 bg-grey-accent-50 px-2 py-1 rounded-full">
+                              {((teamMembers[team.id] && teamMembers[team.id].length > 0) || team.member_count) && (
+                                <>
+                                  {teamMembers[team.id] ? 
+                                    (teamMembers[team.id].length === 1 ? '1 member' : `${teamMembers[team.id].length} members`) :
+                                    (team.member_count === 1 ? '1 member' : `${team.member_count} members`)
+                                  }
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Description (Left) + Open Button (Right) */}
+                        <div className="flex items-end justify-between">
+                          {/* Bottom Left: Description */}
+                          <div className="flex-1 pr-4">
+                            {team.description && (
+                              <p className="text-grey-accent-600 text-sm leading-relaxed">
+                                {team.description}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Bottom Right: Open button */}
+                          <div className="flex-shrink-0">
+                            <a
+                              href={`/team-site/${team.id}`}
+                              className="px-4 py-2 bg-grey-accent-800 hover:bg-grey-accent-900 text-white no-underline rounded-lg text-sm font-medium transition-colors shadow-sm hover:shadow-md"
+                            >
+                              Open →
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+          ) : null
+        )}
           </div>
-        ) : null
-      )}
+        </div>
+      </div>
     </main>
   );
 }
