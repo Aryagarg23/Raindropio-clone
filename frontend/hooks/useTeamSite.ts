@@ -244,7 +244,15 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             .single();
           
           if (newCollection) {
-            setCollections(prev => [newCollection, ...prev]);
+            setCollections(prev => {
+              // Check if collection already exists (avoid duplicates from optimistic updates)
+              const exists = prev.some(col => col.id === newCollection.id);
+              if (exists) {
+                console.log('Collection already exists, skipping duplicate insert');
+                return prev;
+              }
+              return [newCollection, ...prev];
+            });
           }
         }
       )
@@ -306,7 +314,15 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             .single();
           
           if (newBookmark) {
-            setBookmarks(prev => [newBookmark, ...prev]);
+            setBookmarks(prev => {
+              // Check if bookmark already exists (avoid duplicates from optimistic updates)
+              const exists = prev.some(bm => bm.id === newBookmark.id);
+              if (exists) {
+                console.log('Bookmark already exists, skipping duplicate insert');
+                return prev;
+              }
+              return [newBookmark, ...prev];
+            });
           }
         }
       )
@@ -369,7 +385,15 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             .single();
           
           if (newEvent) {
-            setTeamEvents(prev => [newEvent, ...prev.slice(0, 19)]);
+            setTeamEvents(prev => {
+              // Check if event already exists (avoid duplicates)
+              const exists = prev.some(event => event.id === newEvent.id);
+              if (exists) {
+                console.log('Team event already exists, skipping duplicate insert');
+                return prev;
+              }
+              return [newEvent, ...prev.slice(0, 19)];
+            });
           }
         }
       )
@@ -400,6 +424,12 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             
             if (newPresence) {
               setPresence(prev => {
+                // Check if presence for this user already exists
+                const exists = prev.some(p => p.user_id === newPresence.user_id && p.team_id === newPresence.team_id);
+                if (exists) {
+                  console.log('Presence for user already exists, skipping duplicate insert');
+                  return prev;
+                }
                 const filtered = prev.filter(p => p.user_id !== newPresence.user_id);
                 return [newPresence, ...filtered];
               });
@@ -553,9 +583,11 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       if (error) throw error;
       
       // Replace optimistic update with real data
-      setCollections(prev => prev.map(col => 
-        col.id === optimisticCollection.id ? data : col
-      ));
+      setCollections(prev => {
+        const withoutOptimistic = prev.filter(col => col.id !== optimisticCollection.id);
+        const withoutDuplicate = withoutOptimistic.filter(col => col.id !== data.id);
+        return [data, ...withoutDuplicate];
+      });
       
       // Create team event for activity feed
       await supabase
@@ -647,9 +679,11 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       if (error) throw error;
       
       // Replace optimistic update with real data
-      setBookmarks(prev => prev.map(bm => 
-        bm.id === optimisticBookmark.id ? data : bm
-      ));
+      setBookmarks(prev => {
+        const withoutOptimistic = prev.filter(bm => bm.id !== optimisticBookmark.id);
+        const withoutDuplicate = withoutOptimistic.filter(bm => bm.id !== data.id);
+        return [data, ...withoutDuplicate];
+      });
       
       // Create team event for activity feed
       await supabase

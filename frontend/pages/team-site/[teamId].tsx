@@ -179,6 +179,9 @@ export default function TeamSitePage() {
   const router = useRouter()
   const { teamId } = router.query
   
+  // Normalize teamId to string for consistent usage
+  const normalizedTeamId = typeof teamId === 'string' ? teamId : Array.isArray(teamId) ? teamId[0] : undefined;
+  
   const {
     user,
     profile,
@@ -597,7 +600,7 @@ export default function TeamSitePage() {
       return
     }
 
-    if (!teamId) {
+    if (!normalizedTeamId) {
       console.error('❌ Missing teamId')
       setError('Missing team ID')
       return
@@ -605,7 +608,7 @@ export default function TeamSitePage() {
 
     console.log('🔍 Creating highlight with parameters:', {
       bookmarkId,
-      teamId: String(teamId),
+      teamId: normalizedTeamId,
       selectedText: selectedText.substring(0, 50),
       textBefore,
       textAfter,
@@ -618,7 +621,7 @@ export default function TeamSitePage() {
     try {
       const insertData = {
         bookmark_id: bookmarkId,
-        team_id: String(teamId), // Ensure teamId is a string
+        team_id: normalizedTeamId, // Use normalized teamId
         selected_text: selectedText,
         text_before: textBefore || null,
         text_after: textAfter || null,
@@ -677,7 +680,7 @@ export default function TeamSitePage() {
       return
     }
 
-    if (!teamId) {
+    if (!normalizedTeamId) {
       console.error('❌ Missing teamId for annotation')
       setError('Missing team ID')
       return
@@ -685,7 +688,7 @@ export default function TeamSitePage() {
 
     console.log('🔍 Creating annotation with parameters:', {
       bookmarkId,
-      teamId: String(teamId),
+      teamId: normalizedTeamId,
       content: content.substring(0, 100),
       highlightId: highlightId || 'null (general bookmark annotation)',
       userId: user.id
@@ -695,7 +698,7 @@ export default function TeamSitePage() {
       const insertData = {
         bookmark_id: bookmarkId,
         highlight_id: highlightId || null,
-        team_id: String(teamId), // Ensure teamId is a string
+        team_id: normalizedTeamId, // Use normalized teamId
         content: content.trim(),
         annotation_type: 'comment',
         created_by: user.id
@@ -759,7 +762,7 @@ export default function TeamSitePage() {
           .from('annotation_reactions')
           .insert({
             annotation_id: annotationId,
-            team_id: teamId,
+            team_id: normalizedTeamId,
             reaction_type: 'like',
             created_by: user.id
           })
@@ -3666,7 +3669,7 @@ export default function TeamSitePage() {
           highlightColor={highlightColor}
           setHighlightColor={setHighlightColor}
           user={user}
-          teamId={typeof teamId === 'string' ? teamId : Array.isArray(teamId) ? teamId[0] ?? '' : ''}
+          teamId={normalizedTeamId}
         />
       )}
     </div>
