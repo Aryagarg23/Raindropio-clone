@@ -18,6 +18,7 @@ import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
 import { getApiBaseUrl } from '../../modules/apiClient'
+import ProfileIcon from "../../components/ProfileIcon"
 import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, ChevronUp, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
 // API configuration (resolved at runtime)
@@ -1712,18 +1713,17 @@ export default function TeamSitePage() {
                       return (
                         <div
                           key={p.user_id}
-                          className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-semibold bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 text-white shadow-md"
                           title={`${displayName} (Online)`}
                         >
-                          {p.profiles?.avatar_url ? (
-                            <img 
-                              src={p.profiles.avatar_url} 
-                              alt={displayName}
-                              className="w-full h-full rounded-full object-cover"
-                            />
-                          ) : (
-                            <span>{initials}</span>
-                          )}
+                          <ProfileIcon
+                            user={{
+                              avatar_url: p.profiles?.avatar_url,
+                              full_name: p.profiles?.full_name,
+                              email: p.profiles?.user_id
+                            }}
+                            size="md"
+                            className="border-2 border-white shadow-md"
+                          />
                         </div>
                       )
                     })}
@@ -2041,9 +2041,14 @@ export default function TeamSitePage() {
                           
                           <div className="flex items-center justify-between text-xs text-grey-accent-600">
                             <div className="flex items-center gap-2">
-                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                {((bookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                              </div>
+                              <ProfileIcon
+                                user={{
+                                  avatar_url: (bookmark as any).profiles?.avatar_url,
+                                  full_name: (bookmark as any).profiles?.full_name,
+                                  email: (bookmark as any).profiles?.user_id
+                                }}
+                                size="sm"
+                              />
                               <span>{(bookmark as any).profiles?.full_name || 'Unknown'}</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -2168,9 +2173,14 @@ export default function TeamSitePage() {
                               </div>
                               
                               <div className="flex items-center gap-2 mt-2">
-                                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                  {((bookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                                </div>
+                                <ProfileIcon
+                                  user={{
+                                    avatar_url: (bookmark as any).profiles?.avatar_url,
+                                    full_name: (bookmark as any).profiles?.full_name,
+                                    email: (bookmark as any).profiles?.user_id
+                                  }}
+                                  size="xs"
+                                />
                                 <span className="text-xs text-grey-accent-600">
                                   {(bookmark as any).profiles?.full_name || 'Unknown'}
                                 </span>
@@ -2516,9 +2526,14 @@ export default function TeamSitePage() {
                     
                     <div className="flex items-center justify-between text-xs text-grey-accent-600">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                          {((bookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                        </div>
+                        <ProfileIcon
+                          user={{
+                            avatar_url: (bookmark as any).profiles?.avatar_url,
+                            full_name: (bookmark as any).profiles?.full_name,
+                            email: (bookmark as any).profiles?.user_id
+                          }}
+                          size="sm"
+                        />
                         <span 
                           className="cursor-pointer hover:text-purple-600"
                           onClick={() => {
@@ -2840,9 +2855,14 @@ export default function TeamSitePage() {
                         Created {new Date(collection.created_at).toLocaleDateString()}
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                          {((collection as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                        </div>
+                        <ProfileIcon
+                          user={{
+                            avatar_url: (collection as any).profiles?.avatar_url,
+                            full_name: (collection as any).profiles?.full_name,
+                            email: (collection as any).profiles?.user_id
+                          }}
+                          size="md"
+                        />
                         <span className="text-xs text-grey-accent-600">
                           {(collection as any).profiles?.full_name || 'Unknown'}
                         </span>
@@ -2981,9 +3001,14 @@ export default function TeamSitePage() {
                         
                         {/* Icon and user */}
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 text-white flex items-center justify-center text-xs font-semibold">
-                            {((event as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                          </div>
+                          <ProfileIcon
+                            user={{
+                              avatar_url: (event as any).profiles?.avatar_url,
+                              full_name: (event as any).profiles?.full_name,
+                              email: (event as any).profiles?.user_id
+                            }}
+                            size="md"
+                          />
                           <span className="text-sm">{eventStyle.icon}</span>
                         </div>
                         
@@ -3283,9 +3308,14 @@ export default function TeamSitePage() {
                                       </p>
                                       <div className="flex items-center gap-3 text-xs text-grey-accent-600">
                                         <div className="flex items-center gap-1">
-                                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                            {(highlight.creator_name || 'U')[0].toUpperCase()}
-                                          </div>
+                                          <ProfileIcon
+                                            user={{
+                                              avatar_url: highlight.creator_avatar_url,
+                                              full_name: highlight.creator_name,
+                                              email: highlight.creator_id
+                                            }}
+                                            size="xs"
+                                          />
                                           <span>{highlight.creator_name}</span>
                                         </div>
                                         <span>•</span>
@@ -3417,9 +3447,14 @@ export default function TeamSitePage() {
                         <div className="border-t border-grey-accent-200 pt-4 mt-6">
                           <div className="flex items-center gap-3 text-sm text-grey-accent-600">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                {((selectedBookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
-                              </div>
+                              <ProfileIcon
+                                user={{
+                                  avatar_url: (selectedBookmark as any).profiles?.avatar_url,
+                                  full_name: (selectedBookmark as any).profiles?.full_name,
+                                  email: (selectedBookmark as any).profiles?.user_id
+                                }}
+                                size="md"
+                              />
                               <span>Added by {(selectedBookmark as any).profiles?.full_name || 'Unknown'}</span>
                             </div>
                             <span>•</span>
@@ -3449,9 +3484,14 @@ export default function TeamSitePage() {
                                     </p>
                                     <div className="flex items-center gap-3 text-xs text-grey-accent-600">
                                       <div className="flex items-center gap-1">
-                                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                          {(highlight.creator_name || 'U')[0].toUpperCase()}
-                                        </div>
+                                        <ProfileIcon
+                                          user={{
+                                            avatar_url: highlight.creator_avatar_url,
+                                            full_name: highlight.creator_name,
+                                            email: highlight.creator_id
+                                          }}
+                                          size="xs"
+                                        />
                                         <span>{highlight.creator_name}</span>
                                       </div>
                                       <span>•</span>
@@ -3600,9 +3640,14 @@ export default function TeamSitePage() {
                   bookmarkAnnotations.map((annotation) => (
                     <div key={annotation.annotation_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                          {(annotation.creator_name || 'U')[0].toUpperCase()}
-                        </div>
+                        <ProfileIcon
+                          user={{
+                            avatar_url: annotation.creator_avatar_url,
+                            full_name: annotation.creator_name,
+                            email: annotation.creator_id
+                          }}
+                          size="lg"
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-medium text-grey-accent-900 text-sm">
@@ -4769,9 +4814,14 @@ function BookmarkDetailModal({
                                   />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                        {(highlight.creator_name || 'U')[0].toUpperCase()}
-                                      </div>
+                                      <ProfileIcon
+                                        user={{
+                                          avatar_url: highlight.creator_avatar_url,
+                                          full_name: highlight.creator_name,
+                                          email: highlight.creator_id
+                                        }}
+                                        size="md"
+                                      />
                                       <span className="font-medium text-grey-accent-900">{highlight.creator_name}</span>
                                       <span className="text-grey-accent-500 text-sm">highlighted</span>
                                       <span className="text-grey-accent-400 text-sm">•</span>
@@ -4805,9 +4855,14 @@ function BookmarkDetailModal({
                                   <div className="p-4 space-y-3">
                                     {threadAnnotations.map((annotation) => (
                                       <div key={annotation.annotation_id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-grey-accent-200">
-                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                                          {(annotation.creator_name || 'U')[0].toUpperCase()}
-                                        </div>
+                                        <ProfileIcon
+                                          user={{
+                                            avatar_url: annotation.creator_avatar_url,
+                                            full_name: annotation.creator_name,
+                                            email: annotation.creator_id
+                                          }}
+                                          size="md"
+                                        />
                                         <div className="flex-1">
                                           <div className="flex items-center gap-2 mb-1">
                                             <span className="font-medium text-grey-accent-900 text-sm">{annotation.creator_name}</span>
@@ -4829,9 +4884,14 @@ function BookmarkDetailModal({
                         {generalAnnotations.map((annotation) => (
                           <div key={annotation.annotation_id} className="bg-white rounded-lg border border-grey-accent-200 shadow-sm p-4">
                             <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                {(annotation.creator_name || 'U')[0].toUpperCase()}
-                              </div>
+                              <ProfileIcon
+                                user={{
+                                  avatar_url: annotation.creator_avatar_url,
+                                  full_name: annotation.creator_name,
+                                  email: annotation.creator_id
+                                }}
+                                size="lg"
+                              />
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="font-medium text-grey-accent-900">{annotation.creator_name}</span>
@@ -4969,9 +5029,14 @@ function BookmarkDetailModal({
                                   />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                        {(highlight.creator_name || 'U')[0].toUpperCase()}
-                                      </div>
+                                      <ProfileIcon
+                                        user={{
+                                          avatar_url: highlight.creator_avatar_url,
+                                          full_name: highlight.creator_name,
+                                          email: highlight.creator_id
+                                        }}
+                                        size="xl"
+                                      />
                                       <span className="font-medium text-grey-accent-900">{highlight.creator_name}</span>
                                       <span className="text-grey-accent-500 text-sm">highlighted</span>
                                       <span className="text-grey-accent-400 text-sm">•</span>
@@ -5393,9 +5458,14 @@ function BookmarkDetailModal({
             .map((annotation) => (
               <div key={annotation.annotation_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                    {(annotation.creator_name || 'U')[0].toUpperCase()}
-                  </div>
+                  <ProfileIcon
+                    user={{
+                      avatar_url: annotation.creator_avatar_url,
+                      full_name: annotation.creator_name,
+                      email: annotation.creator_id
+                    }}
+                    size="lg"
+                  />
                   <div className="flex-1">
                     <p className="text-grey-accent-900 text-sm mb-2">{annotation.content}</p>
                     <div className="flex items-center gap-2 text-xs text-grey-accent-600">
