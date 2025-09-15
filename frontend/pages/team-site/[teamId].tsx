@@ -201,7 +201,7 @@ export default function TeamSitePage() {
   
   // Bookmark detail view state
   const [selectedBookmark, setSelectedBookmark] = useState<any | null>(null)
-  const [bookmarkViewMode, setBookmarkViewMode] = useState<'embed' | 'reader' | 'proxy' | 'details'>('embed')
+  const [bookmarkViewMode, setBookmarkViewMode] = useState<'reader' | 'proxy' | 'details'>('proxy')
   const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([])
   const [bookmarkHighlights, setBookmarkHighlights] = useState<any[]>([])
   const [newAnnotation, setNewAnnotation] = useState('')
@@ -211,10 +211,8 @@ export default function TeamSitePage() {
   const [pendingSelection, setPendingSelection] = useState<{ text: string, startOffset: number, endOffset: number } | null>(null)
   const [extractedContent, setExtractedContent] = useState<any>(null)
   const [isLoadingContent, setIsLoadingContent] = useState(false)
-  const [embedError, setEmbedError] = useState<string | null>(null)
   const [proxyContent, setProxyContent] = useState<string | null>(null)
   const [isLoadingProxy, setIsLoadingProxy] = useState(false)
-  const [iframeBlocked, setIframeBlocked] = useState(false)
 
   // Advanced bookmark filters
   const [bookmarkFilters, setBookmarkFilters] = useState({
@@ -650,7 +648,7 @@ export default function TeamSitePage() {
   // Handle bookmark click to open detail modal
   const handleBookmarkClick = async (bookmark: any) => {
     setSelectedBookmark(bookmark)
-    setBookmarkViewMode('embed') // Default to embed view
+    setBookmarkViewMode('proxy') // Default to proxy view since it works well
     await fetchBookmarkData(bookmark.id)
   }
 
@@ -875,7 +873,7 @@ export default function TeamSitePage() {
       }
     } catch (error) {
       console.error('Failed to extract content:', error)
-      setEmbedError('Failed to extract page content')
+      // Content extraction failed - user can still use proxy mode or view details
     } finally {
       setIsLoadingContent(false)
     }
@@ -942,33 +940,12 @@ export default function TeamSitePage() {
       setProxyContent(htmlContent)
     } catch (error) {
       console.error('Failed to fetch proxy content:', error)
-      setEmbedError('Failed to load content through proxy')
+      // Proxy loading failed - user can still try reader mode or view details
     } finally {
       setIsLoadingProxy(false)
     }
   }
 
-  // Try different embedding strategies
-  const tryEmbedStrategies = async (url: string) => {
-    setEmbedError(null)
-    
-    // Strategy 1: Direct iframe (will fail for many sites)
-    setBookmarkViewMode('embed')
-    
-    // Strategy 2: After 3 seconds, try proxy if direct fails
-    setTimeout(() => {
-      if (embedError || bookmarkViewMode === 'embed') {
-        console.log('Trying proxy embedding...')
-        setBookmarkViewMode('proxy')
-        fetchProxyContent(url)
-      }
-    }, 3000)
-    
-    // Strategy 3: Extract content for reader mode
-    setTimeout(() => {
-      extractContent(url)
-    }, 1000)
-  }
 
 
 
@@ -1398,6 +1375,9 @@ export default function TeamSitePage() {
   const renderCollectionTree = (collections: any[], level = 0) => {
     return collections.map((collection, index) => {
       const bookmarkCount = bookmarks.filter(b => b.collection_id === collection.id).length
+      const hasChildren = collection.children && collection.children.length > 0
+      const hasBookmarks = bookmarkCount > 0
+      const isExpandable = hasChildren || hasBookmarks
       
       return (
         <div key={collection.id} className="relative">
@@ -1485,7 +1465,7 @@ export default function TeamSitePage() {
               className="w-3 h-3 text-grey-accent-400 hover:text-grey-accent-600" 
               onDragStart={(e) => e.stopPropagation()} 
             />
-            {collection.children && collection.children.length > 0 ? (
+            {isExpandable ? (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -1531,13 +1511,13 @@ export default function TeamSitePage() {
 
           {expandedCollections.has(collection.id) && (
             <div>
-              {/* Render child collections */}
-              {collection.children && collection.children.length > 0 && (
+              {/* Render child collections first */}
+              {hasChildren && (
                 <div>{renderCollectionTree(collection.children, level + 1)}</div>
               )}
               
               {/* Render bookmarks in this collection */}
-              {bookmarks
+              {hasBookmarks && bookmarks
                 .filter(bookmark => bookmark.collection_id === collection.id)
                 .map((bookmark) => (
                   <div
@@ -1550,7 +1530,8 @@ export default function TeamSitePage() {
                     onDragStart={(e) => handleBookmarkDragStart(e, bookmark.id)}
                     onClick={() => {
                       setSelectedCollectionId(collection.id)
-                      // Optional: scroll to bookmark in main view
+                      // Optional: scroll to bookmark in main view or open detail modal
+                      handleBookmarkClick(bookmark)
                     }}
                   >
                     <div className="w-3 h-3" /> {/* Spacer for drag handle */}
@@ -3010,19 +2991,6 @@ export default function TeamSitePage() {
                   <div className="flex bg-grey-accent-200 rounded-lg p-1">
                     <button
                       onClick={() => {
-                        setBookmarkViewMode('embed')
-                        setEmbedError(null)
-                      }}
-                      className={`px-2 py-1 text-sm rounded-md transition-all ${
-                        bookmarkViewMode === 'embed' 
-                          ? 'bg-white text-grey-accent-900 shadow-sm' 
-                          : 'text-grey-accent-600 hover:text-grey-accent-900'
-                      }`}
-                    >
-                      Embed
-                    </button>
-                    <button
-                      onClick={() => {
                         setBookmarkViewMode('proxy')
                         if (selectedBookmark) {
                           fetchProxyContent(selectedBookmark.url)
@@ -3086,91 +3054,7 @@ export default function TeamSitePage() {
 
               {/* Content View */}
               <div className="flex-1 overflow-hidden">
-                {bookmarkViewMode === 'embed' ? (
-                  <div className="h-full w-full relative">
-                    <iframe
-                      ref={(iframe) => {
-                        if (iframe) {
-                          // Set up iframe load monitoring
-                          const checkIframeAccess = () => {
-                            try {
-                              // This will throw if blocked by X-Frame-Options or CSP
-                              const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                              if (!doc) {
-                                throw new Error('No document access');
-                              }
-                              // Successfully accessed - iframe loaded
-                              console.log('Iframe loaded successfully');
-                              setEmbedError(null);
-                            } catch (error) {
-                              console.log('Iframe blocked by security policy:', error);
-                              setEmbedError('Site blocks embedding');
-                              // Show proxy suggestion
-                              setTimeout(() => {
-                                if (bookmarkViewMode === 'embed') {
-                                  // Don't auto-switch, let user choose
-                                  console.log('Consider switching to proxy or reader mode');
-                                }
-                              }, 1000);
-                            }
-                          };
-                          
-                          iframe.onload = checkIframeAccess;
-                          iframe.onerror = () => {
-                            setEmbedError('Failed to load page');
-                          };
-                          
-                          // Also check after a delay in case onload doesn't fire
-                          setTimeout(checkIframeAccess, 3000);
-                        }
-                      }}
-                      src={selectedBookmark.url}
-                      className="w-full h-full border-0"
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                      loading="lazy"
-                    />
-                    
-                    {/* Error overlay for blocked embeds */}
-                    {embedError && (
-                      <div className="absolute inset-0 bg-grey-accent-50 flex items-center justify-center">
-                        <div className="text-center p-8 max-w-md">
-                          <div className="text-6xl mb-4">🔒</div>
-                          <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
-                            {embedError}
-                          </h3>
-                          <p className="text-grey-accent-600 mb-6">
-                            This website doesn't allow direct embedding. Try one of the alternatives below.
-                          </p>
-                          <div className="flex flex-col gap-2">
-                            <Button
-                              onClick={() => setBookmarkViewMode('proxy')}
-                              variant="outline"
-                              className="w-full"
-                            >
-                              🌐 Try Proxy View
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                setBookmarkViewMode('reader')
-                                if (!extractedContent) extractContent(selectedBookmark.url)
-                              }}
-                              variant="outline"
-                              className="w-full"
-                            >
-                              📖 Try Reader Mode
-                            </Button>
-                            <Button
-                              onClick={() => window.open(selectedBookmark.url, '_blank', 'noopener,noreferrer')}
-                              className="w-full"
-                            >
-                              🔗 Open Original Link
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : bookmarkViewMode === 'proxy' ? (
+                {bookmarkViewMode === 'proxy' ? (
                   <div className="h-full w-full relative">
                     {isLoadingProxy ? (
                       <div className="flex items-center justify-center h-full">
@@ -3186,11 +3070,11 @@ export default function TeamSitePage() {
                           className="w-full h-full border-0"
                           sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                           onError={() => {
-                            setEmbedError('Failed to render proxy content')
+                            console.error('Failed to render proxy content')
                           }}
                           onLoad={() => {
-                            // Clear any error once iframe loads successfully
-                            setEmbedError(null)
+                            // Proxy iframe loaded successfully
+                            console.log('Proxy content loaded')
                           }}
                         />
                       </div>
@@ -3792,11 +3676,48 @@ function CreateCollectionModal({
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#A0D2EB')
   const [parentId, setParentId] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle ESC key to close modal
+  React.useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmitting) {
+        handleClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscKey)
+    return () => document.removeEventListener('keydown', handleEscKey)
+  }, [isSubmitting])
+
+  const resetForm = () => {
+    setName('')
+    setDescription('')
+    setColor('#A0D2EB')
+    setParentId('')
+    setIsSubmitting(false)
+  }
+
+  const handleClose = () => {
+    resetForm()
+    onClose()
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (name.trim()) {
-      onCreate(name.trim(), description.trim() || undefined, color, parentId || undefined)
+    if (name.trim() && !isSubmitting) {
+      setIsSubmitting(true)
+      try {
+        await onCreate(name.trim(), description.trim() || undefined, color, parentId || undefined)
+        
+        // Reset form and close modal
+        resetForm()
+        onClose()
+      } catch (error) {
+        console.error('Failed to create collection:', error)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -3806,7 +3727,14 @@ function CreateCollectionModal({
   ]
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50">
+    <div 
+      className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) {
+          handleClose()
+        }
+      }}
+    >
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create New Collection</CardTitle>
@@ -3867,11 +3795,11 @@ function CreateCollectionModal({
             </div>
             
             <div className="flex gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              <Button type="button" variant="outline" onClick={handleClose} className="flex-1" disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1">
-                Create Collection
+              <Button type="submit" className="flex-1" disabled={isSubmitting || !name.trim()}>
+                {isSubmitting ? 'Creating...' : 'Create Collection'}
               </Button>
             </div>
           </form>
@@ -3888,23 +3816,68 @@ function AddBookmarkModal({
 }: { 
   collections: any[];
   onClose: () => void;
-  onCreate: (url: string, title?: string, collectionId?: string, tags?: string[]) => void;
+  onCreate: (url: string, title?: string, collectionId?: string) => void;
 }) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [collectionId, setCollectionId] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle ESC key to close modal
+  React.useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmitting) {
+        handleClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscKey)
+    return () => document.removeEventListener('keydown', handleEscKey)
+  }, [isSubmitting])
+
+  const resetForm = () => {
+    setUrl('')
+    setTitle('')
+    setCollectionId('')
+    setTagInput('')
+    setTags([])
+    setIsSubmitting(false)
+  }
+
+  const handleClose = () => {
+    resetForm()
+    onClose()
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (url.trim()) {
-      onCreate(url.trim(), title.trim() || undefined, collectionId || undefined, tags.length > 0 ? tags : undefined)
+    if (url.trim() && !isSubmitting) {
+      setIsSubmitting(true)
+      try {
+        await onCreate(url.trim(), title.trim() || undefined, collectionId || undefined)
+        
+        // Reset form and close modal
+        resetForm()
+        onClose()
+      } catch (error) {
+        console.error('Failed to create bookmark:', error)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50">
+    <div 
+      className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) {
+          handleClose()
+        }
+      }}
+    >
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Add New Bookmark</CardTitle>
@@ -3990,11 +3963,11 @@ function AddBookmarkModal({
             </div>
             
             <div className="flex gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              <Button type="button" variant="outline" onClick={handleClose} className="flex-1" disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1">
-                Add Bookmark
+              <Button type="submit" className="flex-1" disabled={isSubmitting || !url.trim()}>
+                {isSubmitting ? 'Adding...' : 'Add Bookmark'}
               </Button>
             </div>
           </form>
@@ -4020,8 +3993,8 @@ function BookmarkDetailModal({
   teamId
 }: {
   bookmark: any
-  viewMode: 'embed' | 'reader' | 'proxy' | 'details'
-  setViewMode: (mode: 'embed' | 'reader' | 'proxy' | 'details') => void
+  viewMode: 'reader' | 'proxy' | 'details'
+  setViewMode: (mode: 'reader' | 'proxy' | 'details') => void
   highlights: any[]
   annotations: any[]
   onClose: () => void
@@ -4034,7 +4007,6 @@ function BookmarkDetailModal({
 }) {
   const [extractedContent, setExtractedContent] = useState<any>(null)
   const [isLoadingContent, setIsLoadingContent] = useState(false)
-  const [embedError, setEmbedError] = useState<string | null>(null)
   const [showHighlightTooltip, setShowHighlightTooltip] = useState(false)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [pendingSelection, setPendingSelection] = useState<{ text: string; startOffset: number; endOffset: number } | null>(null)
@@ -4195,7 +4167,6 @@ function BookmarkDetailModal({
 
   const extractContent = async () => {
     setIsLoadingContent(true)
-    setEmbedError(null)
 
     try {
       // Try backend content extraction service first
@@ -4321,7 +4292,7 @@ function BookmarkDetailModal({
       }
     } catch (error) {
       console.error('Failed to extract content:', error)
-      setEmbedError('Failed to extract page content')
+      // Content extraction failed - user can still use proxy mode
     } finally {
       setIsLoadingContent(false)
     }
@@ -4376,7 +4347,7 @@ function BookmarkDetailModal({
       setProxyContent(htmlContent)
     } catch (error) {
       console.error('Failed to fetch proxy content:', error)
-      setEmbedError('Failed to load content through proxy')
+      // Proxy loading failed - user can still try reader mode or view details
     } finally {
       setIsLoadingProxy(false)
     }
@@ -4590,7 +4561,7 @@ function BookmarkDetailModal({
             
             {/* View Mode Tabs */}
             <div className="flex items-center gap-1 bg-grey-accent-100 rounded-lg p-1">
-              {(['embed', 'reader', 'proxy', 'details'] as const).map((mode) => (
+              {(['reader', 'proxy', 'details'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
@@ -4609,36 +4580,6 @@ function BookmarkDetailModal({
 
         {/* Content Area */}
         <div className="pt-20 h-full overflow-auto">
-          {viewMode === 'embed' && (
-            <div className="h-full">
-              {embedError ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">Embed Blocked</h3>
-                    <p className="text-grey-accent-600 mb-4">{embedError}</p>
-                    <div className="flex gap-2 justify-center">
-                      <Button onClick={() => setViewMode('proxy')} variant="outline">
-                        Try Proxy View
-                      </Button>
-                      <Button onClick={() => setViewMode('reader')} variant="outline">
-                        Try Reader View
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <iframe
-                  src={bookmark.url}
-                  className="w-full h-full border-0"
-                  title={bookmark.title || bookmark.url}
-                  onLoad={() => setEmbedError(null)}
-                  onError={() => setEmbedError('This website cannot be embedded due to security restrictions')}
-                />
-              )}
-            </div>
-          )}
-
           {viewMode === 'proxy' && (
             <div className="h-full overflow-auto">
               {isLoadingProxy ? (
@@ -4665,11 +4606,11 @@ function BookmarkDetailModal({
                     <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">Proxy Failed</h3>
                     <p className="text-grey-accent-600 mb-4">Failed to load content through proxy</p>
                     <div className="flex gap-2 justify-center">
-                      <Button onClick={() => setViewMode('embed')} variant="outline">
-                        Try Direct Embed
-                      </Button>
                       <Button onClick={() => setViewMode('reader')} variant="outline">
                         Try Reader View
+                      </Button>
+                      <Button onClick={() => setViewMode('details')} variant="outline">
+                        View Details
                       </Button>
                     </div>
                   </div>
@@ -5131,8 +5072,8 @@ function BookmarkDetailModal({
                     <p className="text-grey-accent-600 mb-4">
                       Unable to extract readable content from this page
                     </p>
-                    <Button onClick={() => setViewMode('embed')} variant="outline">
-                      Try Embed View
+                    <Button onClick={() => setViewMode('proxy')} variant="outline">
+                      Try Proxy View
                     </Button>
                   </div>
                 </div>
