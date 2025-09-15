@@ -393,7 +393,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
                   avatar_url
                 )
               `)
-              .eq('team_id', teamId)
+              .eq('team_id', actualTeamId)
               .eq('user_id', payload.new.user_id)
               .eq('is_online', true)
               .single();
@@ -422,7 +422,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
                   avatar_url
                 )
               `)
-              .eq('team_id', teamId)
+              .eq('team_id', actualTeamId)
               .eq('user_id', payload.new.user_id)
               .eq('is_online', true)
               .single();
@@ -447,12 +447,23 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .subscribe();
     
+    // Log active channels for debugging
+    try {
+      const active = (supabase.getChannels && typeof supabase.getChannels === 'function')
+        ? supabase.getChannels().map((c: any) => c.topic)
+        : null;
+      console.log('Realtime subscriptions created for team:', actualTeamId, { activeChannels: active });
+    } catch (err) {
+      console.warn('Could not list active realtime channels:', err);
+    }
+
     // Cleanup subscriptions on unmount
     return () => {
-      collectionsSubscription.unsubscribe();
-      bookmarksSubscription.unsubscribe();
-      eventsSubscription.unsubscribe();
-      presenceSubscription.unsubscribe();
+      console.log('Unsubscribing realtime channels for team:', actualTeamId);
+      try { collectionsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe collectionsSubscription', e); }
+      try { bookmarksSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe bookmarksSubscription', e); }
+      try { eventsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe eventsSubscription', e); }
+      try { presenceSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe presenceSubscription', e); }
     };
   };
 
