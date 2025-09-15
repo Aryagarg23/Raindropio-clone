@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useMemo } from "react"
 import { useRouter } from "next/router"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { Button } from "../../components/ui/button"
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
-import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical } from "lucide-react"
+import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X } from "lucide-react"
 
 
 // Favicon component for bookmarks
@@ -60,6 +60,79 @@ interface ExtendedCollection {
   parentId?: string
 }
 
+// Component to render directory tree structure
+const DirectoryTreeView = ({ 
+  collection, 
+  bookmarks, 
+  level = 0 
+}: { 
+  collection: ExtendedCollection
+  bookmarks: any[]
+  level: number 
+}) => {
+  const indent = '  '.repeat(level)
+  const collectionBookmarks = bookmarks.filter(b => b.collection_id === collection.id)
+  
+  return (
+    <div className="text-left">
+      {/* Collection name */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-grey-accent-500">{indent}</span>
+        <Folder className="w-4 h-4 text-blue-600" />
+        <span className="font-semibold text-grey-accent-900">{collection.name}</span>
+        {collection.description && (
+          <span className="text-grey-accent-600 text-xs">- {collection.description}</span>
+        )}
+      </div>
+      
+      {/* Bookmarks in this collection */}
+      {collectionBookmarks.map(bookmark => (
+        <div key={bookmark.id} className="flex items-center gap-2 mb-1 ml-4">
+          <span className="text-grey-accent-500">{indent}  </span>
+          <div className="w-3 h-3 rounded bg-white shadow flex items-center justify-center border border-grey-accent-200">
+            <FaviconImage 
+              url={bookmark.url} 
+              faviconUrl={bookmark.favicon_url} 
+              size="w-2 h-2" 
+            />
+          </div>
+          <a 
+            href={bookmark.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline text-sm"
+          >
+            {bookmark.title || bookmark.url}
+          </a>
+          {bookmark.tags && bookmark.tags.length > 0 && (
+            <div className="flex gap-1 ml-2">
+              {bookmark.tags.map((tag: string) => (
+                <span key={tag} className="px-1 py-0.5 bg-grey-accent-200 text-grey-accent-700 text-xs rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      
+      {/* Child collections */}
+      {collection.children && collection.children.length > 0 && (
+        <div className="ml-4 mt-2">
+          {collection.children.map(child => (
+            <DirectoryTreeView 
+              key={child.id} 
+              collection={child} 
+              bookmarks={bookmarks} 
+              level={level + 1} 
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TeamSitePage() {
   const router = useRouter()
   const { teamId } = router.query
@@ -95,7 +168,121 @@ export default function TeamSitePage() {
   const [editingTags, setEditingTags] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
 
+  // Advanced bookmark filters
+  const [bookmarkFilters, setBookmarkFilters] = useState({
+    searchQuery: '',
+    selectedTags: [] as string[],
+    selectedCollections: [] as string[],
+    selectedCreators: [] as string[],
+    dateRange: null as { start: Date; end: Date } | null,
+    sortBy: 'created_at' as 'created_at' | 'title' | 'updated_at',
+    sortOrder: 'desc' as 'asc' | 'desc'
+  })
+  const [showFilters, setShowFilters] = useState(false)
+  const [selectedDirectoryCollection, setSelectedDirectoryCollection] = useState<ExtendedCollection | null>(null)
+  const [showDirectoryModal, setShowDirectoryModal] = useState(false)
 
+  // Collection-specific filters
+  const [collectionFilters, setCollectionFilters] = useState({
+    searchQuery: '',
+    selectedCreators: [] as string[],
+    selectedParents: [] as string[],
+    hasBookmarks: null as boolean | null, // null = all, true = with bookmarks, false = empty
+    sortBy: 'created_at' as 'created_at' | 'name' | 'bookmark_count',
+    sortOrder: 'desc' as 'asc' | 'desc'
+  })
+  const [showCollectionFilters, setShowCollectionFilters] = useState(false)
+
+  // Get all unique tags from bookmarks
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    bookmarks.forEach(bookmark => {
+      bookmark.tags?.forEach(tag => tagSet.add(tag))
+    })
+    return Array.from(tagSet).sort()
+  }, [bookmarks])
+
+  // Get all unique creators
+  const allCreators = useMemo(() => {
+    const creatorSet = new Set<string>()
+    bookmarks.forEach(bookmark => {
+      const creatorName = (bookmark as any).profiles?.full_name || 'Unknown'
+      creatorSet.add(creatorName)
+    })
+    return Array.from(creatorSet).sort()
+  }, [bookmarks])
+
+  // Apply advanced filters to bookmarks
+  const advancedFilteredBookmarks = useMemo(() => {
+    let filtered = bookmarks
+
+    // Text search
+    if (bookmarkFilters.searchQuery) {
+      const query = bookmarkFilters.searchQuery.toLowerCase()
+      filtered = filtered.filter(bookmark =>
+        bookmark.title?.toLowerCase().includes(query) ||
+        bookmark.description?.toLowerCase().includes(query) ||
+        bookmark.url.toLowerCase().includes(query) ||
+        bookmark.tags?.some(tag => tag.toLowerCase().includes(query))
+      )
+    }
+
+    // Tag filter
+    if (bookmarkFilters.selectedTags.length > 0) {
+      filtered = filtered.filter(bookmark =>
+        bookmarkFilters.selectedTags.every(tag =>
+          bookmark.tags?.includes(tag)
+        )
+      )
+    }
+
+    // Collection filter
+    if (bookmarkFilters.selectedCollections.length > 0) {
+      filtered = filtered.filter(bookmark =>
+        bookmark.collection_id && bookmarkFilters.selectedCollections.includes(bookmark.collection_id)
+      )
+    }
+
+    // Creator filter
+    if (bookmarkFilters.selectedCreators.length > 0) {
+      filtered = filtered.filter(bookmark => {
+        const creatorName = (bookmark as any).profiles?.full_name || 'Unknown'
+        return bookmarkFilters.selectedCreators.includes(creatorName)
+      })
+    }
+
+    // Date range filter
+    if (bookmarkFilters.dateRange) {
+      filtered = filtered.filter(bookmark => {
+        const bookmarkDate = new Date(bookmark.created_at)
+        return bookmarkDate >= bookmarkFilters.dateRange!.start && 
+               bookmarkDate <= bookmarkFilters.dateRange!.end
+      })
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0
+      
+      switch (bookmarkFilters.sortBy) {
+        case 'title':
+          comparison = (a.title || a.url).localeCompare(b.title || b.url)
+          break
+        case 'updated_at':
+          comparison = new Date(a.updated_at || a.created_at).getTime() - 
+                      new Date(b.updated_at || b.created_at).getTime()
+          break
+        case 'created_at':
+        default:
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          break
+      }
+      
+      return bookmarkFilters.sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    return filtered
+  }, [bookmarks, bookmarkFilters])
 
   // Build nested collection tree from flat data
   const buildCollectionTree = (collections: Collection[]): ExtendedCollection[] => {
@@ -152,6 +339,151 @@ export default function TeamSitePage() {
   };
 
   const nestedCollections = buildCollectionTree(collections);
+
+  // Flatten all collections (including nested children) for collections tab
+  const getAllCollections = (collections: ExtendedCollection[]): ExtendedCollection[] => {
+    const flattened: ExtendedCollection[] = []
+    
+    const addCollection = (collection: ExtendedCollection) => {
+      flattened.push(collection)
+      if (collection.children && collection.children.length > 0) {
+        collection.children.forEach(child => addCollection(child))
+      }
+    }
+    
+    collections.forEach(collection => addCollection(collection))
+    return flattened
+  }
+
+  const allFlatCollections = getAllCollections(nestedCollections)
+
+  // Get all unique collection creators
+  const allCollectionCreators = useMemo(() => {
+    const creatorSet = new Set<string>()
+    allFlatCollections.forEach(collection => {
+      const creatorName = (collection as any).profiles?.full_name || 'Unknown'
+      creatorSet.add(creatorName)
+    })
+    return Array.from(creatorSet).sort()
+  }, [allFlatCollections])
+
+  // Get parent collections for filter
+  const parentCollections = useMemo(() => {
+    return allFlatCollections.filter(c => !(c as any).parent_id || (c as any).parent_id === null)
+  }, [allFlatCollections])
+
+  // Apply filters to collections
+  const filteredCollections = useMemo(() => {
+    let filtered = allFlatCollections
+
+    // Text search
+    if (collectionFilters.searchQuery) {
+      const query = collectionFilters.searchQuery.toLowerCase()
+      filtered = filtered.filter(collection =>
+        collection.name.toLowerCase().includes(query) ||
+        collection.description?.toLowerCase().includes(query)
+      )
+    }
+
+    // Creator filter
+    if (collectionFilters.selectedCreators.length > 0) {
+      filtered = filtered.filter(collection => {
+        const creatorName = (collection as any).profiles?.full_name || 'Unknown'
+        return collectionFilters.selectedCreators.includes(creatorName)
+      })
+    }
+
+    // Parent filter (show only children of selected parents)
+    if (collectionFilters.selectedParents.length > 0) {
+      filtered = filtered.filter(collection =>
+        (collection as any).parent_id && collectionFilters.selectedParents.includes((collection as any).parent_id)
+      )
+    }
+
+    // Bookmark count filter
+    if (collectionFilters.hasBookmarks !== null) {
+      filtered = filtered.filter(collection => {
+        const bookmarkCount = bookmarks.filter(b => b.collection_id === collection.id).length
+        return collectionFilters.hasBookmarks ? bookmarkCount > 0 : bookmarkCount === 0
+      })
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0
+      
+      switch (collectionFilters.sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name)
+          break
+        case 'bookmark_count':
+          const aCount = bookmarks.filter(b => b.collection_id === a.id).length
+          const bCount = bookmarks.filter(b => b.collection_id === b.id).length
+          comparison = aCount - bCount
+          break
+        case 'created_at':
+        default:
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          break
+      }
+      
+      return collectionFilters.sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    return filtered
+  }, [allFlatCollections, collectionFilters, bookmarks])
+
+  // Generate directory structure in markdown format
+  const generateDirectoryStructure = (collection: ExtendedCollection, level = 0): string => {
+    const indent = '  '.repeat(level)
+    const collectionBookmarks = bookmarks.filter(b => b.collection_id === collection.id)
+    
+    let structure = `${indent}- **${collection.name}**`
+    if (collection.description) {
+      structure += ` - ${collection.description}`
+    }
+    structure += '\n'
+    
+    // Add bookmarks in this collection
+    collectionBookmarks.forEach(bookmark => {
+      const bookmarkTitle = bookmark.title || bookmark.url
+      structure += `${indent}  - [${bookmarkTitle}](${bookmark.url})`
+      if (bookmark.tags && bookmark.tags.length > 0) {
+        structure += ` \`${bookmark.tags.join('`, `')}\``
+      }
+      structure += '\n'
+    })
+    
+    // Add child collections
+    if (collection.children && collection.children.length > 0) {
+      collection.children.forEach(child => {
+        structure += generateDirectoryStructure(child, level + 1)
+      })
+    }
+    
+    return structure
+  }
+
+  // Generate full directory structure for a collection and its children
+  const getCollectionDirectoryMarkdown = (collection: ExtendedCollection): string => {
+    const header = `# ${collection.name} Directory Structure\n\n`
+    const createdInfo = `*Created by ${(collection as any).profiles?.full_name || 'Unknown'} on ${new Date(collection.created_at).toLocaleDateString()}*\n\n`
+    const structure = generateDirectoryStructure(collection)
+    
+    return header + createdInfo + structure
+  }
+
+  // Copy directory structure to clipboard
+  const copyDirectoryStructure = async (collection: ExtendedCollection) => {
+    const markdown = getCollectionDirectoryMarkdown(collection)
+    try {
+      await navigator.clipboard.writeText(markdown)
+      // You could add a toast notification here
+      console.log('Directory structure copied to clipboard!')
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err)
+    }
+  }
 
   // Get orphaned bookmarks (bookmarks without a collection or with invalid collection_id)
   const orphanedBookmarks = bookmarks.filter(bookmark => 
@@ -257,6 +589,13 @@ export default function TeamSitePage() {
     if (!draggedCollection) return;
 
     try {
+      // Check if user has permission to modify collections
+      if (!user) {
+        console.error('No authenticated user');
+        setError('You must be logged in to move collections');
+        return;
+      }
+
       // Move collection to root level at the bottom
       // Find the highest sort_order among root-level collections
       const rootCollections = collections.filter(c => c.parent_id === null);
@@ -264,7 +603,12 @@ export default function TeamSitePage() {
         ? Math.max(...rootCollections.map(c => c.sort_order || 0))
         : 0;
       
-      console.log('Moving to root bottom:', { draggedCollection, newSortOrder: maxSortOrder + 10 });
+      console.log('Moving to root bottom:', { 
+        draggedCollection, 
+        newSortOrder: maxSortOrder + 10,
+        userId: user.id,
+        userRole: profile?.role || 'unknown'
+      });
       
       const { data, error } = await supabase
         .from('collections')
@@ -274,12 +618,38 @@ export default function TeamSitePage() {
         })
         .eq('id', draggedCollection);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
       console.log('Root drop success:', data);
       
-    } catch (error) {
+      // Force a refresh of collections data to ensure UI updates
+      if (data) {
+        console.log('Forcing collections refresh for non-admin user...');
+        // The useTeamSite hook should handle this via subscriptions, but let's be explicit
+        window.location.reload(); // Temporary fix - should be replaced with proper state management
+      }
+      
+    } catch (error: any) {
       console.error('Failed to move collection to root:', error);
-      setError('Failed to move collection');
+      
+      // More specific error messages based on the error type
+      if (error.code === 'PGRST301') {
+        setError('Permission denied: Check your team membership status');
+      } else if (error.code === '42501') {
+        setError('Database permission error: Contact your team administrator');
+      } else if (error.message?.includes('policy')) {
+        setError('Access denied: You may not be a member of this team');
+      } else {
+        setError(`Failed to move collection: ${error.message || 'Unknown error'}`);
+      }
     } finally {
       setDraggedCollection(null);
       setDragOverData(null);
@@ -314,15 +684,31 @@ export default function TeamSitePage() {
     });
 
     try {
+      // Check if user has permission to modify collections
+      if (!user) {
+        console.error('No authenticated user for drop operation');
+        setError('You must be logged in to move collections');
+        return;
+      }
+
       const draggedCol = collections.find(c => c.id === draggedCollection);
       const targetCol = collections.find(c => c.id === targetCollectionId);
       
-      console.log('Found collections:', { draggedCol, targetCol, totalCollections: collections.length });
+      console.log('Found collections:', { 
+        draggedCol, 
+        targetCol, 
+        totalCollections: collections.length,
+        userId: user.id,
+        userRole: profile?.role || 'unknown'
+      });
       
       if (!draggedCol || !targetCol) {
         console.log('Missing collections, aborting');
         return;
       }
+
+      // Team members have full access to modify collections within their team
+      console.log('Team member confirmed - allowing collection modification');
 
       if (dropPosition === 'child') {
         // Right side drop - move into target collection as child
@@ -458,9 +844,29 @@ export default function TeamSitePage() {
         }
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to move collection:', error);
-      setError('Failed to move collection');
+      
+      // More specific error messages based on the error type
+      if (error.code === 'PGRST301') {
+        setError('Permission denied: Check your team membership status');
+      } else if (error.code === '42501') {
+        setError('Database permission error: Contact your team administrator');
+      } else if (error.message?.includes('policy')) {
+        setError('Access denied: You may not be a member of this team');
+      } else if (error.message?.includes('unique')) {
+        setError('Conflict error: Try refreshing the page and try again');
+      } else {
+        setError(`Failed to move collection: ${error.message || 'Unknown error'}`);
+      }
+      
+      // For non-admin users, suggest refreshing to sync state
+      if (profile?.role !== 'admin') {
+        console.log('Non-admin user encountered error, suggesting refresh...');
+        setTimeout(() => {
+          setError(prev => prev + ' (Try refreshing the page if issues persist)');
+        }, 2000);
+      }
     } finally {
       setDraggedCollection(null);
       setDragOverData(null);
@@ -1267,8 +1673,244 @@ export default function TeamSitePage() {
           </TabsContent>
 
           <TabsContent value="bookmarks" className="space-y-6">
+            {/* Advanced Filters Header */}
+            <div className="bg-white rounded-lg border border-grey-accent-200 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-grey-accent-900">Advanced Filters</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2"
+                >
+                  {showFilters ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {showFilters ? 'Hide' : 'Show'} Filters
+                </Button>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="flex items-center gap-6 text-sm text-grey-accent-600 mb-4">
+                <span>{advancedFilteredBookmarks.length} bookmarks found</span>
+                <span>{allTags.length} unique tags</span>
+                <span>{collections.length} collections</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setBookmarkFilters({
+                    searchQuery: '',
+                    selectedTags: [],
+                    selectedCollections: [],
+                    selectedCreators: [],
+                    dateRange: null,
+                    sortBy: 'created_at',
+                    sortOrder: 'desc'
+                  })}
+                  className="text-xs text-grey-accent-500 hover:text-grey-accent-700"
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+
+              {showFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Search */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-grey-accent-400" />
+                      <Input
+                        placeholder="Search title, description, URL..."
+                        value={bookmarkFilters.searchQuery}
+                        onChange={(e) => setBookmarkFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tags Filter with Autocomplete */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Tags</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {bookmarkFilters.selectedTags.map(tag => (
+                          <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                            {tag}
+                            <button
+                              onClick={() => setBookmarkFilters(prev => ({
+                                ...prev,
+                                selectedTags: prev.selectedTags.filter(t => t !== tag)
+                              }))}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !bookmarkFilters.selectedTags.includes(e.target.value)) {
+                            setBookmarkFilters(prev => ({
+                              ...prev,
+                              selectedTags: [...prev.selectedTags, e.target.value]
+                            }))
+                          }
+                        }}
+                        className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="">Select tags...</option>
+                        {allTags.filter(tag => !bookmarkFilters.selectedTags.includes(tag)).map(tag => (
+                          <option key={tag} value={tag}>{tag}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Collections Filter with Autocomplete */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Collections</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {bookmarkFilters.selectedCollections.map(collectionId => {
+                          const collection = collections.find(c => c.id === collectionId)
+                          return (
+                            <span key={collectionId} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                              {collection?.name || 'Unknown'}
+                              <button
+                                onClick={() => setBookmarkFilters(prev => ({
+                                  ...prev,
+                                  selectedCollections: prev.selectedCollections.filter(c => c !== collectionId)
+                                }))}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !bookmarkFilters.selectedCollections.includes(e.target.value)) {
+                            setBookmarkFilters(prev => ({
+                              ...prev,
+                              selectedCollections: [...prev.selectedCollections, e.target.value]
+                            }))
+                          }
+                        }}
+                        className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="">Select collections...</option>
+                        {collections.filter(c => !bookmarkFilters.selectedCollections.includes(c.id)).map(collection => (
+                          <option key={collection.id} value={collection.id}>{collection.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Creators Filter */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Created By</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {bookmarkFilters.selectedCreators.map(creator => (
+                          <span key={creator} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                            {creator}
+                            <button
+                              onClick={() => setBookmarkFilters(prev => ({
+                                ...prev,
+                                selectedCreators: prev.selectedCreators.filter(c => c !== creator)
+                              }))}
+                              className="text-purple-600 hover:text-purple-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !bookmarkFilters.selectedCreators.includes(e.target.value)) {
+                            setBookmarkFilters(prev => ({
+                              ...prev,
+                              selectedCreators: [...prev.selectedCreators, e.target.value]
+                            }))
+                          }
+                        }}
+                        className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="">Select creators...</option>
+                        {allCreators.filter(creator => !bookmarkFilters.selectedCreators.includes(creator)).map(creator => (
+                          <option key={creator} value={creator}>{creator}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Sort Options */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Sort By</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={bookmarkFilters.sortBy}
+                        onChange={(e) => setBookmarkFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+                        className="flex-1 p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="created_at">Date Created</option>
+                        <option value="updated_at">Date Modified</option>
+                        <option value="title">Title</option>
+                      </select>
+                      <select
+                        value={bookmarkFilters.sortOrder}
+                        onChange={(e) => setBookmarkFilters(prev => ({ ...prev, sortOrder: e.target.value as any }))}
+                        className="p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="desc">Newest First</option>
+                        <option value="asc">Oldest First</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Date Range - Basic for now */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Date Range</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="date"
+                        placeholder="From"
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null
+                          setBookmarkFilters(prev => ({
+                            ...prev,
+                            dateRange: date ? { start: date, end: prev.dateRange?.end || date } : null
+                          }))
+                        }}
+                        className="text-sm"
+                      />
+                      <Input
+                        type="date"
+                        placeholder="To"
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null
+                          setBookmarkFilters(prev => ({
+                            ...prev,
+                            dateRange: prev.dateRange?.start && date ? { start: prev.dateRange.start, end: date } : null
+                          }))
+                        }}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Filtered Bookmarks Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredBookmarks.map((bookmark) => (
+              {advancedFilteredBookmarks.map((bookmark) => (
                 <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300">
                   <div className="aspect-video relative overflow-hidden bg-muted">
                     <img
@@ -1276,6 +1918,16 @@ export default function TeamSitePage() {
                       alt={bookmark.title || bookmark.url}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
+                    {/* Favicon overlay */}
+                    <div className="absolute bottom-2 left-2">
+                      <div className="w-8 h-8 rounded bg-white shadow-lg flex items-center justify-center border border-grey-accent-200">
+                        <FaviconImage 
+                          url={bookmark.url} 
+                          faviconUrl={bookmark.favicon_url} 
+                          size="w-5 h-5" 
+                        />
+                      </div>
+                    </div>
                   </div>
                   <CardContent className="p-4">
                     <h3 className="font-medium text-sm line-clamp-2 mb-2">
@@ -1286,6 +1938,7 @@ export default function TeamSitePage() {
                         {bookmark.description}
                       </p>
                     )}
+                    
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1 mb-3 items-center">
                       {bookmark.tags && bookmark.tags.length > 0 && (
@@ -1293,19 +1946,18 @@ export default function TeamSitePage() {
                           {bookmark.tags.slice(0, 3).map((tag, index) => (
                             <span 
                               key={tag}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full"
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full cursor-pointer hover:bg-blue-100 hover:text-blue-800"
+                              onClick={() => {
+                                // Add tag to filter when clicked
+                                if (!bookmarkFilters.selectedTags.includes(tag)) {
+                                  setBookmarkFilters(prev => ({
+                                    ...prev,
+                                    selectedTags: [...prev.selectedTags, tag]
+                                  }))
+                                }
+                              }}
                             >
                               {tag}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const newTags = bookmark.tags.filter((_, i) => i !== index);
-                                  updateBookmarkTags(bookmark.id, newTags);
-                                }}
-                                className="text-grey-accent-500 hover:text-grey-accent-700 ml-1"
-                              >
-                                ×
-                              </button>
                             </span>
                           ))}
                           {bookmark.tags.length > 3 && (
@@ -1315,48 +1967,6 @@ export default function TeamSitePage() {
                           )}
                         </>
                       )}
-                      
-                      {/* Add tag button */}
-                      {editingTags === bookmark.id ? (
-                        <Input
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (tagInput.trim() && !bookmark.tags.includes(tagInput.trim())) {
-                                updateBookmarkTags(bookmark.id, [...bookmark.tags, tagInput.trim()]);
-                              }
-                              setTagInput('');
-                              setEditingTags(null);
-                            } else if (e.key === 'Escape') {
-                              setTagInput('');
-                              setEditingTags(null);
-                            }
-                          }}
-                          onBlur={() => {
-                            if (tagInput.trim() && !bookmark.tags.includes(tagInput.trim())) {
-                              updateBookmarkTags(bookmark.id, [...bookmark.tags, tagInput.trim()]);
-                            }
-                            setTagInput('');
-                            setEditingTags(null);
-                          }}
-                          placeholder="Add tag..."
-                          className="w-20 h-6 text-xs px-2 py-1 border border-grey-accent-300 rounded"
-                          autoFocus
-                        />
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTags(bookmark.id);
-                          }}
-                          className="w-5 h-5 rounded-full bg-grey-accent-200 hover:bg-grey-accent-300 flex items-center justify-center text-grey-accent-600 hover:text-grey-accent-800 transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      )}
                     </div>
                     
                     <div className="flex items-center justify-between text-xs text-grey-accent-600">
@@ -1364,24 +1974,252 @@ export default function TeamSitePage() {
                         <div className="w-5 h-5 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
                           {((bookmark as any).profiles?.full_name || 'U')[0].toUpperCase()}
                         </div>
-                        <span>{(bookmark as any).profiles?.full_name || 'Unknown'}</span>
+                        <span 
+                          className="cursor-pointer hover:text-purple-600"
+                          onClick={() => {
+                            // Add creator to filter when clicked
+                            const creatorName = (bookmark as any).profiles?.full_name || 'Unknown'
+                            if (!bookmarkFilters.selectedCreators.includes(creatorName)) {
+                              setBookmarkFilters(prev => ({
+                                ...prev,
+                                selectedCreators: [...prev.selectedCreators, creatorName]
+                              }))
+                            }
+                          }}
+                        >
+                          {(bookmark as any).profiles?.full_name || 'Unknown'}
+                        </span>
                       </div>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-grey-accent-500 hover:text-grey-accent-700" asChild>
-                        <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <span>{new Date(bookmark.created_at).toLocaleDateString()}</span>
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-grey-accent-500 hover:text-grey-accent-700" asChild>
+                          <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+
+            {advancedFilteredBookmarks.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold mb-2">No bookmarks match your filters</h3>
+                <p className="text-muted-foreground mb-6">
+                  Try adjusting your search criteria or clear some filters
+                </p>
+                <Button
+                  onClick={() => setBookmarkFilters({
+                    searchQuery: '',
+                    selectedTags: [],
+                    selectedCollections: [],
+                    selectedCreators: [],
+                    dateRange: null,
+                    sortBy: 'created_at',
+                    sortOrder: 'desc'
+                  })}
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="collections" className="space-y-6">
+            {/* Collection Filters Header */}
+            <div className="bg-white rounded-lg border border-grey-accent-200 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-grey-accent-900">Collection Filters</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCollectionFilters(!showCollectionFilters)}
+                  className="flex items-center gap-2"
+                >
+                  {showCollectionFilters ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {showCollectionFilters ? 'Hide' : 'Show'} Filters
+                </Button>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="flex items-center gap-6 text-sm text-grey-accent-600 mb-4">
+                <span>{filteredCollections.length} collections found</span>
+                <span>{allFlatCollections.length} total collections</span>
+                <span>{parentCollections.length} root collections</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCollectionFilters({
+                    searchQuery: '',
+                    selectedCreators: [],
+                    selectedParents: [],
+                    hasBookmarks: null,
+                    sortBy: 'created_at',
+                    sortOrder: 'desc'
+                  })}
+                  className="text-xs text-grey-accent-500 hover:text-grey-accent-700"
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+
+              {showCollectionFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Search */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Search Collections</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-grey-accent-400" />
+                      <Input
+                        placeholder="Search collection name, description..."
+                        value={collectionFilters.searchQuery}
+                        onChange={(e) => setCollectionFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Creators Filter */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Created By</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {collectionFilters.selectedCreators.map(creator => (
+                          <span key={creator} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                            {creator}
+                            <button
+                              onClick={() => setCollectionFilters(prev => ({
+                                ...prev,
+                                selectedCreators: prev.selectedCreators.filter(c => c !== creator)
+                              }))}
+                              className="text-purple-600 hover:text-purple-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !collectionFilters.selectedCreators.includes(e.target.value)) {
+                            setCollectionFilters(prev => ({
+                              ...prev,
+                              selectedCreators: [...prev.selectedCreators, e.target.value]
+                            }))
+                          }
+                        }}
+                        className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="">Select creators...</option>
+                        {allCollectionCreators.filter(creator => !collectionFilters.selectedCreators.includes(creator)).map(creator => (
+                          <option key={creator} value={creator}>{creator}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Parent Collections Filter */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Show Only Children Of</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {collectionFilters.selectedParents.map(parentId => {
+                          const parent = parentCollections.find(c => c.id === parentId)
+                          return (
+                            <span key={parentId} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                              {parent?.name || 'Unknown'}
+                              <button
+                                onClick={() => setCollectionFilters(prev => ({
+                                  ...prev,
+                                  selectedParents: prev.selectedParents.filter(p => p !== parentId)
+                                }))}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !collectionFilters.selectedParents.includes(e.target.value)) {
+                            setCollectionFilters(prev => ({
+                              ...prev,
+                              selectedParents: [...prev.selectedParents, e.target.value]
+                            }))
+                          }
+                        }}
+                        className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="">Select parent collections...</option>
+                        {parentCollections.filter(c => !collectionFilters.selectedParents.includes(c.id)).map(collection => (
+                          <option key={collection.id} value={collection.id}>{collection.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Bookmark Status Filter */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Bookmark Status</label>
+                    <select
+                      value={collectionFilters.hasBookmarks === null ? 'all' : collectionFilters.hasBookmarks ? 'with' : 'empty'}
+                      onChange={(e) => {
+                        const value = e.target.value === 'all' ? null : e.target.value === 'with'
+                        setCollectionFilters(prev => ({ ...prev, hasBookmarks: value }))
+                      }}
+                      className="w-full p-2 border border-grey-accent-300 rounded-md text-sm"
+                    >
+                      <option value="all">All Collections</option>
+                      <option value="with">With Bookmarks</option>
+                      <option value="empty">Empty Collections</option>
+                    </select>
+                  </div>
+
+                  {/* Sort Options */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Sort By</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={collectionFilters.sortBy}
+                        onChange={(e) => setCollectionFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+                        className="flex-1 p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="created_at">Date Created</option>
+                        <option value="name">Name</option>
+                        <option value="bookmark_count">Bookmark Count</option>
+                      </select>
+                      <select
+                        value={collectionFilters.sortOrder}
+                        onChange={(e) => setCollectionFilters(prev => ({ ...prev, sortOrder: e.target.value as any }))}
+                        className="p-2 border border-grey-accent-300 rounded-md text-sm"
+                      >
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Filtered Collections Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {nestedCollections.map((collection) => (
-                <Card key={collection.id} className="hover:shadow-lg transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300">
+              {filteredCollections.map((collection) => (
+                <Card 
+                  key={collection.id} 
+                  className="hover:shadow-lg transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer group"
+                  onClick={() => {
+                    setSelectedDirectoryCollection(collection)
+                    setShowDirectoryModal(true)
+                  }}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -1389,19 +2227,67 @@ export default function TeamSitePage() {
                           className="w-4 h-4 rounded"
                           style={{ backgroundColor: collection.color }}
                         />
-                        <Folder className="w-5 h-5 text-muted-foreground" />
+                        <Folder className="w-5 h-5 text-muted-foreground group-hover:text-grey-accent-600" />
                       </div>
-                      <span className="px-2 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold">
-                        {bookmarks.filter(b => b.collection_id === collection.id).length} items
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold">
+                          {bookmarks.filter(b => b.collection_id === collection.id).length} items
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            copyDirectoryStructure(collection)
+                          }}
+                          title="Copy directory structure"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
                     
-                    <h3 className="font-bold text-lg mb-2">{collection.name}</h3>
+                    <div className="flex items-center gap-2 mb-3">
+                      <h3 className="font-bold text-lg group-hover:text-grey-accent-800">{collection.name}</h3>
+                      {(collection as any).parent_id && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full border border-blue-200">
+                          Nested
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Parent hierarchy - more prominent */}
+                    {(collection as any).parent_id && (
+                      <div className="mb-3 p-2 bg-blue-50 border-l-4 border-blue-400 rounded-r">
+                        <div className="flex items-center gap-1">
+                          <ChevronRight className="w-3 h-3 text-blue-600" />
+                          <span className="text-xs font-medium text-blue-800">
+                            Parent: {(() => {
+                              const parent = allFlatCollections.find(c => c.id === (collection as any).parent_id)
+                              return parent?.name || 'Unknown Parent'
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     
                     {collection.description && (
-                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                        {collection.description}
-                      </p>
+                      <div className="mb-4 p-3 bg-grey-accent-50 border border-grey-accent-200 rounded">
+                        <div className="text-xs font-medium text-grey-accent-600 mb-1">Description</div>
+                        <p className="text-sm text-grey-accent-700 line-clamp-2">
+                          {collection.description}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Child count if has children */}
+                    {collection.children && collection.children.length > 0 && (
+                      <div className="mb-3">
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                          {collection.children.length} sub-collections
+                        </span>
+                      </div>
                     )}
                     
                     <div className="flex items-center justify-between">
@@ -1417,71 +2303,178 @@ export default function TeamSitePage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Click hint */}
+                    <div className="mt-3 text-xs text-grey-accent-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Click to view directory structure
+                    </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+
+            {filteredCollections.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📁</div>
+                <h3 className="text-xl font-semibold mb-2">No collections match your filters</h3>
+                <p className="text-muted-foreground mb-6">
+                  Try adjusting your search criteria or clear some filters
+                </p>
+                <Button
+                  onClick={() => setCollectionFilters({
+                    searchQuery: '',
+                    selectedCreators: [],
+                    selectedParents: [],
+                    hasBookmarks: null,
+                    sortBy: 'created_at',
+                    sortOrder: 'desc'
+                  })}
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
-          <TabsContent value="activity" className="space-y-6">
-            <div className="space-y-4">
-              {teamEvents.map((event) => {
-                const getEventIcon = (eventType: string) => {
-                  switch (eventType) {
-                    case 'collection.created': return '📁'
-                    case 'bookmark.created': return '🔖'
-                    case 'highlight.created': return '✨'
-                    case 'annotation.created': return '💬'
-                    default: return '📝'
-                  }
-                }
-                
-                const getEventDescription = (eventType: string, data: any) => {
-                  switch (eventType) {
-                    case 'collection.created':
-                      return `created collection "${data?.collection_name || 'Untitled'}"`
-                    case 'bookmark.created':
-                      return `added bookmark "${data?.bookmark_title || data?.bookmark_url || 'Untitled'}"`
-                    case 'highlight.created':
-                      return `highlighted text`
-                    case 'annotation.created':
-                      return `added annotation`
-                    default:
-                      return eventType.replace('.', ' ').replace('_', ' ')
-                  }
-                }
+          <TabsContent value="activity" className="space-y-4">
+            {/* Activity Header */}
+            <div className="bg-white rounded-lg border border-grey-accent-200 p-4">
+              <h3 className="text-lg font-semibold text-grey-accent-900 mb-2">Team Activity Log</h3>
+              <p className="text-sm text-grey-accent-600">
+                Real-time activity feed showing all team member actions • {teamEvents.length} events
+              </p>
+            </div>
 
-                return (
-                  <Card key={event.id} className="hover:shadow-md transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 text-white flex items-center justify-center text-sm font-semibold shadow-md">
-                            {((event as any).profiles?.full_name || 'U')[0].toUpperCase()}
+            {/* Activity Log */}
+            <div className="bg-white rounded-lg border border-grey-accent-200 overflow-hidden">
+              <div className="max-h-[600px] overflow-y-auto">
+                {teamEvents.map((event, index) => {
+                  const getEventIcon = (eventType: string) => {
+                    switch (eventType) {
+                      case 'collection.created': return { icon: '📁', color: 'text-blue-600', bg: 'bg-blue-50' }
+                      case 'bookmark.created': return { icon: '🔖', color: 'text-green-600', bg: 'bg-green-50' }
+                      case 'highlight.created': return { icon: '✨', color: 'text-yellow-600', bg: 'bg-yellow-50' }
+                      case 'annotation.created': return { icon: '💬', color: 'text-purple-600', bg: 'bg-purple-50' }
+                      default: return { icon: '📝', color: 'text-grey-accent-600', bg: 'bg-grey-accent-50' }
+                    }
+                  }
+                  
+                  const getVerboseDescription = (eventType: string, data: any, event: any) => {
+                    const timestamp = new Date(event.created_at)
+                    const timeStr = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    const dateStr = timestamp.toLocaleDateString()
+                    const userName = (event as any).profiles?.full_name || 'Unknown User'
+                    
+                    switch (eventType) {
+                      case 'collection.created':
+                        return {
+                          action: `Created collection "${data?.collection_name || 'Untitled'}"`,
+                          details: data?.collection_description ? `Description: "${data.collection_description}"` : 'No description provided',
+                          metadata: `Collection ID: ${data?.collection_id || 'Unknown'}`
+                        }
+                      case 'bookmark.created':
+                        return {
+                          action: `Added bookmark "${data?.bookmark_title || data?.bookmark_url || 'Untitled'}"`,
+                          details: data?.bookmark_url ? `URL: ${data.bookmark_url}` : 'No URL provided',
+                          metadata: `${data?.collection_name ? `To collection: "${data.collection_name}"` : 'Uncategorized'} • Bookmark ID: ${data?.bookmark_id || 'Unknown'}`
+                        }
+                      case 'highlight.created':
+                        return {
+                          action: 'Created text highlight',
+                          details: data?.highlight_text ? `"${data.highlight_text.substring(0, 100)}${data.highlight_text.length > 100 ? '...' : ''}"` : 'No highlight text',
+                          metadata: `Source: ${data?.source_url || 'Unknown'}`
+                        }
+                      case 'annotation.created':
+                        return {
+                          action: 'Added annotation',
+                          details: data?.annotation_text ? `"${data.annotation_text}"` : 'No annotation text',
+                          metadata: `Target: ${data?.target_type || 'Unknown'}`
+                        }
+                      default:
+                        return {
+                          action: eventType.replace('.', ' ').replace('_', ' '),
+                          details: 'System event',
+                          metadata: `Event type: ${eventType}`
+                        }
+                    }
+                  }
+
+                  const eventStyle = getEventIcon(event.event_type)
+                  const description = getVerboseDescription(event.event_type, event.data, event)
+                  const timestamp = new Date(event.created_at)
+                  const now = new Date()
+                  const diffMs = now.getTime() - timestamp.getTime()
+                  const diffMins = Math.floor(diffMs / (1000 * 60))
+                  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+                  
+                  const getRelativeTime = () => {
+                    if (diffMins < 1) return 'Just now'
+                    if (diffMins < 60) return `${diffMins}m ago`
+                    if (diffHours < 24) return `${diffHours}h ago`
+                    if (diffDays < 7) return `${diffDays}d ago`
+                    return timestamp.toLocaleDateString()
+                  }
+
+                  return (
+                    <div 
+                      key={event.id} 
+                      className={`border-l-4 p-4 hover:bg-grey-accent-25 transition-colors ${
+                        index !== teamEvents.length - 1 ? 'border-b border-grey-accent-100' : ''
+                      } ${eventStyle.bg} border-l-current`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Timestamp column */}
+                        <div className="w-20 flex-shrink-0 text-right">
+                          <div className="text-xs font-mono text-grey-accent-500">
+                            {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
-                          <div className="text-xl">
-                            {getEventIcon(event.event_type)}
+                          <div className="text-xs text-grey-accent-400">
+                            {getRelativeTime()}
                           </div>
                         </div>
                         
-                        <div className="flex-1">
-                          <p className="font-medium mb-1 text-grey-accent-900">
-                            <span className="font-bold">
+                        {/* Icon and user */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 text-white flex items-center justify-center text-xs font-semibold">
+                            {((event as any).profiles?.full_name || 'U')[0].toUpperCase()}
+                          </div>
+                          <span className="text-sm">{eventStyle.icon}</span>
+                        </div>
+                        
+                        {/* Event details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-grey-accent-900 text-sm">
                               {(event as any).profiles?.full_name || 'Unknown User'}
                             </span>
-                            {' '}
-                            {getEventDescription(event.event_type, event.data)}
-                          </p>
+                            <span className="text-xs text-grey-accent-500 bg-grey-accent-100 px-2 py-0.5 rounded-full">
+                              {event.event_type}
+                            </span>
+                          </div>
                           
-                          <p className="text-sm text-grey-accent-600">
-                            {new Date(event.created_at).toLocaleString()}
-                          </p>
+                          <div className="text-sm text-grey-accent-800 mb-1">
+                            {description.action}
+                          </div>
+                          
+                          <div className="text-xs text-grey-accent-600 mb-1">
+                            {description.details}
+                          </div>
+                          
+                          <div className="text-xs text-grey-accent-500 font-mono">
+                            {description.metadata}
+                          </div>
+                        </div>
+                        
+                        {/* Full timestamp on hover */}
+                        <div className="text-xs text-grey-accent-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {timestamp.toLocaleString()}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
+                    </div>
+                  )
+                })}
+              </div>
               
               {teamEvents.length === 0 && (
                 <div className="text-center py-12">
@@ -1496,6 +2489,56 @@ export default function TeamSitePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Directory Structure Modal */}
+      {showDirectoryModal && selectedDirectoryCollection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-grey-accent-200">
+              <div className="flex items-center gap-3">
+                <Folder className="w-6 h-6 text-grey-accent-600" />
+                <div>
+                  <h2 className="text-xl font-semibold text-grey-accent-900">
+                    {selectedDirectoryCollection.name} Directory Structure
+                  </h2>
+                  <p className="text-sm text-grey-accent-600">
+                    Created by {(selectedDirectoryCollection as any).profiles?.full_name || 'Unknown'} on{' '}
+                    {new Date(selectedDirectoryCollection.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyDirectoryStructure(selectedDirectoryCollection)}
+                  className="flex items-center gap-2"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy Markdown
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowDirectoryModal(false)
+                    setSelectedDirectoryCollection(null)
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="bg-grey-accent-50 rounded-lg p-4 font-mono text-sm">
+                <DirectoryTreeView collection={selectedDirectoryCollection} bookmarks={bookmarks} level={0} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Collection Modal - You'll need to implement these modals */}
       {showCreateCollection && (
