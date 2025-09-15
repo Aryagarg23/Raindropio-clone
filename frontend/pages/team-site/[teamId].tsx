@@ -3310,7 +3310,7 @@ export default function TeamSitePage() {
                                         <div className="flex items-center gap-1">
                                           <ProfileIcon
                                             user={{
-                                              avatar_url: highlight.creator_avatar_url,
+                                              avatar_url: highlight.creator_avatar,
                                               full_name: highlight.creator_name,
                                               email: highlight.creator_id
                                             }}
@@ -3486,7 +3486,7 @@ export default function TeamSitePage() {
                                       <div className="flex items-center gap-1">
                                         <ProfileIcon
                                           user={{
-                                            avatar_url: highlight.creator_avatar_url,
+                                            avatar_url: highlight.creator_avatar,
                                             full_name: highlight.creator_name,
                                             email: highlight.creator_id
                                           }}
@@ -3642,7 +3642,7 @@ export default function TeamSitePage() {
                       <div className="flex items-start gap-3">
                         <ProfileIcon
                           user={{
-                            avatar_url: annotation.creator_avatar_url,
+                            avatar_url: annotation.creator_avatar,
                             full_name: annotation.creator_name,
                             email: annotation.creator_id
                           }}
@@ -4816,7 +4816,7 @@ function BookmarkDetailModal({
                                     <div className="flex items-center gap-2 mb-2">
                                       <ProfileIcon
                                         user={{
-                                          avatar_url: highlight.creator_avatar_url,
+                                          avatar_url: highlight.creator_avatar,
                                           full_name: highlight.creator_name,
                                           email: highlight.creator_id
                                         }}
@@ -4857,7 +4857,7 @@ function BookmarkDetailModal({
                                       <div key={annotation.annotation_id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-grey-accent-200">
                                         <ProfileIcon
                                           user={{
-                                            avatar_url: annotation.creator_avatar_url,
+                                            avatar_url: annotation.creator_avatar,
                                             full_name: annotation.creator_name,
                                             email: annotation.creator_id
                                           }}
@@ -4886,7 +4886,7 @@ function BookmarkDetailModal({
                             <div className="flex items-start gap-3">
                               <ProfileIcon
                                 user={{
-                                  avatar_url: annotation.creator_avatar_url,
+                                  avatar_url: annotation.creator_avatar,
                                   full_name: annotation.creator_name,
                                   email: annotation.creator_id
                                 }}
@@ -5031,7 +5031,7 @@ function BookmarkDetailModal({
                                     <div className="flex items-center gap-2 mb-2">
                                       <ProfileIcon
                                         user={{
-                                          avatar_url: highlight.creator_avatar_url,
+                                          avatar_url: highlight.creator_avatar,
                                           full_name: highlight.creator_name,
                                           email: highlight.creator_id
                                         }}
@@ -5095,9 +5095,14 @@ function BookmarkDetailModal({
                                           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                                           .map((comment, index) => (
                                           <div key={comment.annotation_id} className="flex gap-3 animate-fade-in">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm">
-                                              {(comment.creator_name || 'U')[0].toUpperCase()}
-                                            </div>
+                                            <ProfileIcon
+                                              user={{
+                                                avatar_url: comment.creator_avatar,
+                                                full_name: comment.creator_name,
+                                                email: comment.creator_id
+                                              }}
+                                              size="lg"
+                                            />
                                             <div className="flex-1 min-w-0">
                                               <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-grey-accent-100 relative">
                                                 <div className="flex items-center gap-2 mb-2">
@@ -5133,9 +5138,14 @@ function BookmarkDetailModal({
                                   {/* Add comment input */}
                                   <div className="px-6 py-4 border-t border-blue-100 bg-white">
                                     <div className="flex gap-3">
-                                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                        {(user?.user_metadata?.full_name || 'You')[0].toUpperCase()}
-                                      </div>
+                                      <ProfileIcon
+                                        user={{
+                                          avatar_url: user?.user_metadata?.avatar_url,
+                                          full_name: user?.user_metadata?.full_name,
+                                          email: user?.email
+                                        }}
+                                        size="md"
+                                      />
                                       <div className="flex-1">
                                         <textarea
                                           placeholder="Add to the discussion..."
@@ -5460,7 +5470,7 @@ function BookmarkDetailModal({
                 <div className="flex items-start gap-3">
                   <ProfileIcon
                     user={{
-                      avatar_url: annotation.creator_avatar_url,
+                      avatar_url: annotation.creator_avatar,
                       full_name: annotation.creator_name,
                       email: annotation.creator_id
                     }}
