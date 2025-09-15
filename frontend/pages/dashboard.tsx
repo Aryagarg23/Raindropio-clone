@@ -14,6 +14,8 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState<Record<string, UserProfile[]>>({});
   const [loading, setLoading] = useState(true);
   const [teamsLoading, setTeamsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Always fetch teams when profile is set and complete
   useEffect(() => {
@@ -21,6 +23,19 @@ export default function Dashboard() {
       fetchTeams();
     }
   }, [profile]);
+
+  // Add a timeout to prevent infinite loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.error("⏰ Loading timeout reached - something went wrong");
+        setError("Loading is taking too long. Please refresh the page or try again.");
+        setLoading(false);
+      }
+    }, 15000); // 15 second timeout
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
 
   useEffect(() => {
     async function fetchUserAndProfile() {
@@ -41,13 +56,25 @@ export default function Dashboard() {
         const { data } = await supabase.auth.getUser();
         setUser(data?.user as AuthUser);
         if (data?.user) {
+          console.log("✅ User found, syncing profile...");
           try {
             const response = await apiClient.syncProfile();
+            console.log("✅ Profile sync successful:", response);
             setProfile(response.profile);
           } catch (error) {
+            console.error("❌ Profile sync failed:", error);
             if (error instanceof ApiError && error.status === 401) {
+              console.log("🚫 Unauthorized, redirecting to login...");
               setUser(null);
               router.push('/'); // Redirect to login page
+              return; // Early return to prevent setLoading(false)
+            } else if (error instanceof ApiError && error.status === 0) {
+              console.error("❌ Network error during profile sync");
+              setError("Unable to connect to the server. Please check your internet connection and try again.");
+              return; // Early return to prevent setLoading(false)
+            } else {
+              console.error("❌ Non-auth error during profile sync, continuing without profile");
+              // Continue with no profile - let user complete it
             }
           }
         } else {
@@ -90,6 +117,7 @@ export default function Dashboard() {
 
   const refreshProfile = async () => {
     console.log("🔄 Refreshing profile...");
+    setError(null); // Clear any existing error
     try {
       const response = await apiClient.syncProfile();
       console.log("🔍 Sync response:", response);
@@ -100,6 +128,13 @@ export default function Dashboard() {
       await fetchTeams();
     } catch (error) {
       console.error("❌ Error refreshing profile:", error);
+      if (error instanceof ApiError && error.status === 0) {
+        setError("Unable to connect to the server. Please check your internet connection and try again.");
+      } else if (error instanceof ApiError) {
+        setError(`Error ${error.status}: ${error.message}`);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     }
   };
 
@@ -140,6 +175,14 @@ export default function Dashboard() {
     }
   };
 
+  const retryLoading = () => {
+    console.log("🔄 Retrying dashboard loading...");
+    setError(null);
+    setLoading(true);
+    setRetryCount(prev => prev + 1);
+    // The useEffect will trigger and run fetchUserAndProfile again
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -149,7 +192,29 @@ export default function Dashboard() {
       <main className="min-h-screen bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="animate-spin w-6 h-6 border-2 border-grey-accent-300 border-t-grey-accent-700 rounded-full mx-auto mb-3"></div>
-          <p className="text-sm text-grey-accent-600">Loading...</p>
+          <p className="text-sm text-grey-accent-600">Loading dashboard...</p>
+          {retryCount > 0 && (
+            <p className="text-xs text-grey-accent-500 mt-1">Attempt {retryCount + 1}</p>
+          )}
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md max-w-md">
+              <p className="text-sm text-red-700 mb-3">{error}</p>
+              <div className="flex gap-2 justify-center">
+                <button 
+                  onClick={retryLoading} 
+                  className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs rounded transition-colors"
+                >
+                  Try Again
+                </button>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 text-xs rounded transition-colors"
+                >
+                  Refresh Page
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     );

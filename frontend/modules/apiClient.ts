@@ -32,7 +32,9 @@ export class ApiError extends Error {
 }
 
 async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}) {
-  console.log(`🌐 Making API request to: ${getApiBaseUrl()}${endpoint}`);
+  const apiUrl = getApiBaseUrl();
+  console.log(`🌐 Making API request to: ${apiUrl}${endpoint}`);
+  
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.access_token) {
@@ -48,31 +50,48 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
     ? { 'Authorization': `Bearer ${session.access_token}` }
     : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
   
-  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-  });
+  try {
+    const response = await fetch(`${apiUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+    });
 
-  if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch {
-      errorData = { message: 'Network error' };
+    console.log(`📡 Response status: ${response.status} for ${endpoint}`);
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      
+      console.error(`❌ API Error ${response.status}:`, errorData);
+      throw new ApiError(
+        errorData.message || `HTTP ${response.status}`,
+        response.status,
+        errorData.code,
+        errorData
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
     }
     
-    throw new ApiError(
-      errorData.error?.message || errorData.message || 'Request failed',
-      response.status,
-      errorData.error?.code,
-      errorData.error?.details
-    );
+    // Network or other fetch errors
+    console.error("❌ Network/Fetch error:", error);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new ApiError('Network error - unable to connect to API server', 0, 'NETWORK_ERROR');
+    }
+    
+    throw new ApiError('Request failed', 0, 'UNKNOWN_ERROR', error);
   }
-
-  return response.json();
 }
 
 async function makeAuthenticatedFormRequest(endpoint: string, formData: FormData, method: string = 'PUT') {
