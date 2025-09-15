@@ -614,7 +614,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   };
 
   // Create bookmark with optimistic updates
-  const createBookmark = async (url: string, title?: string, collectionId?: string) => {
+  const createBookmark = async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
     if (!actualTeamId || !user) return;
     
     try {
@@ -633,7 +633,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
         description: null,
         favicon_url: null,
         preview_image: null,
-        tags: [],
+        tags: tags || [],
         created_by: user.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -659,6 +659,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
           collection_id: collectionId,
           url,
           title,
+          tags: tags || [],
           created_by: user.id
         })
         .select(`

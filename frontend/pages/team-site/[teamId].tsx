@@ -3888,7 +3888,7 @@ function AddBookmarkModal({
 }: { 
   collections: any[];
   onClose: () => void;
-  onCreate: (url: string, title?: string, collectionId?: string) => void;
+  onCreate: (url: string, title?: string, collectionId?: string, tags?: string[]) => void;
 }) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
@@ -3928,7 +3928,7 @@ function AddBookmarkModal({
     if (url.trim() && !isSubmitting) {
       setIsSubmitting(true)
       try {
-        await onCreate(url.trim(), title.trim() || undefined, collectionId || undefined)
+        await onCreate(url.trim(), title.trim() || undefined, collectionId || undefined, tags)
         
         // Reset form and close modal
         resetForm()
