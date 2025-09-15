@@ -263,17 +263,50 @@ export default function Home() {
                         boxShadow: "var(--shadow-sm)"
                       }}
                     >
-                      <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, margin: 0 }}>
-                        {team.name}
-                      </h4>
-                      {team.description && (
-                        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: 8 }}>
-                          {team.description}
-                        </p>
-                      )}
-                      <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: 0 }}>
-                        Created: {new Date(team.created_at).toLocaleDateString()}
-                      </p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 8, margin: 0 }}>
+                            {team.name}
+                          </h4>
+                          {team.description && (
+                            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: 8 }}>
+                              {team.description}
+                            </p>
+                          )}
+                          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: 0 }}>
+                            Created: {new Date(team.created_at).toLocaleDateString()}
+                            {team.member_count && (
+                              <span style={{ marginLeft: 8 }}>• {team.member_count} members</span>
+                            )}
+                          </p>
+                        </div>
+                        <a
+                          href={`/team-site/${team.id}`}
+                          style={{
+                            display: "inline-block",
+                            padding: "8px 16px",
+                            background: "var(--primary)",
+                            color: "#212529",
+                            textDecoration: "none",
+                            borderRadius: "6px",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            marginLeft: 16,
+                            transition: "all 200ms ease-out",
+                            boxShadow: "var(--shadow-sm)"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = "translateY(-1px)";
+                            e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = "translateY(0)";
+                            e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+                          }}
+                        >
+                          Open Workspace →
+                        </a>
+                      </div>
                     </div>
                   ))}
                 </div>
