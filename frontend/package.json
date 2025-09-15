@@ -17,13 +17,16 @@
     "@supabase/supabase-js": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "i": "^0.3.7",
     "lucide-react": "^0.544.0",
+    "mark.js": "^8.11.1",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@types/mark.js": "^8.11.12",
     "@types/node": "^24.4.0",
     "@types/react": "^19.1.13",
     "autoprefixer": "^10.4.21",

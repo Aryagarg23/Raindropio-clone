@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useMemo } from "react"
+import Mark from 'mark.js'
 
 // Extend window object for highlight clicking
 declare global {
@@ -16,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
-import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
+import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, ChevronUp, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
 
 // Favicon component for bookmarks
@@ -200,7 +201,7 @@ export default function TeamSitePage() {
   
   // Bookmark detail view state
   const [selectedBookmark, setSelectedBookmark] = useState<any | null>(null)
-  const [bookmarkViewMode, setBookmarkViewMode] = useState<'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details'>('embed')
+  const [bookmarkViewMode, setBookmarkViewMode] = useState<'embed' | 'reader' | 'proxy' | 'details'>('embed')
   const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([])
   const [bookmarkHighlights, setBookmarkHighlights] = useState<any[]>([])
   const [newAnnotation, setNewAnnotation] = useState('')
@@ -573,33 +574,74 @@ export default function TeamSitePage() {
   }
 
   // Create a new highlight
-  const createHighlight = async (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number) => {
+  const createHighlight = async (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string) => {
     if (!user) {
       setError('You must be logged in to create highlights')
       return
     }
 
+    // Validate required parameters
+    if (!bookmarkId) {
+      console.error('❌ Missing bookmarkId')
+      setError('Missing bookmark ID')
+      return
+    }
+
+    if (!teamId) {
+      console.error('❌ Missing teamId')
+      setError('Missing team ID')
+      return
+    }
+
+    console.log('🔍 Creating highlight with parameters:', {
+      bookmarkId,
+      teamId: String(teamId),
+      selectedText: selectedText.substring(0, 50),
+      textBefore,
+      textAfter,
+      startOffset,
+      endOffset,
+      highlightColor,
+      userId: user.id
+    })
+
     try {
+      const insertData = {
+        bookmark_id: bookmarkId,
+        team_id: String(teamId), // Ensure teamId is a string
+        selected_text: selectedText,
+        text_before: textBefore || null,
+        text_after: textAfter || null,
+        start_offset: startOffset,
+        end_offset: endOffset,
+        color: highlightColor,
+        created_by: user.id
+      }
+      
+      console.log('📦 Insert data payload:', insertData)
+
       const { data, error } = await supabase
         .from('highlights')
-        .insert({
-          bookmark_id: bookmarkId,
-          team_id: teamId,
-          selected_text: selectedText,
-          start_offset: startOffset,
-          end_offset: endOffset,
-          color: highlightColor,
-          created_by: user.id
-        })
+        .insert(insertData)
         .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Database error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw error
+      }
+      
+      console.log('✅ Highlight created successfully in database:', data[0])
       
       // Refresh highlights
       fetchBookmarkData(bookmarkId)
       return data[0]
     } catch (error) {
-      console.error('Error creating highlight:', error)
+      console.error('❌ Error creating highlight:', error)
       setError('Failed to create highlight')
     }
   }
@@ -618,27 +660,62 @@ export default function TeamSitePage() {
       return
     }
 
+    // Validate required parameters
+    if (!bookmarkId) {
+      console.error('❌ Missing bookmarkId for annotation')
+      setError('Missing bookmark ID')
+      return
+    }
+
+    if (!teamId) {
+      console.error('❌ Missing teamId for annotation')
+      setError('Missing team ID')
+      return
+    }
+
+    console.log('🔍 Creating annotation with parameters:', {
+      bookmarkId,
+      teamId: String(teamId),
+      content: content.substring(0, 100),
+      highlightId: highlightId || 'null (general bookmark annotation)',
+      userId: user.id
+    })
+
     try {
+      const insertData = {
+        bookmark_id: bookmarkId,
+        highlight_id: highlightId || null,
+        team_id: String(teamId), // Ensure teamId is a string
+        content: content.trim(),
+        annotation_type: 'comment',
+        created_by: user.id
+      }
+      
+      console.log('📦 Annotation insert data payload:', insertData)
+
       const { data, error } = await supabase
         .from('annotations')
-        .insert({
-          bookmark_id: bookmarkId,
-          highlight_id: highlightId || null,
-          team_id: teamId,
-          content: content.trim(),
-          annotation_type: 'comment',
-          created_by: user.id
-        })
+        .insert(insertData)
         .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Database error details for annotation:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw error
+      }
+      
+      console.log('✅ Annotation created successfully in database:', data[0])
       
       // Refresh annotations
       fetchBookmarkData(bookmarkId)
       setNewAnnotation('')
       return data[0]
     } catch (error) {
-      console.error('Error creating annotation:', error)
+      console.error('❌ Error creating annotation:', error)
       setError('Failed to create annotation')
     }
   }
@@ -2974,19 +3051,9 @@ export default function TeamSitePage() {
                       Reader
                     </button>
                     <button
-                      onClick={() => setBookmarkViewMode('archive')}
+                      onClick={() => setBookmarkViewMode('details')}
                       className={`px-2 py-1 text-sm rounded-md transition-all ${
-                        bookmarkViewMode === 'archive' 
-                          ? 'bg-white text-grey-accent-900 shadow-sm' 
-                          : 'text-grey-accent-600 hover:text-grey-accent-900'
-                      }`}
-                    >
-                      Archive
-                    </button>
-                    <button
-                      onClick={() => setBookmarkViewMode('text')}
-                      className={`px-2 py-1 text-sm rounded-md transition-all ${
-                        bookmarkViewMode === 'text' 
+                        bookmarkViewMode === 'details' 
                           ? 'bg-white text-grey-accent-900 shadow-sm' 
                           : 'text-grey-accent-600 hover:text-grey-accent-900'
                       }`}
@@ -3090,13 +3157,6 @@ export default function TeamSitePage() {
                               className="w-full"
                             >
                               📖 Try Reader Mode
-                            </Button>
-                            <Button
-                              onClick={() => setBookmarkViewMode('archive')}
-                              variant="outline"
-                              className="w-full"
-                            >
-                              📚 Try Archive View
                             </Button>
                             <Button
                               onClick={() => window.open(selectedBookmark.url, '_blank', 'noopener,noreferrer')}
@@ -3311,17 +3371,6 @@ export default function TeamSitePage() {
                         </div>
                       </div>
                     )}
-                  </div>
-                ) : bookmarkViewMode === 'archive' ? (
-                  <div className="h-full w-full relative">
-                    <iframe
-                      src={`https://web.archive.org/web/${selectedBookmark.url}`}
-                      className="w-full h-full border-0"
-                      loading="lazy"
-                      onError={() => {
-                        setEmbedError('No archived version available')
-                      }}
-                    />
                   </div>
                 ) : (
                   <div className="h-full overflow-auto p-6 bg-grey-accent-25">
@@ -3721,6 +3770,7 @@ export default function TeamSitePage() {
           highlightColor={highlightColor}
           setHighlightColor={setHighlightColor}
           user={user}
+          teamId={teamId}
         />
       )}
     </div>
@@ -3965,19 +4015,21 @@ function BookmarkDetailModal({
   onCreateAnnotation,
   highlightColor,
   setHighlightColor,
-  user
+  user,
+  teamId
 }: {
   bookmark: any
-  viewMode: 'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details'
-  setViewMode: (mode: 'embed' | 'text' | 'reader' | 'proxy' | 'archive' | 'details') => void
+  viewMode: 'embed' | 'reader' | 'proxy' | 'details'
+  setViewMode: (mode: 'embed' | 'reader' | 'proxy' | 'details') => void
   highlights: any[]
   annotations: any[]
   onClose: () => void
-  onSaveHighlight: (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number) => void
+  onSaveHighlight: (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string) => Promise<any>
   onCreateAnnotation: (bookmarkId: string, content: string, highlightId?: string) => void
   highlightColor: string
   setHighlightColor: (color: string) => void
   user: any
+  teamId: string
 }) {
   const [extractedContent, setExtractedContent] = useState<any>(null)
   const [isLoadingContent, setIsLoadingContent] = useState(false)
@@ -3986,6 +4038,88 @@ function BookmarkDetailModal({
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [pendingSelection, setPendingSelection] = useState<{ text: string; startOffset: number; endOffset: number } | null>(null)
   const [newAnnotation, setNewAnnotation] = useState('')
+  const [selectedHighlightId, setSelectedHighlightId] = useState<string | null>(null)
+  const [expandedHighlights, setExpandedHighlights] = useState<Set<string>>(new Set())
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set())
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
+  const [availableTags, setAvailableTags] = useState<{tag: string, usage_count: number}[]>([])
+  const [tagInput, setTagInput] = useState('')
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [bookmarkTags, setBookmarkTags] = useState<string[]>(bookmark.tags || [])
+
+  // Fetch available tags on component mount
+  React.useEffect(() => {
+    if (teamId) {
+      fetchAvailableTags()
+    }
+  }, [teamId])
+
+  // Update local state when bookmark changes
+  React.useEffect(() => {
+    setBookmarkTags(bookmark.tags || [])
+  }, [bookmark.tags])
+
+  const fetchAvailableTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_team_tags', { team_uuid: teamId })
+      
+      if (error) {
+        console.error('Error fetching available tags:', error)
+      } else {
+        setAvailableTags(data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching available tags:', error)
+    }
+  }
+
+  const updateBookmarkTags = async (newTags: string[]) => {
+    try {
+      const { error } = await supabase
+        .rpc('update_bookmark_tags', { 
+          bookmark_uuid: bookmark.id, 
+          new_tags: newTags 
+        })
+      
+      if (error) {
+        console.error('Error updating bookmark tags:', error)
+      } else {
+        setBookmarkTags(newTags)
+        // Update the bookmark object directly for immediate UI feedback
+        bookmark.tags = newTags
+      }
+    } catch (error) {
+      console.error('Error updating bookmark tags:', error)
+    }
+  }
+
+  const addTag = (tag: string) => {
+    const trimmedTag = tag.trim().toLowerCase()
+    if (trimmedTag && !bookmarkTags.includes(trimmedTag)) {
+      const newTags = [...bookmarkTags, trimmedTag]
+      updateBookmarkTags(newTags)
+    }
+    setTagInput('')
+    setShowTagSuggestions(false)
+  }
+
+  const removeTag = (tagToRemove: string) => {
+    const newTags = bookmarkTags.filter(tag => tag !== tagToRemove)
+    updateBookmarkTags(newTags)
+  }
+
+  const getFilteredSuggestions = () => {
+    if (!tagInput.trim()) return []
+    
+    const query = tagInput.toLowerCase()
+    return availableTags
+      .filter(({ tag }) => 
+        tag.toLowerCase().includes(query) && 
+        !bookmarkTags.includes(tag)
+      )
+      .slice(0, 8) // Limit suggestions
+  }
 
   const colorOptions = [
     '#ffeb3b', // Yellow
@@ -4000,27 +4134,44 @@ function BookmarkDetailModal({
     '#4caf50', // Green
   ]
 
-  // Extract content when switching to text/reader modes
+  // Extract content when switching to reader mode
   React.useEffect(() => {
-    if ((viewMode === 'reader' || viewMode === 'text') && !extractedContent) {
+    if (viewMode === 'reader' && !extractedContent) {
       extractContent()
     }
   }, [viewMode])
 
-  // Track selected highlight for annotation
-  const [selectedHighlightId, setSelectedHighlightId] = useState<string | null>(null)
+
 
   // Add global function for highlight clicking
   React.useEffect(() => {
     window.selectHighlightForAnnotation = (highlightId: string, selectedText: string) => {
       setSelectedHighlightId(highlightId)
-      setNewAnnotation(`Regarding: "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}" - `)
-      // Focus the annotation textarea
+      
+      // Expand the highlight if it has comments
+      const highlight = highlights.find(h => h.highlight_id === highlightId)
+      if (highlight) {
+        const highlightComments = annotations.filter(ann => ann.highlight_id === highlightId)
+        if (highlightComments.length > 0) {
+          setExpandedHighlights(prev => new Set([...prev, highlightId]))
+        }
+      }
+      
+      // Scroll to the highlight annotation section
       setTimeout(() => {
-        const textarea = document.querySelector('textarea[placeholder*="Add a comment"]') as HTMLTextAreaElement
-        if (textarea) {
-          textarea.focus()
-          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        const highlightElement = document.querySelector(`[data-highlight-section="${highlightId}"]`)
+        if (highlightElement) {
+          highlightElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          })
+          
+          // Add a visual flash effect
+          highlightElement.classList.add('highlight-flash')
+          setTimeout(() => {
+            highlightElement.classList.remove('highlight-flash')
+          }, 2000)
         }
       }, 100)
     }
@@ -4128,38 +4279,191 @@ function BookmarkDetailModal({
     return `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
   }
 
-  const getArchiveUrl = (url: string) => {
-    return `https://web.archive.org/web/${url}`
-  }
-
-  const saveHighlight = () => {
+  const saveHighlight = async (): Promise<any> => {
     if (pendingSelection && user) {
-      onSaveHighlight(
-        bookmark.id,
-        pendingSelection.text,
-        pendingSelection.startOffset,
-        pendingSelection.endOffset
-      )
-      setShowHighlightTooltip(false)
-      setPendingSelection(null)
+      // Extract context text from the current page content
+      let textBefore = ''
+      let textAfter = ''
+      
+      // Try to get the full content from the reader content div
+      const readerContent = document.querySelector('.reader-content')
+      if (readerContent) {
+        const fullText = readerContent.textContent || ''
+        const selectedText = pendingSelection.text
+        const selectedIndex = fullText.indexOf(selectedText)
+        
+        if (selectedIndex !== -1) {
+          // Extract 50 characters before and after as context
+          const contextLength = 50
+          const beforeStart = Math.max(0, selectedIndex - contextLength)
+          const afterEnd = Math.min(fullText.length, selectedIndex + selectedText.length + contextLength)
+          
+          textBefore = fullText.substring(beforeStart, selectedIndex).trim()
+          textAfter = fullText.substring(selectedIndex + selectedText.length, afterEnd).trim()
+          
+          console.log('📍 Extracted context for highlight:', {
+            selectedText: selectedText.substring(0, 50),
+            textBefore: textBefore,
+            textAfter: textAfter
+          })
+        }
+      }
+      
+      try {
+        const highlightResult = await onSaveHighlight(
+          bookmark.id,
+          pendingSelection.text,
+          pendingSelection.startOffset,
+          pendingSelection.endOffset,
+          textBefore,
+          textAfter
+        )
+        
+        setShowHighlightTooltip(false)
+        setPendingSelection(null)
+        
+        return highlightResult
+      } catch (error) {
+        console.error('❌ Error saving highlight:', error)
+        return null
+      }
     }
+    return null
   }
 
   const renderHighlights = (content: string) => {
-    if (!highlights.length) return content
+    if (!highlights.length) {
+      console.log('No highlights to render')
+      return content
+    }
 
+    console.log('Rendering highlights:', highlights.length, highlights)
+    console.log('Content length:', content.length)
+    console.log('Content preview (first 200 chars):', content.substring(0, 200))
+    console.log('Content preview (escaped):', JSON.stringify(content.substring(0, 200)))
+    
+    // Sort highlights by text length (longer first) to handle overlapping highlights better
+    const sortedHighlights = [...highlights].sort((a, b) => b.selected_text.length - a.selected_text.length)
+    
     let processedContent = content
-    // Simple highlight rendering - replace text with highlighted version
-    highlights.forEach(highlight => {
-      const highlightedText = `<mark style="background-color: ${highlight.color}; padding: 2px 4px; border-radius: 3px; cursor: pointer; transition: all 0.2s;" data-highlight-id="${highlight.highlight_id}" onclick="window.selectHighlightForAnnotation('${highlight.highlight_id}', '${highlight.selected_text.replace(/'/g, '\\\'')}')" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.2)'" onmouseout="this.style.boxShadow='none'" title="Click to add annotation">${highlight.selected_text}</mark>`
-      processedContent = processedContent.replace(highlight.selected_text, highlightedText)
+    
+    // Helper function to normalize text for comparison
+    const normalizeText = (text: string) => {
+      return text
+        .replace(/\s+/g, ' ')
+        .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ') // Convert various whitespace chars to regular space
+        .replace(/['']/g, "'") // Normalize quotes
+        .replace(/[""]/g, '"') // Normalize double quotes
+        .replace(/[–—]/g, '-') // Normalize dashes
+        .trim()
+    }
+    
+    // Helper function to escape text for regex
+    const escapeRegex = (text: string) => {
+      return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+    
+    // Use Mark.js - the industry standard for HTML-aware text highlighting
+    console.log(`Rendering highlights: ${sortedHighlights.length}`)
+    
+    // Create temporary DOM element for mark.js to work with
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = processedContent
+    const markInstance = new Mark(tempDiv)
+    
+    sortedHighlights.forEach((highlight, index) => {
+      const selectedText = highlight.selected_text
+      const highlightId = highlight.highlight_id
+      const color = highlight.color || '#ffeb3b'
+      
+      console.log(`\n=== Processing highlight ${index + 1} ===`)
+      console.log('Selected text:', selectedText.substring(0, 100))
+      console.log('Color:', color)
+      
+      // Use mark.js to find and highlight text across HTML tags
+      markInstance.mark(selectedText, {
+        element: 'mark',
+        className: '',
+        each: (element: HTMLElement) => {
+          // Apply our custom styling and data attributes
+          element.style.backgroundColor = color
+          element.style.backgroundImage = `linear-gradient(45deg, ${color}40 25%, transparent 25%), linear-gradient(-45deg, ${color}40 25%, transparent 25%), linear-gradient(45deg, transparent 75%, ${color}40 75%), linear-gradient(-45deg, transparent 75%, ${color}40 75%)`
+          element.style.backgroundSize = '4px 4px'
+          element.style.backgroundPosition = '0 0, 0 2px, 2px -2px, -2px 0px'
+          element.style.padding = '3px 6px'
+          element.style.borderRadius = '4px'
+          element.style.cursor = 'pointer'
+          element.style.transition = 'all 0.3s'
+          element.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
+          element.style.fontWeight = '500'
+          element.style.border = `1px solid ${color}80`
+          
+          element.setAttribute('data-highlight-id', highlightId)
+          element.setAttribute('onclick', `window.selectHighlightForAnnotation('${highlightId}', '${selectedText.replace(/'/g, '\\\'')}')`)
+          element.setAttribute('onmouseover', "this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'; this.style.transform='translateY(-1px)'")
+          element.setAttribute('onmouseout', "this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)'")  
+          element.setAttribute('title', `Highlight by ${highlight.creator_name || 'Unknown'} - Click to add annotation`)
+        },
+        filter: (textNode, foundTerm, totalCounter) => {
+          // Skip if already inside a mark tag
+          let parent = textNode.parentNode
+          while (parent && parent !== tempDiv) {
+            if ((parent as HTMLElement).tagName === 'MARK') {
+              return false
+            }
+            parent = parent.parentNode
+          }
+          return true
+        },
+        acrossElements: true, // This allows matching across HTML elements
+        caseSensitive: false, // Case insensitive matching
+        accuracy: 'complementary', // Use complementary for better phrase matching
+        separateWordSearch: false, // Don't search for individual words
+        ignorePunctuation: ['.', ',', '!', '?', ';', ':'], // Only ignore basic punctuation
+        ignoreJoiners: false, // Don't ignore joiners for more precise matching
+        wildcards: 'disabled' // Disable wildcards to prevent over-matching
+      })
+      
+      console.log(`✓ Applied highlight ${index + 1} using mark.js`)
     })
     
+    // Get the processed content back
+    processedContent = tempDiv.innerHTML
+    
+    console.log('Final processed content length:', processedContent.length)
     return processedContent
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex">
+    <>
+      <style jsx>{`
+        .highlight-flash {
+          animation: highlightPulse 2s ease-in-out;
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.5) !important;
+          border-color: rgb(59, 130, 246) !important;
+        }
+        
+        @keyframes highlightPulse {
+          0%, 100% { 
+            transform: scale(1);
+            box-shadow: 0 0 0 rgba(59, 130, 246, 0.5);
+          }
+          50% { 
+            transform: scale(1.02);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+          }
+        }
+        
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
+      <div className="fixed inset-0 bg-black/50 z-50 flex">
       {/* Left side - bookmark content */}
       <div className="flex-1 bg-white overflow-hidden relative">
         <div className="absolute top-0 left-0 right-0 bg-white border-b border-grey-accent-200 z-10 p-4">
@@ -4183,7 +4487,7 @@ function BookmarkDetailModal({
             
             {/* View Mode Tabs */}
             <div className="flex items-center gap-1 bg-grey-accent-100 rounded-lg p-1">
-              {(['embed', 'text', 'reader', 'proxy', 'archive', 'details'] as const).map((mode) => (
+              {(['embed', 'reader', 'proxy', 'details'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
@@ -4214,8 +4518,8 @@ function BookmarkDetailModal({
                       <Button onClick={() => setViewMode('proxy')} variant="outline">
                         Try Proxy View
                       </Button>
-                      <Button onClick={() => setViewMode('text')} variant="outline">
-                        Try Text View
+                      <Button onClick={() => setViewMode('reader')} variant="outline">
+                        Try Reader View
                       </Button>
                     </div>
                   </div>
@@ -4237,16 +4541,6 @@ function BookmarkDetailModal({
                 src={getProxyUrl(bookmark.url)}
                 className="w-full h-full border-0"
                 title={bookmark.title || bookmark.url}
-              />
-            </div>
-          )}
-
-          {viewMode === 'archive' && (
-            <div className="h-full">
-              <iframe
-                src={getArchiveUrl(bookmark.url)}
-                className="w-full h-full border-0"
-                title={`Archive: ${bookmark.title || bookmark.url}`}
               />
             </div>
           )}
@@ -4274,14 +4568,20 @@ function BookmarkDetailModal({
                     Team Discussion & Highlights
                   </h2>
                   
-                  {/* Combine highlights and general annotations, sort by timestamp */}
+                  {/* Threaded Conversations */}
                   {(() => {
-                    const allItems = [
-                      ...highlights.map(h => ({ ...h, type: 'highlight', timestamp: h.created_at })),
-                      ...annotations.filter(a => !a.highlight_id).map(a => ({ ...a, type: 'annotation', timestamp: a.created_at }))
-                    ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                    // Get highlights with their annotation counts
+                    const highlightThreads = highlights.map(highlight => ({
+                      ...highlight,
+                      replyCount: annotations.filter(ann => ann.highlight_id === highlight.highlight_id).length
+                    })).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-                    if (allItems.length === 0) {
+                    // Get general annotations (not tied to highlights)
+                    const generalAnnotations = annotations
+                      .filter(a => !a.highlight_id)
+                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+                    if (highlightThreads.length === 0 && generalAnnotations.length === 0) {
                       return (
                         <div className="text-center py-12">
                           <MessageCircle className="w-16 h-16 text-grey-accent-300 mx-auto mb-4" />
@@ -4298,90 +4598,121 @@ function BookmarkDetailModal({
                       )
                     }
 
-                    return allItems.map((item) => (
-                      <div key={`${item.type}-${item.type === 'highlight' ? item.highlight_id : item.annotation_id}`} className="bg-white rounded-lg border border-grey-accent-200 shadow-sm">
-                        {item.type === 'highlight' ? (
-                          <div className="p-4">
-                            {/* Highlight */}
-                            <div className="flex items-start gap-3 mb-4">
+                    return (
+                      <div className="space-y-4">
+                        {/* Highlight Threads */}
+                        {highlightThreads.map((highlight) => {
+                          const isExpanded = expandedThreads.has(highlight.highlight_id)
+                          const threadAnnotations = annotations
+                            .filter(ann => ann.highlight_id === highlight.highlight_id)
+                            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+                          return (
+                            <div key={highlight.highlight_id} className="bg-white rounded-lg border border-grey-accent-200 shadow-sm overflow-hidden">
+                              {/* Thread Header */}
                               <div 
-                                className="w-1 h-full rounded mt-1"
-                                style={{ backgroundColor: item.color, minHeight: '80px' }}
-                              />
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                    {(item.creator_name || 'U')[0].toUpperCase()}
+                                className="p-4 cursor-pointer hover:bg-grey-accent-50 transition-colors"
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedThreads)
+                                  if (isExpanded) {
+                                    newExpanded.delete(highlight.highlight_id)
+                                  } else {
+                                    newExpanded.add(highlight.highlight_id)
+                                  }
+                                  setExpandedThreads(newExpanded)
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div 
+                                    className="w-1 h-16 rounded mt-1 flex-shrink-0"
+                                    style={{ backgroundColor: highlight.color }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                        {(highlight.creator_name || 'U')[0].toUpperCase()}
+                                      </div>
+                                      <span className="font-medium text-grey-accent-900">{highlight.creator_name}</span>
+                                      <span className="text-grey-accent-500 text-sm">highlighted</span>
+                                      <span className="text-grey-accent-400 text-sm">•</span>
+                                      <span className="text-grey-accent-500 text-sm">{new Date(highlight.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <div 
+                                      className="p-3 rounded-lg border-l-4 mb-2"
+                                      style={{ 
+                                        backgroundColor: `${highlight.color}20`,
+                                        borderLeftColor: highlight.color 
+                                      }}
+                                    >
+                                      <p className="text-grey-accent-900 font-medium leading-relaxed">
+                                        "{highlight.selected_text}"
+                                      </p>
+                                    </div>
+                                    {highlight.replyCount > 0 && (
+                                      <div className="flex items-center gap-2 text-sm text-grey-accent-600">
+                                        <MessageCircle className="w-4 h-4" />
+                                        <span>{highlight.replyCount} {highlight.replyCount === 1 ? 'reply' : 'replies'}</span>
+                                        <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className="font-medium text-grey-accent-900">{item.creator_name}</span>
-                                  <span className="text-grey-accent-500 text-sm">highlighted</span>
-                                  <span className="text-grey-accent-400 text-sm">•</span>
-                                  <span className="text-grey-accent-500 text-sm">{new Date(item.created_at).toLocaleDateString()}</span>
-                                </div>
-                                <div 
-                                  className="p-3 rounded-lg border-l-4 mb-3"
-                                  style={{ 
-                                    backgroundColor: `${item.color}20`,
-                                    borderLeftColor: item.color 
-                                  }}
-                                >
-                                  <p className="text-grey-accent-900 font-medium leading-relaxed">
-                                    "{item.selected_text}"
-                                  </p>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Annotations on this highlight */}
-                            <div className="ml-4 space-y-3">
-                              {annotations
-                                .filter(ann => ann.highlight_id === item.highlight_id)
-                                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                                .map((annotation) => (
-                                  <div key={annotation.annotation_id} className="flex items-start gap-3 p-3 bg-grey-accent-50 rounded-lg border border-grey-accent-200">
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                                      {(annotation.creator_name || 'U')[0].toUpperCase()}
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-medium text-grey-accent-900 text-sm">{annotation.creator_name}</span>
-                                        <span className="text-grey-accent-400 text-xs">•</span>
-                                        <span className="text-grey-accent-500 text-xs">{new Date(annotation.created_at).toLocaleDateString()}</span>
+                              {/* Thread Replies */}
+                              {isExpanded && threadAnnotations.length > 0 && (
+                                <div className="border-t border-grey-accent-200 bg-grey-accent-50">
+                                  <div className="p-4 space-y-3">
+                                    {threadAnnotations.map((annotation) => (
+                                      <div key={annotation.annotation_id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-grey-accent-200">
+                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                                          {(annotation.creator_name || 'U')[0].toUpperCase()}
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-medium text-grey-accent-900 text-sm">{annotation.creator_name}</span>
+                                            <span className="text-grey-accent-400 text-xs">•</span>
+                                            <span className="text-grey-accent-500 text-xs">{new Date(annotation.created_at).toLocaleDateString()}</span>
+                                          </div>
+                                          <p className="text-grey-accent-900 text-sm">{annotation.content}</p>
+                                        </div>
                                       </div>
-                                      <p className="text-grey-accent-900 text-sm">{annotation.content}</p>
-                                    </div>
+                                    ))}
                                   </div>
-                                ))}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ) : (
-                          <div className="p-4">
-                            {/* General annotation */}
+                          )
+                        })}
+
+                        {/* General Comments */}
+                        {generalAnnotations.map((annotation) => (
+                          <div key={annotation.annotation_id} className="bg-white rounded-lg border border-grey-accent-200 shadow-sm p-4">
                             <div className="flex items-start gap-3">
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                {(item.creator_name || 'U')[0].toUpperCase()}
+                                {(annotation.creator_name || 'U')[0].toUpperCase()}
                               </div>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <span className="font-medium text-grey-accent-900">{item.creator_name}</span>
+                                  <span className="font-medium text-grey-accent-900">{annotation.creator_name}</span>
                                   <span className="text-grey-accent-500 text-sm">commented</span>
                                   <span className="text-grey-accent-400 text-sm">•</span>
-                                  <span className="text-grey-accent-500 text-sm">{new Date(item.created_at).toLocaleDateString()}</span>
+                                  <span className="text-grey-accent-500 text-sm">{new Date(annotation.created_at).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-grey-accent-900 leading-relaxed">{item.content}</p>
+                                <p className="text-grey-accent-900 leading-relaxed">{annotation.content}</p>
                               </div>
                             </div>
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))
+                    )
                   })()}
                 </div>
               </div>
             </div>
           )}
 
-          {(viewMode === 'text' || viewMode === 'reader') && (
+          {viewMode === 'reader' && (
             <div className="p-6">
               {isLoadingContent ? (
                 <div className="flex items-center justify-center h-64">
@@ -4406,9 +4737,7 @@ function BookmarkDetailModal({
                   <div 
                     className="prose prose-lg max-w-none reader-content user-select-text relative"
                     dangerouslySetInnerHTML={{ 
-                      __html: viewMode === 'reader' ? 
-                        renderHighlights(extractedContent.content) : 
-                        extractedContent.content 
+                      __html: renderHighlights(extractedContent.content)
                     }}
                     style={{
                       lineHeight: '1.8',
@@ -4454,48 +4783,207 @@ function BookmarkDetailModal({
                     }}
                   />
 
-                  {/* Display highlights for reader mode */}
-                  {viewMode === 'reader' && highlights.length > 0 && (
+                  {/* Display highlights with expandable comment threads */}
+                  {highlights.length > 0 && (
                     <div className="mt-8 border-t border-grey-accent-200 pt-6">
                       <h4 className="font-semibold text-grey-accent-800 mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
                         Team Highlights ({highlights.length})
                       </h4>
-                      <div className="space-y-3">
-                        {highlights.map((highlight) => (
-                          <div key={highlight.highlight_id} className="group">
+                      <div className="space-y-4">
+                        {highlights.map((highlight) => {
+                          const highlightComments = annotations.filter(ann => ann.highlight_id === highlight.highlight_id)
+                          const isExpanded = expandedHighlights.has(highlight.highlight_id)
+                          
+                          return (
                             <div 
-                              className="p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow"
-                              style={{ 
-                                backgroundColor: `${highlight.color}20`,
-                                borderLeftColor: highlight.color 
-                              }}
+                              key={highlight.highlight_id} 
+                              className={`bg-white rounded-lg border border-grey-accent-200 shadow-sm transition-all duration-500 ${
+                                isExpanded ? 'shadow-lg border-blue-200 bg-blue-50/30' : 'hover:shadow-md'
+                              }`}
+                              data-highlight-section={highlight.highlight_id}
                             >
-                              <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed">
-                                "{highlight.selected_text}"
-                              </p>
-                              <div className="flex items-center gap-3 text-xs text-grey-accent-600">
-                                <div className="flex items-center gap-1">
-                                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                                    {(highlight.creator_name || 'U')[0].toUpperCase()}
+                              {/* Highlight header - clickable card */}
+                              <div 
+                                className={`p-4 cursor-pointer transition-all duration-300 ${
+                                  isExpanded 
+                                    ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100' 
+                                    : 'hover:bg-grey-accent-50'
+                                }`}
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedHighlights)
+                                  if (isExpanded) {
+                                    newExpanded.delete(highlight.highlight_id)
+                                  } else {
+                                    newExpanded.add(highlight.highlight_id)
+                                  }
+                                  setExpandedHighlights(newExpanded)
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div 
+                                    className={`w-1 rounded flex-shrink-0 transition-all duration-300 ${
+                                      isExpanded ? 'h-20' : 'h-16'
+                                    }`}
+                                    style={{ backgroundColor: highlight.color }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
+                                        {(highlight.creator_name || 'U')[0].toUpperCase()}
+                                      </div>
+                                      <span className="font-medium text-grey-accent-900">{highlight.creator_name}</span>
+                                      <span className="text-grey-accent-500 text-sm">highlighted</span>
+                                      <span className="text-grey-accent-400 text-sm">•</span>
+                                      <span className="text-grey-accent-500 text-sm">{new Date(highlight.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <div 
+                                      className={`p-4 rounded-lg border-l-4 mb-3 transition-all duration-300 ${
+                                        isExpanded ? 'bg-white border-l-4 shadow-sm' : ''
+                                      }`}
+                                      style={{ 
+                                        backgroundColor: isExpanded ? 'white' : `${highlight.color}20`,
+                                        borderLeftColor: highlight.color 
+                                      }}
+                                    >
+                                      <p className={`text-grey-accent-900 leading-relaxed ${
+                                        isExpanded ? 'font-semibold text-base' : 'font-medium'
+                                      }`}>
+                                        "{highlight.selected_text}"
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 text-sm text-grey-accent-600">
+                                        <MessageCircle className="w-4 h-4" />
+                                        <span>{highlightComments.length} {highlightComments.length === 1 ? 'discussion' : 'discussions'}</span>
+                                      </div>
+                                      <ChevronDown className={`w-5 h-5 transition-transform duration-300 text-grey-accent-400 ${
+                                        isExpanded ? 'rotate-180 text-blue-500' : ''
+                                      }`} />
+                                    </div>
                                   </div>
-                                  <span>{highlight.creator_name}</span>
                                 </div>
-                                <span>•</span>
-                                <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
-                                <button 
-                                  className="opacity-0 group-hover:opacity-100 text-grey-accent-500 hover:text-blue-600 transition-all ml-auto"
-                                  onClick={() => {
-                                    // Pre-fill annotation for this highlight
-                                    setNewAnnotation(`Regarding: "${highlight.selected_text.substring(0, 50)}${highlight.selected_text.length > 50 ? '...' : ''}" - `)
-                                  }}
-                                >
-                                  <MessageCircle className="w-3 h-3" />
-                                </button>
                               </div>
+
+                              {/* Expandable chat-like conversation section */}
+                              {isExpanded && (
+                                <div className="bg-gradient-to-b from-blue-50/50 to-white border-t border-blue-100">
+                                  {/* Conversation header */}
+                                  <div className="px-6 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                                    <div className="flex items-center gap-3">
+                                      <MessageCircle className="w-5 h-5 text-blue-600" />
+                                      <h5 className="font-semibold text-grey-accent-900">
+                                        Team Discussion ({highlightComments.length})
+                                      </h5>
+                                      <div className="flex-1"></div>
+                                      <span className="text-xs text-grey-accent-500 bg-white px-2 py-1 rounded-full">
+                                        {highlightComments.length > 0 ? 'Active' : 'No comments yet'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Chat messages container */}
+                                  <div className="px-6 py-4 max-h-96 overflow-y-auto">
+                                    {highlightComments.length > 0 ? (
+                                      <div className="space-y-4">
+                                        {highlightComments
+                                          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                          .map((comment, index) => (
+                                          <div key={comment.annotation_id} className="flex gap-3 animate-fade-in">
+                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm">
+                                              {(comment.creator_name || 'U')[0].toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-grey-accent-100 relative">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                  <span className="font-semibold text-grey-accent-900 text-sm">{comment.creator_name}</span>
+                                                  <span className="text-grey-accent-400 text-xs">
+                                                    {new Date(comment.created_at).toLocaleTimeString([], { 
+                                                      hour: '2-digit', 
+                                                      minute: '2-digit' 
+                                                    })}
+                                                  </span>
+                                                </div>
+                                                <p className="text-grey-accent-800 text-sm leading-relaxed">{comment.content}</p>
+                                                
+                                                {/* Chat bubble tail */}
+                                                <div className="absolute left-0 top-4 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-white transform -translate-x-1"></div>
+                                              </div>
+                                              <div className="text-xs text-grey-accent-400 mt-1 ml-4">
+                                                {new Date(comment.created_at).toLocaleDateString()}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-8">
+                                        <MessageCircle className="w-12 h-12 text-grey-accent-300 mx-auto mb-3" />
+                                        <p className="text-grey-accent-500 text-sm">No comments yet on this highlight</p>
+                                        <p className="text-grey-accent-400 text-xs mt-1">Be the first to start the discussion!</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Add comment input */}
+                                  <div className="px-6 py-4 border-t border-blue-100 bg-white">
+                                    <div className="flex gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                        {(user?.user_metadata?.full_name || 'You')[0].toUpperCase()}
+                                      </div>
+                                      <div className="flex-1">
+                                        <textarea
+                                          placeholder="Add to the discussion..."
+                                          className="w-full px-4 py-2 border border-grey-accent-200 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-grey-accent-50"
+                                          rows={2}
+                                          value={commentInputs[highlight.highlight_id] || ''}
+                                          onChange={(e) => setCommentInputs({
+                                            ...commentInputs,
+                                            [highlight.highlight_id]: e.target.value
+                                          })}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                              e.preventDefault()
+                                              const content = commentInputs[highlight.highlight_id]?.trim()
+                                              if (content) {
+                                                onCreateAnnotation(bookmark.id, content, highlight.highlight_id)
+                                                setCommentInputs({
+                                                  ...commentInputs,
+                                                  [highlight.highlight_id]: ''
+                                                })
+                                              }
+                                            }
+                                          }}
+                                        />
+                                        <div className="flex justify-between items-center mt-2">
+                                          <span className="text-xs text-grey-accent-400">
+                                            Press Enter to send, Shift+Enter for new line
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              const content = commentInputs[highlight.highlight_id]?.trim()
+                                              if (content) {
+                                                onCreateAnnotation(bookmark.id, content, highlight.highlight_id)
+                                                setCommentInputs({
+                                                  ...commentInputs,
+                                                  [highlight.highlight_id]: ''
+                                                })
+                                              }
+                                            }}
+                                            disabled={!commentInputs[highlight.highlight_id]?.trim()}
+                                            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                          >
+                                            Send
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -4520,85 +5008,230 @@ function BookmarkDetailModal({
           )}
         </div>
 
-        {/* Highlight Tooltip */}
+        {/* Enhanced Highlight Tooltip */}
         {showHighlightTooltip && pendingSelection && (
           <div
-            className="fixed bg-black text-white px-3 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2"
+            className="fixed bg-white border border-grey-accent-200 rounded-lg shadow-xl z-[60] p-4"
             style={{
               left: tooltipPosition.x,
               top: tooltipPosition.y,
-              transform: 'translateX(-50%)'
+              transform: 'translateX(-50%)',
+              minWidth: '300px',
+              maxWidth: '400px'
             }}
           >
-            <button
-              onClick={saveHighlight}
-              className="flex items-center gap-1 hover:bg-white/20 px-2 py-1 rounded"
-            >
-              <span className="w-3 h-3 rounded" style={{ backgroundColor: highlightColor }}></span>
-              Highlight
-            </button>
+            <div className="space-y-3">
+              {/* Selected text preview */}
+              <div className="text-sm text-grey-accent-600 border-l-4 border-grey-accent-300 pl-3 py-1">
+                <span className="font-medium">Selected: </span>
+                "{pendingSelection.text.substring(0, 100)}{pendingSelection.text.length > 100 ? '...' : ''}"
+              </div>
+
+              {/* Color picker */}
+              <div>
+                <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+                  Highlight Color
+                </label>
+                <div className="flex gap-1 flex-wrap">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setHighlightColor(color)}
+                      className={`w-8 h-8 rounded-full border-2 ${
+                        highlightColor === color ? 'border-grey-accent-600 scale-110' : 'border-grey-accent-300'
+                      } hover:scale-110 transition-all`}
+                      style={{ backgroundColor: color }}
+                      title={`Select ${color}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Annotation input */}
+              <div>
+                <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+                  Add Note (Optional)
+                </label>
+                <textarea
+                  value={newAnnotation}
+                  onChange={(e) => setNewAnnotation(e.target.value)}
+                  placeholder="Add a comment about this highlight..."
+                  className="w-full px-3 py-2 border border-grey-accent-300 rounded-md resize-none text-sm"
+                  rows={2}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={async () => {
+                    // First save the highlight and get the highlight ID
+                    const highlightResult = await saveHighlight()
+                    
+                    // If there's an annotation, save it linked to the highlight
+                    if (newAnnotation.trim() && highlightResult) {
+                      // The createHighlight returns raw database result with 'id' field
+                      // But the display system uses 'highlight_id' from the view
+                      const highlightId = highlightResult.id
+                      console.log('🔗 Linking annotation to highlight:', highlightId, 'Full result:', highlightResult)
+                      await onCreateAnnotation(bookmark.id, newAnnotation, highlightId)
+                      setNewAnnotation('')
+                    }
+                  }}
+                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <span className="w-3 h-3 rounded inline-block mr-2" style={{ backgroundColor: highlightColor }}></span>
+                  Highlight {newAnnotation.trim() ? '& Comment' : ''}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowHighlightTooltip(false)
+                    setPendingSelection(null)
+                    setNewAnnotation('')
+                  }}
+                  className="px-3 py-2 border border-grey-accent-300 text-grey-accent-700 rounded-md hover:bg-grey-accent-50 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Right side - annotations and highlights */}
+      {/* Right side - general document comments only */}
       <div className="w-96 bg-grey-accent-50 border-l border-grey-accent-200 flex flex-col">
-        <div className="p-4 border-b border-grey-accent-200">
-          <h3 className="font-semibold text-grey-accent-900 mb-3">Team Discussion</h3>
+        <div className="p-4 border-b border-grey-accent-200 bg-white">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageCircle className="w-5 h-5 text-grey-accent-600" />
+            <h3 className="font-semibold text-grey-accent-900">General Comments</h3>
+          </div>
+          <p className="text-xs text-grey-accent-600 mb-3">
+            Document-wide comments • Not linked to highlights
+          </p>
           
-          {/* Highlight Color Selector */}
+          {/* Tag Management */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-grey-accent-700 mb-2">
-              Highlight Color
+              Bookmark Tags
             </label>
-            <div className="flex gap-1">
-              {colorOptions.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setHighlightColor(color)}
-                  className={`w-6 h-6 rounded-full border-2 ${
-                    highlightColor === color ? 'border-grey-accent-600' : 'border-grey-accent-300'
-                  } hover:scale-110 transition-transform`}
-                  style={{ backgroundColor: color }}
-                />
+            
+            {/* Existing Tags */}
+            <div className="flex flex-wrap gap-1 mb-2">
+              {bookmarkTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                >
+                  {tag}
+                  <button
+                    onClick={() => removeTag(tag)}
+                    className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                    title={`Remove ${tag} tag`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
               ))}
             </div>
+
+            {/* Tag Input with Autocomplete */}
+            <div className="relative">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => {
+                  setTagInput(e.target.value)
+                  setShowTagSuggestions(e.target.value.trim().length > 0)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (tagInput.trim()) {
+                      addTag(tagInput)
+                    }
+                  } else if (e.key === 'Escape') {
+                    setShowTagSuggestions(false)
+                  }
+                }}
+                onFocus={() => setShowTagSuggestions(tagInput.trim().length > 0)}
+                onBlur={() => {
+                  // Delay hiding suggestions to allow clicks
+                  setTimeout(() => setShowTagSuggestions(false), 200)
+                }}
+                placeholder="Add tags (press Enter)..."
+                className="w-full px-3 py-2 text-sm border border-grey-accent-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+
+              {/* Tag Suggestions Dropdown */}
+              {showTagSuggestions && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-grey-accent-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {getFilteredSuggestions().length > 0 ? (
+                    <>
+                      {getFilteredSuggestions().map(({ tag, usage_count }) => (
+                        <button
+                          key={tag}
+                          onClick={() => addTag(tag)}
+                          className="w-full px-3 py-2 text-left hover:bg-grey-accent-50 flex items-center justify-between text-sm border-b border-grey-accent-100 last:border-b-0"
+                        >
+                          <span className="font-medium text-grey-accent-900">{tag}</span>
+                          <span className="text-xs text-grey-accent-500 bg-grey-accent-100 px-2 py-0.5 rounded-full">
+                            {usage_count}
+                          </span>
+                        </button>
+                      ))}
+                      {/* Add option to create new tag */}
+                      {!availableTags.some(({ tag }) => tag.toLowerCase() === tagInput.toLowerCase()) && (
+                        <button
+                          onClick={() => addTag(tagInput)}
+                          className="w-full px-3 py-2 text-left hover:bg-blue-50 text-blue-600 text-sm border-t border-grey-accent-100"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Plus className="w-3 h-3" />
+                            Create "{tagInput.trim()}"
+                          </span>
+                        </button>
+                      )}
+                    </>
+                  ) : tagInput.trim() ? (
+                    <button
+                      onClick={() => addTag(tagInput)}
+                      className="w-full px-3 py-2 text-left hover:bg-blue-50 text-blue-600 text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Plus className="w-3 h-3" />
+                        Create "{tagInput.trim()}"
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-grey-accent-500">
+                      Start typing to see suggestions...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-grey-accent-500 mt-1">
+              Press Enter to add tags • Tags help organize and find bookmarks
+            </p>
           </div>
 
-          {/* New Annotation Input */}
+          {/* New General Comment Input */}
           <div className="space-y-2">
-            {selectedHighlightId && (
-              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                💬 Replying to highlight
-                <button 
-                  onClick={() => {
-                    setSelectedHighlightId(null)
-                    setNewAnnotation('')
-                  }}
-                  className="ml-2 text-blue-500 hover:text-blue-700"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
             <textarea
               value={newAnnotation}
               onChange={(e) => setNewAnnotation(e.target.value)}
-              placeholder={selectedHighlightId ? "Add a reply to this highlight..." : "Add a comment or question about this bookmark..."}
+              placeholder="Add a general comment (not tied to any highlight)..."
               className="w-full px-3 py-2 border border-grey-accent-300 rounded-md resize-none text-sm"
               rows={3}
             />
             <Button
               onClick={() => {
                 if (newAnnotation.trim()) {
-                  // Pass highlight ID if we have one selected
-                  if (selectedHighlightId) {
-                    onCreateAnnotation(bookmark.id, newAnnotation, selectedHighlightId)
-                  } else {
-                    onCreateAnnotation(bookmark.id, newAnnotation)
-                  }
+                  // Always create general document comment (no highlight ID)
+                  onCreateAnnotation(bookmark.id, newAnnotation)
                   setNewAnnotation('')
-                  setSelectedHighlightId(null)
                 }
               }}
               disabled={!newAnnotation.trim()}
@@ -4606,57 +5239,14 @@ function BookmarkDetailModal({
               className="w-full"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
-              {selectedHighlightId ? 'Reply to Highlight' : 'Add Comment'}
+              Add General Comment
             </Button>
           </div>
         </div>
 
-        {/* Annotations and Highlights List */}
+        {/* Orphaned Annotations List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Show highlights first */}
-          {highlights.map((highlight) => (
-            <div key={highlight.highlight_id} className="bg-white rounded-lg p-3 shadow-sm border border-grey-accent-200">
-              <div className="flex items-start gap-3">
-                <div 
-                  className="w-1 h-full rounded"
-                  style={{ backgroundColor: highlight.color, minHeight: '60px' }}
-                />
-                <div className="flex-1">
-                  <p className="text-grey-accent-900 font-medium mb-2 leading-relaxed text-sm">
-                    "{highlight.selected_text}"
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-grey-accent-600 mb-2">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                      {(highlight.creator_name || 'U')[0].toUpperCase()}
-                    </div>
-                    <span>{highlight.creator_name}</span>
-                    <span>•</span>
-                    <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
-                  </div>
-                  
-                  {/* Show annotations for this highlight */}
-                  {annotations
-                    .filter(ann => ann.highlight_id === highlight.highlight_id)
-                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                    .map((annotation) => (
-                      <div key={annotation.annotation_id} className="ml-2 mt-2 p-2 bg-grey-accent-50 rounded border-l-2 border-grey-accent-300">
-                        <p className="text-grey-accent-900 text-sm mb-1">{annotation.content}</p>
-                        <div className="flex items-center gap-2 text-xs text-grey-accent-600">
-                          <div className="w-4 h-4 rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white text-xs font-semibold">
-                            {(annotation.creator_name || 'U')[0].toUpperCase()}
-                          </div>
-                          <span>{annotation.creator_name}</span>
-                          <span>•</span>
-                          <span>{new Date(annotation.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Show general bookmark annotations (not tied to highlights) */}
+          {/* Show only orphaned annotations (not tied to highlights) */}
           {annotations
             .filter(ann => !ann.highlight_id)
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -4678,17 +5268,18 @@ function BookmarkDetailModal({
               </div>
             ))}
 
-          {highlights.length === 0 && annotations.length === 0 && (
+          {annotations.filter(ann => !ann.highlight_id).length === 0 && (
             <div className="text-center py-8">
               <MessageCircle className="w-12 h-12 text-grey-accent-300 mx-auto mb-3" />
-              <p className="text-grey-accent-600 text-sm">No highlights or comments yet</p>
+              <p className="text-grey-accent-600 text-sm">No general comments yet</p>
               <p className="text-grey-accent-500 text-xs">
-                Start a discussion or highlight important text!
+                Add a general comment about this document!
               </p>
             </div>
           )}
         </div>
       </div>
     </div>
+    </>
   )
 }
