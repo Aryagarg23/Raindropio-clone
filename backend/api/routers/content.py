@@ -36,6 +36,31 @@ async def extract_content(request: ContentExtractionRequest):
     """
     Extract readable content from a web page using multiple strategies
     """
+    def extract_schema_image(data):
+        """Extract image URL from Schema.org structured data"""
+        if not isinstance(data, dict):
+            return None
+        
+        # Common Schema.org image fields
+        image_fields = ['image', 'thumbnail', 'logo', 'photo']
+        
+        for field in image_fields:
+            if field in data:
+                image_data = data[field]
+                if isinstance(image_data, str):
+                    return image_data
+                elif isinstance(image_data, dict) and 'url' in image_data:
+                    return image_data['url']
+                elif isinstance(image_data, list) and len(image_data) > 0:
+                    # Take first image from array
+                    first_image = image_data[0]
+                    if isinstance(first_image, str):
+                        return first_image
+                    elif isinstance(first_image, dict) and 'url' in first_image:
+                        return first_image['url']
+        
+        return None
+    
     try:
         url = str(request.url)
         
@@ -157,6 +182,84 @@ async def extract_content(request: ContentExtractionRequest):
                     meta_info['image'] = twitter_image.get('content', '')
                     if meta_info['image']:
                         meta_info['image'] = urljoin(url, meta_info['image'])
+            
+            # Fallback: Try Schema.org structured data images
+            if not meta_info['image']:
+                # Look for JSON-LD structured data
+                json_scripts = soup.find_all('script', attrs={'type': 'application/ld+json'})
+                for script in json_scripts:
+                    try:
+                        import json
+                        data = json.loads(script.string)
+                        # Handle both single objects and arrays
+                        if isinstance(data, list):
+                            for item in data:
+                                image = extract_schema_image(item)
+                                if image:
+                                    meta_info['image'] = urljoin(url, image)
+                                    break
+                        else:
+                            image = extract_schema_image(data)
+                            if image:
+                                meta_info['image'] = urljoin(url, image)
+                                break
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+            
+            # Fallback: Try first meaningful image on the page
+            if not meta_info['image']:
+                images = soup.find_all('img', src=True)
+                for img in images:
+                    img_src = img.get('src', '')
+                    if img_src:
+                        # Skip tiny images (likely icons) and data URLs
+                        img_width = img.get('width', '')
+                        img_height = img.get('height', '')
+                        
+                        # Convert relative URLs to absolute
+                        img_src = urljoin(url, img_src)
+                        
+                        # Skip if it's a data URL, favicon, or very small image
+                        if (img_src.startswith('data:') or 
+                            'favicon' in img_src.lower() or 
+                            'icon' in img_src.lower()):
+                            continue
+                        
+                        # If we have width/height attributes, check if it's meaningful
+                        if img_width and img_height:
+                            try:
+                                w = int(img_width)
+                                h = int(img_height)
+                                if w >= 200 and h >= 100:  # Minimum size for a thumbnail
+                                    meta_info['image'] = img_src
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            # No width/height specified, but not obviously an icon
+                            # Take the first non-data URL image as fallback
+                            meta_info['image'] = img_src
+                            break
+            
+            # Fallback: Try domain logo services (Clearbit, etc.)
+            if not meta_info['image']:
+                parsed_url = urlparse(url)
+                domain = parsed_url.netloc
+                
+                # Try Clearbit logo service
+                if domain and '.' in domain:
+                    # Remove www. prefix for better logo detection
+                    clean_domain = domain.replace('www.', '')
+                    meta_info['image'] = f"https://logo.clearbit.com/{clean_domain}"
+            
+            # Final fallback: Generate a simple text-based thumbnail URL
+            # This could be handled by a service that creates text-based images
+            if not meta_info['image']:
+                # For now, we'll leave this empty and let the frontend handle it
+                # Could integrate with services like:
+                # - https://dummyimage.com/ for text-based thumbnails
+                # - https://via.placeholder.com/ for generic placeholders
+                pass
             
             # Extract favicon
             favicon_url = ""

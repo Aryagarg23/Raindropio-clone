@@ -18,6 +18,7 @@ import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
 import { getApiBaseUrl } from '../../modules/apiClient'
+import { generateFallbackThumbnail } from '../../lib/utils'
 import ProfileIcon from "../../components/ProfileIcon"
 import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, ChevronUp, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
@@ -1940,7 +1941,7 @@ export default function TeamSitePage() {
                       >
                         <div className="aspect-video relative overflow-hidden bg-muted">
                           <img
-                            src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
+                            src={bookmark.preview_image || generateFallbackThumbnail(bookmark.url, bookmark.title)}
                             alt={bookmark.title || bookmark.url}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                           />
@@ -2074,7 +2075,7 @@ export default function TeamSitePage() {
                           <div className="flex items-center gap-4">
                             <div className="relative">
                               <img
-                                src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
+                                src={bookmark.preview_image || generateFallbackThumbnail(bookmark.url, bookmark.title)}
                                 alt={bookmark.title || bookmark.url}
                                 className="w-16 h-12 object-cover rounded border border-grey-accent-200"
                               />
@@ -2469,7 +2470,7 @@ export default function TeamSitePage() {
                 >
                   <div className="aspect-video relative overflow-hidden bg-muted">
                     <img
-                      src={bookmark.preview_image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Qm9va21hcms8L3RleHQ+PC9zdmc+"}
+                      src={bookmark.preview_image || generateFallbackThumbnail(bookmark.url, bookmark.title)}
                       alt={bookmark.title || bookmark.url}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
@@ -3773,6 +3774,8 @@ export default function TeamSitePage() {
           setHighlightColor={setHighlightColor}
           user={user}
           teamId={normalizedTeamId!}
+          onHighlightsUpdate={setBookmarkHighlights}
+          onAnnotationsUpdate={setBookmarkAnnotations}
         />
       )}
     </div>
@@ -4107,7 +4110,9 @@ function BookmarkDetailModal({
   highlightColor,
   setHighlightColor,
   user,
-  teamId
+  teamId,
+  onHighlightsUpdate,
+  onAnnotationsUpdate
 }: {
   bookmark: any
   viewMode: 'reader' | 'proxy' | 'details'
@@ -4121,6 +4126,8 @@ function BookmarkDetailModal({
   setHighlightColor: (color: string) => void
   user: any
   teamId: string
+  onHighlightsUpdate: (highlights: any[]) => void
+  onAnnotationsUpdate: (annotations: any[]) => void
 }) {
   const [extractedContent, setExtractedContent] = useState<any>(null)
   const [isLoadingContent, setIsLoadingContent] = useState(false)
@@ -4240,7 +4247,131 @@ function BookmarkDetailModal({
     }
   }, [viewMode])
 
+  // Setup realtime subscriptions for highlights and annotations
+  React.useEffect(() => {
+    if (!bookmark?.id || !teamId) return
 
+    console.log('🔄 Setting up realtime subscriptions for bookmark:', bookmark.id)
+
+    // Subscribe to highlights changes
+    const highlightsSubscription = supabase
+      .channel(`bookmark-${bookmark.id}-highlights`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'highlights', filter: `bookmark_id=eq.${bookmark.id}` },
+        async (payload: any) => {
+          console.log('New highlight inserted:', payload)
+          const { data: newHighlight } = await supabase
+            .from('highlights')
+            .select(`
+              *,
+              profiles:created_by (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
+
+          if (newHighlight) {
+            onHighlightsUpdate([...highlights, newHighlight])
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'highlights', filter: `bookmark_id=eq.${bookmark.id}` },
+        async (payload: any) => {
+          console.log('Highlight updated:', payload)
+          const { data: updatedHighlight } = await supabase
+            .from('highlights')
+            .select(`
+              *,
+              profiles:created_by (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
+
+          if (updatedHighlight) {
+            onHighlightsUpdate(highlights.map(h => h.id === updatedHighlight.id ? updatedHighlight : h))
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'highlights', filter: `bookmark_id=eq.${bookmark.id}` },
+        (payload: any) => {
+          console.log('Highlight deleted:', payload)
+          onHighlightsUpdate(highlights.filter(h => h.id !== payload.old.id))
+        }
+      )
+      .subscribe()
+
+    // Subscribe to annotations changes
+    const annotationsSubscription = supabase
+      .channel(`bookmark-${bookmark.id}-annotations`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'annotations', filter: `bookmark_id=eq.${bookmark.id}` },
+        async (payload: any) => {
+          console.log('New annotation inserted:', payload)
+          const { data: newAnnotation } = await supabase
+            .from('annotations')
+            .select(`
+              *,
+              profiles:created_by (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
+
+          if (newAnnotation) {
+            onAnnotationsUpdate([...annotations, newAnnotation])
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'annotations', filter: `bookmark_id=eq.${bookmark.id}` },
+        async (payload: any) => {
+          console.log('Annotation updated:', payload)
+          const { data: updatedAnnotation } = await supabase
+            .from('annotations')
+            .select(`
+              *,
+              profiles:created_by (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single()
+
+          if (updatedAnnotation) {
+            onAnnotationsUpdate(annotations.map(a => a.id === updatedAnnotation.id ? updatedAnnotation : a))
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'annotations', filter: `bookmark_id=eq.${bookmark.id}` },
+        (payload: any) => {
+          console.log('Annotation deleted:', payload)
+          onAnnotationsUpdate(annotations.filter(a => a.id !== payload.old.id))
+        }
+      )
+      .subscribe()
+
+    // Cleanup function
+    return () => {
+      console.log('🧹 Cleaning up realtime subscriptions for bookmark:', bookmark.id)
+      highlightsSubscription.unsubscribe()
+      annotationsSubscription.unsubscribe()
+    }
+  }, [bookmark?.id, teamId, highlights, annotations, onHighlightsUpdate, onAnnotationsUpdate])
 
   // Add global function for highlight clicking
   React.useEffect(() => {

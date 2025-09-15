@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import { Search, ChevronDown, ChevronRight, ExternalLink, Plus, Heart } from 'lucide-react';
 import { FaviconImage } from './FaviconImage';
+import { generateFallbackThumbnail } from '../../lib/utils';
 
 interface BookmarkFilters {
   searchQuery: string;
@@ -376,7 +377,7 @@ export default function BookmarksView({
           <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300">
             <div className="aspect-video relative overflow-hidden bg-muted">
               <img
-                src={bookmark.preview_image || "/placeholder.svg"}
+                src={bookmark.preview_image || generateFallbackThumbnail(bookmark.url, bookmark.title)}
                 alt={bookmark.title || bookmark.url}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
               />

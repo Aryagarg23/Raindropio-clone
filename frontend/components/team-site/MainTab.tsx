@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Folder, Users, ExternalLink, Plus, Heart, GripVertical } from 'lucide-react'
 import { FaviconImage } from './FaviconImage'
+import { generateFallbackThumbnail } from '../../lib/utils'
 
 interface MainTabProps {
   selectedCollectionId: string | null
@@ -161,7 +162,7 @@ export const MainTab: React.FC<MainTabProps> = ({
                   <>
                     <div className="aspect-video relative overflow-hidden bg-muted">
                       <img
-                        src={bookmark.preview_image || "/placeholder.svg"}
+                        src={bookmark.preview_image || generateFallbackThumbnail(bookmark.url, bookmark.title)}
                         alt={bookmark.title || bookmark.url}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
