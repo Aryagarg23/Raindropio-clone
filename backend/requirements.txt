@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 httpx
 python-dotenv
 supabase
@@ -8,3 +8,6 @@ python-multipart
 requests
 beautifulsoup4
 lxml
+# Performance optimizations
+gunicorn
+asyncio-throttle

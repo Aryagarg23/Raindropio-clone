@@ -2,8 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import users, teams, admin, content
 from core.config import settings
+import asyncio
 
-app = FastAPI(title="Raindropio Clone API", version="1.0.0")
+app = FastAPI(
+    title="Raindropio Clone API", 
+    version="1.0.0",
+    # Optimize for concurrent requests
+    docs_url="/docs" if getattr(settings, 'DEBUG', False) else None,
+    redoc_url="/redoc" if getattr(settings, 'DEBUG', False) else None,
+)
 
 # Configure allowed origins from environment
 allowed_origins = [
@@ -11,6 +18,7 @@ allowed_origins = [
     "http://localhost:3000",  # Local development fallback
     "https://localhost:3000",  # HTTPS local development
     "https://raindropio-clone.vercel.app",  # Production frontend
+    "http://127.0.0.1:3000",  # Alternative local development
 ]
 
 # Remove any empty strings from the list
@@ -18,14 +26,44 @@ allowed_origins = [origin for origin in allowed_origins if origin and origin.str
 
 print(f"🌐 CORS allowed origins: {allowed_origins}")
 
-# Add CORS middleware
+# Add CORS middleware with more specific configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "accept",
+        "accept-encoding", 
+        "authorization",
+        "content-type",
+        "dnt",
+        "origin",
+        "user-agent",
+        "x-csrftoken",
+        "x-requested-with",
+    ],
+    expose_headers=["*"],
 )
+
+# Add middleware for request timeout and concurrency control
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, timeout: float = 30.0):
+        super().__init__(app)
+        self.timeout = timeout
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await asyncio.wait_for(call_next(request), timeout=self.timeout)
+        except asyncio.TimeoutError:
+            return Response("Request timeout", status_code=504)
+
+# Add timeout middleware
+app.add_middleware(TimeoutMiddleware, timeout=30.0)
 
 # Include routers
 app.include_router(users.router)
@@ -37,6 +75,50 @@ app.include_router(content.router)
 def read_root():
     return {"status": "ok", "message": "API is running!"}
 
+@app.get("/cors-test")
+def cors_test():
+    """Test endpoint for CORS debugging"""
+    return {
+        "status": "ok", 
+        "message": "CORS is working!",
+        "allowed_origins": allowed_origins
+    }
+
 @app.get("/health")
-def health():
-    return {"status": "ok"}
+async def health():
+    """Health check with performance metrics"""
+    from core.db_optimizer import check_database_health
+    
+    try:
+        # Check database health
+        db_health = await check_database_health()
+        
+        return {
+            "status": "ok",
+            "timestamp": asyncio.get_event_loop().time(),
+            "database": db_health,
+            "api_version": "1.0.0"
+        }
+    except Exception as e:
+        return {
+            "status": "degraded",
+            "error": str(e),
+            "timestamp": asyncio.get_event_loop().time()
+        }
+
+@app.get("/metrics")
+async def metrics():
+    """Performance metrics endpoint"""
+    from core.db_optimizer import db_optimizer
+    from core.security import token_cache
+    
+    return {
+        "database": db_optimizer.get_stats(),
+        "auth_cache": {
+            "cached_tokens": len(token_cache),
+            "cache_hit_rate": "N/A"  # Could be implemented with more detailed tracking
+        },
+        "system": {
+            "active_tasks": len(asyncio.all_tasks()),
+        }
+    }

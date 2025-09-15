@@ -13,16 +13,18 @@ export default function Dashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamMembers, setTeamMembers] = useState<Record<string, UserProfile[]>>({});
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Always fetch teams when profile is set and complete
+  // Fetch teams in parallel with profile - don't wait for profile completion
   useEffect(() => {
-    if (profile && profile.full_name && profile.avatar_url && profile.favorite_color) {
+    if (user && profile) {
       fetchTeams();
     }
-  }, [profile]);
+  }, [user, profile]);
 
   // Add a timeout to prevent infinite loading
   useEffect(() => {
@@ -56,27 +58,14 @@ export default function Dashboard() {
         const { data } = await supabase.auth.getUser();
         setUser(data?.user as AuthUser);
         if (data?.user) {
-          console.log("✅ User found, syncing profile...");
-          try {
-            const response = await apiClient.syncProfile();
-            console.log("✅ Profile sync successful:", response);
-            setProfile(response.profile);
-          } catch (error) {
-            console.error("❌ Profile sync failed:", error);
-            if (error instanceof ApiError && error.status === 401) {
-              console.log("🚫 Unauthorized, redirecting to login...");
-              setUser(null);
-              router.push('/'); // Redirect to login page
-              return; // Early return to prevent setLoading(false)
-            } else if (error instanceof ApiError && error.status === 0) {
-              console.error("❌ Network error during profile sync");
-              setError("Unable to connect to the server. Please check your internet connection and try again.");
-              return; // Early return to prevent setLoading(false)
-            } else {
-              console.error("❌ Non-auth error during profile sync, continuing without profile");
-              // Continue with no profile - let user complete it
-            }
-          }
+          console.log("✅ User found, syncing profile and fetching initial data...");
+          
+          // Start profile sync and teams fetch in parallel
+          const profilePromise = syncUserProfile();
+          const teamsPromise = fetchTeamsData();
+          
+          // Wait for both to complete, but don't block on errors
+          await Promise.allSettled([profilePromise, teamsPromise]);
         } else {
           // No user, redirect to login page
           router.push('/');
@@ -87,20 +76,60 @@ export default function Dashboard() {
       }
       setLoading(false);
     }
+
+    async function syncUserProfile() {
+      setProfileLoading(true);
+      try {
+        const response = await apiClient.syncProfile();
+        console.log("✅ Profile sync successful:", response);
+        setProfile(response.profile);
+      } catch (error) {
+        console.error("❌ Profile sync failed:", error);
+        if (error instanceof ApiError && error.status === 401) {
+          console.log("🚫 Unauthorized, redirecting to login...");
+          setUser(null);
+          router.push('/'); // Redirect to login page
+          return;
+        } else if (error instanceof ApiError && error.status === 0) {
+          console.error("❌ Network error during profile sync");
+          setError("Unable to connect to the server. Please check your internet connection and try again.");
+          return;
+        } else {
+          console.error("❌ Non-auth error during profile sync, continuing without profile");
+          // Continue with no profile - let user complete it
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+
+    async function fetchTeamsData() {
+      setTeamsLoading(true);
+      try {
+        console.log("🏢 Fetching user teams...");
+        const response: ListTeamsResponse = await apiClient.getTeams();
+        setTeams(response.teams || []);
+        console.log(`✅ Loaded ${response.teams?.length || 0} teams`);
+        
+        // Fetch team members in parallel for all teams
+        if (response.teams?.length) {
+          fetchAllTeamMembers(response.teams);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching teams:", error);
+        setTeams([]);
+      } finally {
+        setTeamsLoading(false);
+      }
+    }
     
     // Listen for auth state changes (handles OAuth redirects)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (event === 'SIGNED_IN' && session) {
+        // Don't sync profile here - it's already handled in fetchUserAndProfile()
+        // This prevents race conditions for new users
+        console.log("🔄 Auth state changed to SIGNED_IN, user data will be handled by main flow");
         setUser(session.user as AuthUser);
-        try {
-          const response = await apiClient.syncProfile();
-          setProfile(response.profile);
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 401) {
-            setUser(null);
-            router.push('/');
-          }
-        }
         setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -118,14 +147,15 @@ export default function Dashboard() {
   const refreshProfile = async () => {
     console.log("🔄 Refreshing profile...");
     setError(null); // Clear any existing error
+    setProfileLoading(true);
+    
     try {
       const response = await apiClient.syncProfile();
       console.log("🔍 Sync response:", response);
       console.log("🔍 Profile from response:", response.profile);
       setProfile(response.profile);
       
-      // Fetch teams after profile is refreshed
-      await fetchTeams();
+      // Teams are fetched automatically via useEffect when profile updates
     } catch (error) {
       console.error("❌ Error refreshing profile:", error);
       if (error instanceof ApiError && error.status === 0) {
@@ -135,6 +165,8 @@ export default function Dashboard() {
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -148,8 +180,51 @@ export default function Dashboard() {
     }
   };
 
+  const fetchAllTeamMembers = async (teams: Team[]) => {
+    console.log(`🔄 Fetching members for ${teams.length} teams in parallel...`);
+    
+    // Set loading state for all teams
+    const loadingStates: Record<string, boolean> = {};
+    teams.forEach(team => loadingStates[team.id] = true);
+    setMembersLoading(loadingStates);
+
+    // Fetch all team members in parallel
+    const memberPromises = teams.map(async (team) => {
+      const members = await fetchTeamMembers(team.id);
+      return { teamId: team.id, members };
+    });
+
+    try {
+      const results = await Promise.allSettled(memberPromises);
+      const membersData: Record<string, UserProfile[]> = {};
+      const finalLoadingStates: Record<string, boolean> = {};
+
+      results.forEach((result, index) => {
+        const teamId = teams[index].id;
+        finalLoadingStates[teamId] = false;
+        
+        if (result.status === 'fulfilled') {
+          membersData[result.value.teamId] = result.value.members;
+        } else {
+          console.error(`❌ Failed to fetch members for team ${teamId}:`, result.reason);
+          membersData[teamId] = [];
+        }
+      });
+
+      setTeamMembers(membersData);
+      setMembersLoading(finalLoadingStates);
+      console.log(`✅ Finished loading team members for ${teams.length} teams`);
+    } catch (error) {
+      console.error("❌ Error in parallel team members fetch:", error);
+      // Clear loading states
+      const clearedStates: Record<string, boolean> = {};
+      teams.forEach(team => clearedStates[team.id] = false);
+      setMembersLoading(clearedStates);
+    }
+  };
+
   const fetchTeams = async () => {
-    if (!user || !profile) return;
+    if (!user) return;
     
     setTeamsLoading(true);
     try {
@@ -158,14 +233,9 @@ export default function Dashboard() {
       setTeams(response.teams || []);
       console.log(`✅ Loaded ${response.teams?.length || 0} teams`);
       
-      // Fetch members for each team for all users
+      // Fetch team members in parallel for all teams
       if (response.teams?.length) {
-        const membersData: Record<string, UserProfile[]> = {};
-        for (const team of response.teams) {
-          const members = await fetchTeamMembers(team.id);
-          membersData[team.id] = members;
-        }
-        setTeamMembers(membersData);
+        fetchAllTeamMembers(response.teams);
       }
     } catch (error) {
       console.error("❌ Error fetching teams:", error);
@@ -298,7 +368,34 @@ export default function Dashboard() {
             </div>
 
         {isProfileIncomplete ? (
-          <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
+          <div className="w-full">
+            {/* Welcome message for new users */}
+            <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 text-lg">👋</span>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-900 mb-1">Welcome to Raindropio Clone!</h3>
+                  <p className="text-blue-700 text-sm mb-3">
+                    {profile ? 
+                      "Please complete your profile to get started and access your teams." :
+                      "We're setting up your profile. This will just take a moment."
+                    }
+                  </p>
+                  {profileLoading && (
+                    <div className="flex items-center space-x-2 text-blue-600 text-sm">
+                      <div className="animate-spin w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full"></div>
+                      <span>Setting up your profile...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <ProfileForm user={user} profile={profile} onProfileUpdated={refreshProfile} />
+          </div>
         ) : (
           profile ? (
             <div className="w-full">{/* Content moved to main area */}
@@ -317,11 +414,33 @@ export default function Dashboard() {
                 </div>
 
                 {teamsLoading ? (
-                  <div className="p-4 text-center">
-                    <div className="inline-flex items-center space-x-2 text-sm text-grey-accent-600">
-                      <div className="animate-spin w-4 h-4 border-2 border-grey-accent-300 border-t-grey-accent-600 rounded-full"></div>
-                      <span>Loading teams...</span>
-                    </div>
+                  <div className="space-y-6">
+                    {/* Team skeleton cards */}
+                    {[1, 2].map((i) => (
+                      <div key={i} className="p-6 border border-grey-accent-200 rounded-xl bg-white animate-pulse">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-start space-x-4">
+                            <div className="w-12 h-12 bg-grey-accent-200 rounded-xl"></div>
+                            <div>
+                              <div className="w-32 h-5 bg-grey-accent-200 rounded mb-2"></div>
+                              <div className="w-20 h-3 bg-grey-accent-100 rounded"></div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end space-y-2">
+                            <div className="flex -space-x-2">
+                              {[1, 2, 3].map((j) => (
+                                <div key={j} className="w-8 h-8 bg-grey-accent-200 rounded-full"></div>
+                              ))}
+                            </div>
+                            <div className="w-16 h-4 bg-grey-accent-100 rounded-full"></div>
+                          </div>
+                        </div>
+                        <div className="flex items-end justify-between">
+                          <div className="w-48 h-4 bg-grey-accent-100 rounded"></div>
+                          <div className="w-16 h-8 bg-grey-accent-200 rounded-lg"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : teams.length === 0 ? (
                   <div className="p-12 text-center border-2 border-dashed border-grey-accent-300 rounded-xl bg-grey-accent-50">
@@ -384,7 +503,12 @@ export default function Dashboard() {
                           <div className="flex flex-col items-end space-y-2">
                             {/* Member avatars */}
                             <div className="flex -space-x-2">
-                              {teamMembers[team.id] && teamMembers[team.id].length > 0 ? (
+                              {membersLoading[team.id] ? (
+                                // Show skeleton avatars while loading
+                                Array.from({ length: 3 }, (_, i) => (
+                                  <div key={i} className="w-8 h-8 bg-grey-accent-200 rounded-full animate-pulse"></div>
+                                ))
+                              ) : teamMembers[team.id] && teamMembers[team.id].length > 0 ? (
                                 <>
                                   {teamMembers[team.id].slice(0, 5).map((member, i) => (
                                     <div key={member.user_id} className="relative">

@@ -4,19 +4,22 @@ import { UpdateTeamRequest } from '../types/api';
 // Resolve API base URL at runtime when possible so production builds
 // don't embed a localhost fallback into the compiled bundle.
 export function getApiBaseUrl(): string {
+  // First priority: explicit environment variable
   if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '') {
+    console.log(`🌐 Using API URL from env: ${process.env.NEXT_PUBLIC_API_URL}`);
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.host}`;
-  }
-
+  // Second priority: development mode uses localhost
   if (process.env.NODE_ENV !== 'production') {
+    console.log('🌐 Using localhost API URL for development');
     return 'http://localhost:8000';
   }
 
-  throw new Error('Missing NEXT_PUBLIC_API_URL environment variable in production');
+  // For production without explicit API URL, this is an error
+  // Don't fallback to window.location as that would point to the frontend domain
+  console.error('❌ Missing NEXT_PUBLIC_API_URL in production environment');
+  throw new Error('Missing NEXT_PUBLIC_API_URL environment variable in production. Backend API URL must be explicitly configured.');
 }
 
 export class ApiError extends Error {
@@ -31,47 +34,70 @@ export class ApiError extends Error {
   }
 }
 
-async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}) {
+async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}, retries: number = 2) {
   const apiUrl = getApiBaseUrl();
   console.log(`🌐 Making API request to: ${apiUrl}${endpoint}`);
   
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.access_token) {
-    console.error("❌ No access token available");
-    throw new ApiError('No authentication token available', 401, 'UNAUTHORIZED');
-  }
-
-  console.log("🔑 Token found, making request...");
-  
-  // Don't set Content-Type for FormData - let browser set it with boundary
-  const isFormData = options.body instanceof FormData;
-  const defaultHeaders: Record<string, string> = isFormData 
-    ? { 'Authorization': `Bearer ${session.access_token}` }
-    : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
   
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error("❌ Session error:", sessionError);
+      throw new ApiError('Authentication session error', 401, 'SESSION_ERROR');
+    }
+    
+    if (!session?.access_token) {
+      console.error("❌ No access token available");
+      throw new ApiError('No authentication token available', 401, 'UNAUTHORIZED');
+    }
+
+    console.log("🔑 Token found, making request...");
+    
+    // Don't set Content-Type for FormData - let browser set it with boundary
+    const isFormData = options.body instanceof FormData;
+    const defaultHeaders: Record<string, string> = isFormData 
+      ? { 'Authorization': `Bearer ${session.access_token}` }
+      : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    
     const response = await fetch(`${apiUrl}${endpoint}`, {
       ...options,
       headers: {
         ...defaultHeaders,
         ...options.headers,
       },
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
     console.log(`📡 Response status: ${response.status} for ${endpoint}`);
 
     if (!response.ok) {
       let errorData;
       try {
-        errorData = await response.json();
+        const text = await response.text();
+        errorData = text ? JSON.parse(text) : { message: `HTTP ${response.status}: ${response.statusText}` };
       } catch {
         errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
       }
       
       console.error(`❌ API Error ${response.status}:`, errorData);
+      
+      // Provide user-friendly error messages
+      let userMessage = errorData.message || `Request failed with status ${response.status}`;
+      if (response.status === 401) {
+        userMessage = 'Authentication failed. Please sign in again.';
+      } else if (response.status === 403) {
+        userMessage = 'Access denied. You may not have permission for this action.';
+      } else if (response.status >= 500) {
+        userMessage = 'Server error. Please try again in a moment.';
+      }
+      
       throw new ApiError(
-        errorData.message || `HTTP ${response.status}`,
+        userMessage,
         response.status,
         errorData.code,
         errorData
@@ -80,17 +106,33 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
 
     return response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
+    
     if (error instanceof ApiError) {
       throw error;
     }
     
-    // Network or other fetch errors
-    console.error("❌ Network/Fetch error:", error);
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new ApiError('Network error - unable to connect to API server', 0, 'NETWORK_ERROR');
+    // Handle specific error types
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error("❌ Request timeout");
+      throw new ApiError('Request timed out. Please check your connection and try again.', 0, 'TIMEOUT_ERROR');
     }
     
-    throw new ApiError('Request failed', 0, 'UNKNOWN_ERROR', error);
+    // Network or other fetch errors
+    console.error("❌ Network/Fetch error:", error);
+    
+    // Retry logic for network errors
+    if (retries > 0 && (error instanceof TypeError || (error instanceof Error && error.name === 'NetworkError'))) {
+      console.log(`🔄 Retrying request to ${endpoint} (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      return makeAuthenticatedRequest(endpoint, options, retries - 1);
+    }
+    
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new ApiError('Unable to connect to the server. Please check your internet connection.', 0, 'NETWORK_ERROR');
+    }
+    
+    throw new ApiError('An unexpected error occurred. Please try again.', 0, 'UNKNOWN_ERROR', error);
   }
 }
 

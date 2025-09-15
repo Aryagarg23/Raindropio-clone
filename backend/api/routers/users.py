@@ -3,6 +3,9 @@ from typing import Dict, Any, Optional
 from api.deps import get_current_user
 from models.user import UserProfile, SyncResponse, ErrorResponse
 from core.supabase_client import supabase_service
+from core.db_optimizer import with_db_optimization
+import asyncio
+from functools import lru_cache
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -12,9 +15,10 @@ async def sync_user_profile(current_user: Dict[str, Any] = Depends(get_current_u
     Sync user profile from Supabase auth to public.profiles table
     Creates or updates profile record using service role
     """
-    print(f"🚀 Sync profile endpoint called for user: {current_user.get('id', 'unknown')}")
+    user_id = current_user.get("id")
+    print(f"🚀 Sync profile endpoint called for user: {user_id}")
+    
     try:
-        user_id = current_user.get("id")
         email = current_user.get("email")
         
         if not user_id or not email:
@@ -23,38 +27,42 @@ async def sync_user_profile(current_user: Dict[str, Any] = Depends(get_current_u
                 detail="Invalid user data from token"
             )
         
-        # Check if profile exists
-        existing_profile = supabase_service.table("profiles").select("*").eq("user_id", user_id).execute()
-        
-        if existing_profile.data:
-            # Profile exists, just return it (no need to update on every sync)
-            profile = existing_profile.data[0]
-            print(f"✅ Found existing profile: {profile.get('full_name')}, {profile.get('favorite_color')}")
-        else:
-            # Create new profile from user metadata
-            profile_data = {
-                "user_id": user_id,
-                "email": email,
-                "full_name": current_user.get("user_metadata", {}).get("full_name"),
-                "avatar_url": current_user.get("user_metadata", {}).get("avatar_url"),
-                "favorite_color": current_user.get("user_metadata", {}).get("favorite_color"),
-            }
+        # Optimized database operations
+        @with_db_optimization
+        async def get_or_create_profile():
+            # Check if profile exists with optimized query
+            existing_profile = supabase_service.table("profiles").select("user_id,email,full_name,avatar_url,favorite_color,role,created_at").eq("user_id", user_id).execute()
             
-            try:
+            if existing_profile.data:
+                # Profile exists, return it
+                profile = existing_profile.data[0]
+                print(f"✅ Found existing profile for user: {user_id}")
+                return profile
+            else:
+                # Create new profile from user metadata
+                profile_data = {
+                    "user_id": user_id,
+                    "email": email,
+                    "full_name": current_user.get("user_metadata", {}).get("full_name"),
+                    "avatar_url": current_user.get("user_metadata", {}).get("avatar_url"),
+                    "favorite_color": current_user.get("user_metadata", {}).get("favorite_color"),
+                }
+                
                 result = supabase_service.table("profiles").insert(profile_data).execute()
-                profile = result.data[0] if result.data else None
-                print(f"✅ Created new profile for {email}")
-            except Exception as e:
-                print(f"❌ Error creating profile: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create profile"
-                )
+                if result.data:
+                    profile = result.data[0]
+                    print(f"✅ Created new profile for user: {user_id}")
+                    return profile
+                else:
+                    raise Exception("Failed to create profile - no data returned")
+        
+        # Execute with optimization
+        profile = await get_or_create_profile()
         
         if not profile:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create or update profile"
+                detail="Failed to create or retrieve profile"
             )
         
         user_profile = UserProfile(
@@ -63,7 +71,7 @@ async def sync_user_profile(current_user: Dict[str, Any] = Depends(get_current_u
             full_name=profile.get("full_name"),
             avatar_url=profile.get("avatar_url"),
             favorite_color=profile.get("favorite_color"),
-            role=profile.get("role", "user"),  # Get role from DB or default to "user"
+            role=profile.get("role", "user"),
             created_at=profile.get("created_at")
         )
         
@@ -72,6 +80,7 @@ async def sync_user_profile(current_user: Dict[str, Any] = Depends(get_current_u
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Sync error for user {user_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
