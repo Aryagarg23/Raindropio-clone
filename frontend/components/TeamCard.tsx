@@ -10,7 +10,7 @@ interface TeamCardProps {
 export default function TeamCard({ team, selected, onClick }: TeamCardProps) {
   return (
     <div
-      className={`p-6 bg-[var(--surface)] rounded-lg shadow-md border transition-all duration-[var(--transition-speed)] cursor-pointer ${
+      className={`p-6 bg-[var(--surface)] rounded-lg shadow-md border transition-all duration-&lsqb;var(--transition-speed)&rsqb; cursor-pointer ${
         selected ? 'border-[var(--primary)] scale-[1.03] shadow-lg' : 'border-[var(--border)] hover:shadow-lg hover:-translate-y-1'
       }`}
       onClick={onClick}

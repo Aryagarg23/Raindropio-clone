@@ -189,7 +189,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       .channel(`team-${actualTeamId}-collections`)
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'collections', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Collection inserted:', payload);
           const { data: newCollection } = await supabase
             .from('collections')
@@ -211,7 +211,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'collections', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Collection updated:', payload);
           const { data: updatedCollection } = await supabase
             .from('collections')
@@ -235,7 +235,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'collections', filter: `team_id=eq.${actualTeamId}` },
-        (payload) => {
+        (payload: any) => {
           console.log('Collection deleted:', payload);
           setCollections(prev => prev.filter(col => col.id !== payload.old.id));
         }
@@ -247,7 +247,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       .channel(`team-${actualTeamId}-bookmarks`)
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'bookmarks', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Bookmark inserted:', payload);
           const { data: newBookmark } = await supabase
             .from('bookmarks')
@@ -274,7 +274,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'bookmarks', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Bookmark updated:', payload);
           const { data: updatedBookmark } = await supabase
             .from('bookmarks')
@@ -303,7 +303,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'bookmarks', filter: `team_id=eq.${actualTeamId}` },
-        (payload) => {
+        (payload: any) => {
           console.log('Bookmark deleted:', payload);
           setBookmarks(prev => prev.filter(bm => bm.id !== payload.old.id));
         }
@@ -315,7 +315,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       .channel(`team-${actualTeamId}-events`)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'team_events', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('New team event:', payload);
           const { data: newEvent } = await supabase
             .from('team_events')
@@ -342,7 +342,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       .channel(`team-${actualTeamId}-presence`)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'presence', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Presence user joined:', payload);
           if (payload.new.is_online) {
             const { data: newPresence } = await supabase
@@ -371,7 +371,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'presence', filter: `team_id=eq.${actualTeamId}` },
-        async (payload) => {
+        async (payload: any) => {
           console.log('Presence updated:', payload);
           if (payload.new.is_online) {
             const { data: updatedPresence } = await supabase
@@ -402,7 +402,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       )
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'presence', filter: `team_id=eq.${actualTeamId}` },
-        (payload) => {
+        (payload: any) => {
           console.log('Presence deleted:', payload);
           setPresence(prev => prev.filter(p => p.user_id !== payload.old.user_id));
         }
@@ -709,7 +709,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Handle authentication state changes (including logout)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (event === 'SIGNED_OUT' || !session?.user) {
         // User logged out or session expired - mark offline immediately
         if (user && actualTeamId) {
@@ -865,7 +865,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             })
             .eq('team_id', actualTeamId)
             .eq('user_id', user.id)
-            .then(({ data, error }) => {
+            .then(({ data, error }: any) => {
               if (error) {
                 console.error('[PRESENCE] Navigation offline update failed:', error);
               } else {
@@ -939,7 +939,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
           })
           .eq('team_id', actualTeamId)
           .eq('user_id', user.id)
-          .then(({ data, error }) => {
+          .then(({ data, error }: any) => {
             if (error) {
               console.error('[PRESENCE] Cleanup offline update failed:', error);
             } else {

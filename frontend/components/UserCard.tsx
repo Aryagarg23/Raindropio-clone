@@ -11,7 +11,7 @@ interface UserCardProps {
 export default function UserCard({ user, selected, onClick, disabled }: UserCardProps) {
   return (
     <div
-      className={`flex items-center space-x-3 p-3 rounded-md border transition-all duration-[var(--transition-speed)] cursor-pointer ${
+      className={`flex items-center space-x-3 p-3 rounded-md border transition-all duration-&lsqb;var(--transition-speed)&rsqb; cursor-pointer ${
         selected ? 'border-[var(--primary)] bg-[var(--surface)] scale-[1.02]' : 'border-[var(--border)] hover:shadow-md hover:-translate-y-1'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       onClick={disabled ? undefined : onClick}
