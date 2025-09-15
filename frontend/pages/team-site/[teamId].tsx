@@ -17,10 +17,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
+import { getApiBaseUrl } from '../../modules/apiClient'
 import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, ChevronUp, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
-// API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// API configuration (resolved at runtime)
+const API_BASE_URL = (() => {
+  try {
+    return getApiBaseUrl();
+  } catch (e) {
+    // If getApiBaseUrl throws in production (missing env), rethrow
+    if (process.env.NODE_ENV === 'production') throw e;
+    return 'http://localhost:8000';
+  }
+})();
 
 // Favicon component for bookmarks
 const FaviconImage = ({ url, faviconUrl, size = "w-4 h-4" }: { url: string, faviconUrl?: string, size?: string }) => {

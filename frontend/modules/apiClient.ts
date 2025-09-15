@@ -1,7 +1,23 @@
 import supabase from './supabaseClient';
 import { UpdateTeamRequest } from '../types/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Resolve API base URL at runtime when possible so production builds
+// don't embed a localhost fallback into the compiled bundle.
+export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '') {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.host}`;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:8000';
+  }
+
+  throw new Error('Missing NEXT_PUBLIC_API_URL environment variable in production');
+}
 
 export class ApiError extends Error {
   constructor(
@@ -16,7 +32,7 @@ export class ApiError extends Error {
 }
 
 async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}) {
-  console.log(`🌐 Making API request to: ${API_BASE_URL}${endpoint}`);
+  console.log(`🌐 Making API request to: ${getApiBaseUrl()}${endpoint}`);
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.access_token) {
@@ -32,7 +48,7 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
     ? { 'Authorization': `Bearer ${session.access_token}` }
     : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
   
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     ...options,
     headers: {
       ...defaultHeaders,
@@ -66,7 +82,7 @@ async function makeAuthenticatedFormRequest(endpoint: string, formData: FormData
     throw new ApiError('No authentication token available', 401, 'UNAUTHORIZED');
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: method,
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
