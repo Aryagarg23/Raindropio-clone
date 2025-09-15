@@ -4202,14 +4202,8 @@ function BookmarkDetailModal({
     window.selectHighlightForAnnotation = (highlightId: string, selectedText: string) => {
       setSelectedHighlightId(highlightId)
       
-      // Expand the highlight if it has comments
-      const highlight = highlights.find(h => h.highlight_id === highlightId)
-      if (highlight) {
-        const highlightComments = annotations.filter(ann => ann.highlight_id === highlightId)
-        if (highlightComments.length > 0) {
-          setExpandedHighlights(prev => new Set([...prev, highlightId]))
-        }
-      }
+      // Always expand the highlight when clicked (allow adding first comment)
+      setExpandedHighlights(prev => new Set([...prev, highlightId]))
       
       // Scroll to the highlight annotation section
       setTimeout(() => {
