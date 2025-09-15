@@ -3656,7 +3656,7 @@ export default function TeamSitePage() {
       )}
 
       {/* Bookmark Detail Modal */}
-      {selectedBookmark && (
+      {selectedBookmark && normalizedTeamId && (
         <BookmarkDetailModal
           bookmark={selectedBookmark}
           viewMode={bookmarkViewMode}
@@ -3669,7 +3669,7 @@ export default function TeamSitePage() {
           highlightColor={highlightColor}
           setHighlightColor={setHighlightColor}
           user={user}
-          teamId={normalizedTeamId}
+          teamId={normalizedTeamId!}
         />
       )}
     </div>
