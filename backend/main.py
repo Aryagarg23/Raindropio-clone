@@ -1,13 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import users, teams, admin, content
+from core.config import settings
 
 app = FastAPI(title="Raindropio Clone API", version="1.0.0")
+
+# Configure allowed origins from environment
+allowed_origins = [
+    settings.FRONTEND_URL,
+    "http://localhost:3000",  # Local development fallback
+    "https://localhost:3000"  # HTTPS local development
+]
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

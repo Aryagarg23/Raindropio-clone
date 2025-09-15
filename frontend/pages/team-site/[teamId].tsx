@@ -19,6 +19,8 @@ import { Collection } from "../../types/api"
 import supabase from "../../modules/supabaseClient"
 import { Search, Plus, Share2, Settings, Users, ChevronDown, ChevronRight, ChevronUp, Folder, FolderOpen, Grid3X3, List, ExternalLink, Heart, GripVertical, Copy, X, MessageCircle } from "lucide-react"
 
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Favicon component for bookmarks
 const FaviconImage = ({ url, faviconUrl, size = "w-4 h-4" }: { url: string, faviconUrl?: string, size?: string }) => {
@@ -790,7 +792,7 @@ export default function TeamSitePage() {
     try {
       // Try our backend content extraction service first
       try {
-        const response = await fetch('http://localhost:8000/content/extract', {
+        const response = await fetch(`${API_BASE_URL}/content/extract`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -882,7 +884,7 @@ export default function TeamSitePage() {
   // Generate proxy URL to bypass iframe restrictions
   const getProxyUrl = (url: string) => {
     // Try our backend proxy service first
-    const backendProxy = `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
+    const backendProxy = `${API_BASE_URL}/content/proxy?url=${encodeURIComponent(url)}`
     
     // Fallback CORS proxy services
     const corsProxies = [
@@ -4171,7 +4173,7 @@ function BookmarkDetailModal({
     try {
       // Try backend content extraction service first
       try {
-        const response = await fetch('http://localhost:8000/content/extract', {
+        const response = await fetch(`${API_BASE_URL}/content/extract`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -4299,7 +4301,7 @@ function BookmarkDetailModal({
   }
 
   const getProxyUrl = (url: string) => {
-    return `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
+    return `${API_BASE_URL}/content/proxy?url=${encodeURIComponent(url)}`
   }
 
   // Fetch proxy content for rendering

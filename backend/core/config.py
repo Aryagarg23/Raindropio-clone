@@ -9,6 +9,7 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_KEY", "")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
     @property
     def supabase_url(self) -> str:
