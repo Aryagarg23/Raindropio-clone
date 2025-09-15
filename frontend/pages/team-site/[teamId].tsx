@@ -1,9 +1,6 @@
 import { useRouter } from 'next/router';
 import { useState } from 'react';
-import TeamSiteLayout from '../../layouts/TeamSiteLayout';
-import CollectionsView from '../../components/team-site/CollectionsView';
-import BookmarksView from '../../components/team-site/BookmarksView';
-import ActivityView from '../../components/team-site/ActivityView';
+import ModernTeamSiteLayout from '../../layouts/ModernTeamSiteLayout';
 import CreateCollectionModal from '../../components/team-site/CreateCollectionModal';
 import AddBookmarkModal from '../../components/team-site/AddBookmarkModal';
 import { useTeamSite } from '../../hooks/useTeamSite';
@@ -13,11 +10,9 @@ export default function TeamSitePage() {
   const { teamId } = router.query;
   
   // State for UI
-  const [currentView, setCurrentView] = useState<'collections' | 'bookmarks' | 'activity'>('collections');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBookmarkModal, setShowBookmarkModal] = useState(false);
   const [selectedCollectionForBookmark, setSelectedCollectionForBookmark] = useState<string | null>(null);
-  const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
 
   // Use the custom hook for all data management
   const {
@@ -107,16 +102,6 @@ export default function TeamSitePage() {
     await deleteBookmark(bookmarkId);
   };
 
-  const handleCollectionClick = (collectionId: string) => {
-    setSelectedCollectionFilter(collectionId);
-    setCurrentView('bookmarks');
-  };
-
-  const handleCreateBookmarkForCollection = (collectionId: string) => {
-    setSelectedCollectionForBookmark(collectionId);
-    setShowBookmarkModal(true);
-  };
-
   const handleOpenCreateCollection = () => {
     setShowCreateModal(true);
   };
@@ -134,38 +119,14 @@ export default function TeamSitePage() {
 
   return (
     <>
-      <TeamSiteLayout
+      <ModernTeamSiteLayout
+        collections={collections}
+        bookmarks={bookmarks}
         presence={presence}
-        currentView={currentView}
-        onViewChange={setCurrentView}
         onCreateCollection={handleOpenCreateCollection}
-      >
-        {/* Content based on current view */}
-        {currentView === 'collections' && (
-          <CollectionsView
-            collections={collections}
-            bookmarks={bookmarks}
-            onCollectionClick={handleCollectionClick}
-            onDeleteCollection={handleDeleteCollection}
-            onCreateBookmark={handleCreateBookmarkForCollection}
-          />
-        )}
-
-        {currentView === 'bookmarks' && (
-          <BookmarksView
-            bookmarks={bookmarks}
-            collections={collections}
-            selectedCollection={selectedCollectionFilter}
-            onCollectionFilter={setSelectedCollectionFilter}
-            onDeleteBookmark={handleDeleteBookmark}
-            onCreateBookmark={handleOpenCreateBookmark}
-          />
-        )}
-
-        {currentView === 'activity' && (
-          <ActivityView events={teamEvents} />
-        )}
-      </TeamSiteLayout>
+        onCreateBookmark={() => handleOpenCreateBookmark()}
+        loading={loading}
+      />
 
       {/* Modals */}
       <CreateCollectionModal

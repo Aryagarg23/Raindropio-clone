@@ -25,11 +25,17 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
   }
 
   console.log("🔑 Token found, making request...");
+  
+  // Don't set Content-Type for FormData - let browser set it with boundary
+  const isFormData = options.body instanceof FormData;
+  const defaultHeaders: Record<string, string> = isFormData 
+    ? { 'Authorization': `Bearer ${session.access_token}` }
+    : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+  
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
+      ...defaultHeaders,
       ...options.headers,
     },
   });
@@ -126,32 +132,17 @@ export const apiClient = {
   },
 
   createTeam: async (teamRequest: any) => {
-    // If FormData, use multipart/form-data
-    if (teamRequest instanceof FormData) {
-      return makeAuthenticatedRequest('/admin/teams', {
-        method: 'POST',
-        body: teamRequest,
-      });
-    } else {
-      return makeAuthenticatedRequest('/admin/teams', {
-        method: 'POST',
-        body: JSON.stringify(teamRequest),
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    return makeAuthenticatedRequest('/admin/teams', {
+      method: 'POST',
+      body: teamRequest instanceof FormData ? teamRequest : JSON.stringify(teamRequest),
+    });
   },
 
   updateTeam: async (teamId: string, teamRequest: any) => {
-    if (teamRequest instanceof FormData) {
-      // Use makeAuthenticatedFormRequest for FormData
-      return makeAuthenticatedFormRequest(`/admin/teams/${teamId}`, teamRequest, 'PUT');
-    } else {
-      return makeAuthenticatedRequest(`/admin/teams/${teamId}`, {
-        method: 'PUT',
-        body: JSON.stringify(teamRequest),
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    return makeAuthenticatedRequest(`/admin/teams/${teamId}`, {
+      method: 'PUT',
+      body: teamRequest instanceof FormData ? teamRequest : JSON.stringify(teamRequest),
+    });
   },
 
   addMemberToTeam: async (teamId: string, memberRequest: { user_id: string }) => {

@@ -27,8 +27,14 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
   const [presence, setPresence] = useState<Presence[]>([]);
   
-  // Ref to store subscription cleanup function
+  // Refs for subscription cleanup and team tracking
   const subscriptionCleanupRef = useRef<(() => void) | null>(null);
+  const membersMapRef = useRef<Map<string, any>>(new Map());
+  const subscribedMembersRef = useRef<Set<string>>(new Set());
+  const presenceMapRef = useRef<Map<string, any>>(new Map());
+  const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activityHandlerRef = useRef<(() => void) | null>(null);
+  const isOfflineRef = useRef(false);
 
   // Auth check and initialization
   const checkAuth = async () => {
@@ -99,7 +105,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             avatar_url
           )
         `)
-        .eq('team_id', teamId)
+        .eq('team_id', actualTeamId)
         .order('created_at', { ascending: false });
       
       if (collectionsError) throw collectionsError;
@@ -121,7 +127,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             color
           )
         `)
-        .eq('team_id', teamId)
+        .eq('team_id', actualTeamId)
         .order('created_at', { ascending: false });
       
       if (bookmarksError) throw bookmarksError;
@@ -138,7 +144,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             avatar_url
           )
         `)
-        .eq('team_id', teamId)
+        .eq('team_id', actualTeamId)
         .order('created_at', { ascending: false })
         .limit(20);
       
@@ -146,7 +152,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       setTeamEvents(eventsData || []);
       
       // Load presence
-      console.log('Loading presence for team:', teamId);
+      console.log('Loading presence for team:', actualTeamId);
       const { data: presenceData, error: presenceError } = await supabase
         .from('presence')
         .select(`
@@ -157,7 +163,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
             avatar_url
           )
         `)
-        .eq('team_id', teamId)
+        .eq('team_id', actualTeamId)
         .eq('is_online', true);
       
       if (presenceError) {
@@ -414,17 +420,17 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Update user presence
   const updatePresence = async () => {
-    if (!teamId || !user) {
-      console.log('updatePresence skipped - missing teamId or user:', { teamId, userId: user?.id });
+    if (!actualTeamId || !user) {
+      console.log('updatePresence skipped - missing actualTeamId or user:', { actualTeamId, userId: user?.id });
       return;
     }
     
     try {
-      console.log('Updating presence for user:', user.id, 'in team:', teamId);
+      console.log('Updating presence for user:', user.id, 'in team:', actualTeamId);
       const { data, error } = await supabase
         .from('presence')
         .upsert({
-          team_id: teamId,
+          team_id: actualTeamId,
           user_id: user.id,
           current_page: 'team-overview',
           is_online: true,
@@ -446,13 +452,13 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Create collection with optimistic updates
   const createCollection = async (name: string, description?: string, color?: string) => {
-    if (!teamId || !user) return;
+    if (!actualTeamId || !user) return;
     
     try {
       // Create optimistic collection with full structure (including joined profile data)
       const optimisticCollection: any = {
         id: `temp-${Date.now()}`, // Temporary ID
-        team_id: typeof teamId === 'string' ? teamId : teamId[0],
+        team_id: actualTeamId,
         name,
         description: description || undefined,
         color: color || '#A0D2EB',
@@ -472,7 +478,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       const { data, error } = await supabase
         .from('collections')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           name,
           description,
           color: color || '#A0D2EB',
@@ -499,7 +505,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       await supabase
         .from('team_events')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           event_type: 'collection.created',
           actor_id: user.id,
           data: {
@@ -521,7 +527,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
 
   // Create bookmark with optimistic updates
   const createBookmark = async (url: string, title?: string, collectionId?: string) => {
-    if (!teamId || !user) return;
+    if (!actualTeamId || !user) return;
     
     try {
       // Find the collection for the optimistic update
@@ -532,7 +538,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       // Create optimistic bookmark with full structure
       const optimisticBookmark: any = {
         id: `temp-${Date.now()}`, // Temporary ID
-        team_id: typeof teamId === 'string' ? teamId : teamId[0],
+        team_id: actualTeamId,
         collection_id: collectionId || null,
         url,
         title: title || url,
@@ -561,7 +567,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       const { data, error } = await supabase
         .from('bookmarks')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           collection_id: collectionId,
           url,
           title,
@@ -593,7 +599,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       await supabase
         .from('team_events')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           event_type: 'bookmark.created',
           actor_id: user.id,
           data: {
@@ -616,7 +622,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   };
 
   const deleteCollection = async (collectionId: string) => {
-    if (!teamId || !user) return;
+    if (!actualTeamId || !user) return;
     
     try {
       // Optimistic update
@@ -627,7 +633,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
         .from('collections')
         .delete()
         .eq('id', collectionId)
-        .eq('team_id', teamId);
+        .eq('team_id', actualTeamId);
         
       if (error) throw error;
       
@@ -635,7 +641,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       await supabase
         .from('team_events')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           event_type: 'collection.deleted',
           actor_id: user.id,
           data: {
@@ -655,7 +661,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   };
 
   const deleteBookmark = async (bookmarkId: string) => {
-    if (!teamId || !user) return;
+    if (!actualTeamId || !user) return;
     
     try {
       // Optimistic update
@@ -666,7 +672,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
         .from('bookmarks')
         .delete()
         .eq('id', bookmarkId)
-        .eq('team_id', teamId);
+        .eq('team_id', actualTeamId);
         
       if (error) throw error;
       
@@ -674,7 +680,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
       await supabase
         .from('team_events')
         .insert({
-          team_id: teamId,
+          team_id: actualTeamId,
           event_type: 'bookmark.deleted',
           actor_id: user.id,
           data: {
@@ -701,58 +707,248 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     }
   }, [teamId]);
 
-  // Set up periodic presence updates and cleanup
+  // Handle authentication state changes (including logout)
   useEffect(() => {
-    if (!teamId || !user) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        // User logged out or session expired - mark offline immediately
+        if (user && actualTeamId) {
+          await supabase
+            .from('presence')
+            .update({ 
+              is_online: false,
+              last_seen: new Date().toISOString()
+            })
+            .eq('team_id', actualTeamId)
+            .eq('user_id', user.id);
+        }
+        
+        // Clear local state
+        setUser(null);
+        setProfile(null);
+        setPresence([]);
+        
+        // Clean up subscriptions
+        if (subscriptionCleanupRef.current) {
+          subscriptionCleanupRef.current();
+          subscriptionCleanupRef.current = null;
+        }
+      }
+    });
 
-    // Update presence every 30 seconds
-    const presenceInterval = setInterval(() => {
-      updatePresence();
-    }, 30000);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user, actualTeamId]);
 
-    // Set offline status when leaving the page
-    const handleBeforeUnload = async () => {
-      if (user && teamId) {
-        await supabase
+  // Simple activity-based presence management
+  useEffect(() => {
+    if (!actualTeamId || !user) return;
+
+    let lastActivityTime = Date.now();
+    let isOnline = true;
+    let activityCheckInterval: NodeJS.Timeout;
+    let inactivityTimeout: NodeJS.Timeout;
+    let isNavigatingAway = false; // Flag to prevent activity override during navigation
+
+    // Update presence status
+    const updatePresenceStatus = async (online: boolean) => {
+      if (!user || !actualTeamId) return;
+      
+      console.log(`[PRESENCE] Attempting to mark user ${online ? 'ONLINE' : 'OFFLINE'} in team:`, actualTeamId);
+      
+      try {
+        const { data, error } = await supabase
+          .from('presence')
+          .update({ 
+            is_online: online,
+            last_seen: new Date().toISOString()
+          })
+          .eq('team_id', actualTeamId)
+          .eq('user_id', user.id);
+        
+        if (error) {
+          console.error(`[PRESENCE] Failed to mark ${online ? 'online' : 'offline'}:`, error);
+        } else {
+          console.log(`[PRESENCE] Successfully marked user ${online ? 'ONLINE' : 'OFFLINE'} in team:`, actualTeamId, data);
+          isOnline = online;
+        }
+      } catch (error) {
+        console.error(`[PRESENCE] Exception during ${online ? 'online' : 'offline'} update:`, error);
+      }
+    };
+
+    // Reset activity timer
+    const resetActivityTimer = () => {
+      // Don't reset activity if we're navigating away
+      if (isNavigatingAway) return;
+      
+      lastActivityTime = Date.now();
+      
+      // If user was offline, mark them online
+      if (!isOnline) {
+        updatePresenceStatus(true);
+      }
+
+      // Clear existing inactivity timeout
+      if (inactivityTimeout) {
+        clearTimeout(inactivityTimeout);
+      }
+
+      // Set new 5-minute inactivity timeout
+      inactivityTimeout = setTimeout(() => {
+        if (isOnline && !isNavigatingAway) {
+          updatePresenceStatus(false);
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    // Debounced activity handler to prevent rapid firing
+    let activityDebounceTimeout: NodeJS.Timeout | null = null;
+    const handleActivity = () => {
+      // Ignore activity if we're navigating away
+      if (isNavigatingAway) return;
+      
+      // Clear previous debounce timeout
+      if (activityDebounceTimeout) {
+        clearTimeout(activityDebounceTimeout);
+      }
+      
+      // Debounce activity reset by 1 second
+      activityDebounceTimeout = setTimeout(() => {
+        resetActivityTimer();
+      }, 1000);
+    };
+
+    // Activity events to track (reduced sensitivity to prevent flickering)
+    const activityEvents = [
+      'click',
+      'keypress',
+      'scroll'
+    ];
+
+    // Add activity listeners
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // Remove activity listeners helper
+    const removeActivityListeners = () => {
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+    };
+
+    // Handle page navigation away from team
+    const handleRouteChangeStart = (url: string) => {
+      const currentTeamPath = `/team-site/${actualTeamId}`;
+      if (!url.startsWith(currentTeamPath)) {
+        console.log(`[PRESENCE] Navigation detected away from team ${actualTeamId} to:`, url);
+        
+        // Set navigation flag to prevent activity interference
+        isNavigatingAway = true;
+        
+        // Remove activity listeners immediately
+        removeActivityListeners();
+        
+        // Clear any pending timeouts
+        if (inactivityTimeout) clearTimeout(inactivityTimeout);
+        
+        // Immediate synchronous offline update - don't wait for async
+        if (user && actualTeamId) {
+          console.log(`[PRESENCE] IMMEDIATE offline update for navigation`);
+          supabase
+            .from('presence')
+            .update({ 
+              is_online: false,
+              last_seen: new Date().toISOString()
+            })
+            .eq('team_id', actualTeamId)
+            .eq('user_id', user.id)
+            .then(({ data, error }) => {
+              if (error) {
+                console.error('[PRESENCE] Navigation offline update failed:', error);
+              } else {
+                console.log('[PRESENCE] Navigation offline update succeeded:', data);
+              }
+            });
+        }
+      }
+    };
+
+    // Handle page unload
+    const handleBeforeUnload = () => {
+      if (user && actualTeamId) {
+        // Set navigation flag and remove listeners
+        isNavigatingAway = true;
+        removeActivityListeners();
+        
+        navigator.sendBeacon && navigator.sendBeacon('/api/presence-offline', JSON.stringify({
+          team_id: actualTeamId,
+          user_id: user.id
+        })) || supabase
           .from('presence')
           .update({ 
             is_online: false,
             last_seen: new Date().toISOString()
           })
-          .eq('team_id', teamId)
+          .eq('team_id', actualTeamId)
           .eq('user_id', user.id);
       }
     };
 
-    // Set offline when page visibility changes (tab switching, etc.)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleBeforeUnload();
-      } else {
-        updatePresence();
-      }
-    };
-
+    // Add navigation and unload listeners
+    router.events.on('routeChangeStart', handleRouteChangeStart);
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Initial setup
+    updatePresence(); // Set initial online status
+    resetActivityTimer(); // Start activity tracking
+
+    // Periodic heartbeat (every 2 minutes) to update last_seen
+    activityCheckInterval = setInterval(() => {
+      if (isOnline) {
+        supabase
+          .from('presence')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('team_id', actualTeamId)
+          .eq('user_id', user.id);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
 
     return () => {
-      clearInterval(presenceInterval);
+      // Cleanup intervals and timeouts
+      if (activityCheckInterval) clearInterval(activityCheckInterval);
+      if (inactivityTimeout) clearTimeout(inactivityTimeout);
+
+      // Remove activity listeners
+      removeActivityListeners();
+
+      // Remove navigation listeners
+      router.events.off('routeChangeStart', handleRouteChangeStart);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // Set offline status when component unmounts
-      if (user && teamId) {
+
+      // Mark offline on cleanup
+      if (user && actualTeamId) {
+        console.log(`[PRESENCE] Component cleanup - marking offline in team:`, actualTeamId);
         supabase
           .from('presence')
           .update({ 
             is_online: false,
             last_seen: new Date().toISOString()
           })
-          .eq('team_id', teamId)
-          .eq('user_id', user.id);
+          .eq('team_id', actualTeamId)
+          .eq('user_id', user.id)
+          .then(({ data, error }) => {
+            if (error) {
+              console.error('[PRESENCE] Cleanup offline update failed:', error);
+            } else {
+              console.log('[PRESENCE] Cleanup offline update succeeded:', data);
+            }
+          });
       }
     };
-  }, [user, teamId]);
+  }, [user, actualTeamId, router.events]);
 
   // Cleanup subscriptions on unmount
   useEffect(() => {
