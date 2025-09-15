@@ -18,7 +18,7 @@ export default function TeamSiteHeader({ presence }: TeamSiteHeaderProps) {
         <div className="flex justify-between items-center h-20">
           <div className="flex items-center space-x-6">
             <button 
-              onClick={() => router.push('/admin')}
+              onClick={() => router.push('/dashboard')}
               className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:transform hover:-translate-y-1"
               style={{ 
                 color: 'var(--text-secondary)',
