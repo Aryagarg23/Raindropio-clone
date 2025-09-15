@@ -195,7 +195,9 @@ export default function TeamSitePage() {
     deleteCollection,
     createBookmark,
     deleteBookmark,
-    setError
+    setError,
+    setCollections,
+    setBookmarks
   } = useTeamSite(teamId)
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
@@ -1228,6 +1230,16 @@ export default function TeamSitePage() {
         
         console.log('Child positioning:', { targetCollectionId, newSortOrder });
         
+        // Optimistic update - update local state immediately
+        const originalCollection = collections.find(c => c.id === draggedCollection);
+        setCollections(prevCollections => 
+          prevCollections.map(c => 
+            c.id === draggedCollection 
+              ? { ...c, parent_id: targetCollectionId, sort_order: newSortOrder }
+              : c
+          )
+        );
+        
         const { error } = await supabase
           .from('collections')
           .update({ 
@@ -1238,6 +1250,14 @@ export default function TeamSitePage() {
         
         if (error) {
           console.error('Child update error:', error);
+          // Revert optimistic update on error
+          setCollections(prevCollections => 
+            prevCollections.map(c => 
+              c.id === draggedCollection 
+                ? { ...c, parent_id: originalCollection?.parent_id, sort_order: originalCollection?.sort_order }
+                : c
+            )
+          );
           throw error;
         }
         
@@ -1308,6 +1328,16 @@ export default function TeamSitePage() {
         
         console.log('Sibling positioning:', { targetParentId, newSortOrder });
         
+        // Optimistic update - update local state immediately
+        const originalCollection2 = collections.find(c => c.id === draggedCollection);
+        setCollections(prevCollections => 
+          prevCollections.map(c => 
+            c.id === draggedCollection 
+              ? { ...c, parent_id: targetParentId, sort_order: newSortOrder }
+              : c
+          )
+        );
+        
         const { error } = await supabase
           .from('collections')
           .update({ 
@@ -1318,6 +1348,14 @@ export default function TeamSitePage() {
           
         if (error) {
           console.error('Reorder error:', error);
+          // Revert optimistic update on error
+          setCollections(prevCollections => 
+            prevCollections.map(c => 
+              c.id === draggedCollection 
+                ? { ...c, parent_id: originalCollection2?.parent_id, sort_order: originalCollection2?.sort_order }
+                : c
+            )
+          );
           throw error;
         }
       }
@@ -1370,12 +1408,32 @@ export default function TeamSitePage() {
     if (!draggedBookmark) return;
 
     try {
+      // Optimistic update - update local state immediately
+      const originalBookmark = bookmarks.find(b => b.id === draggedBookmark);
+      setBookmarks(prevBookmarks => 
+        prevBookmarks.map(b => 
+          b.id === draggedBookmark 
+            ? { ...b, collection_id: targetCollectionId || undefined }
+            : b
+        )
+      );
+
       const { data, error } = await supabase
         .from('bookmarks')
         .update({ collection_id: targetCollectionId })
         .eq('id', draggedBookmark);
       
-      if (error) throw error;
+      if (error) {
+        // Revert optimistic update on error
+        setBookmarks(prevBookmarks => 
+          prevBookmarks.map(b => 
+            b.id === draggedBookmark 
+              ? { ...b, collection_id: originalBookmark?.collection_id }
+              : b
+          )
+        );
+        throw error;
+      }
       
     } catch (error) {
       console.error('Failed to move bookmark:', error);
@@ -1621,7 +1679,7 @@ export default function TeamSitePage() {
             <div className="flex items-center gap-4">
               <Button 
                 variant="ghost" 
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/dashboard')}
                 className="mr-2 text-grey-accent-700 hover:text-grey-accent-900 hover:bg-grey-accent-100"
               >
                 ← Back to Dashboard

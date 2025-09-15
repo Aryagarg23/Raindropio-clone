@@ -10,11 +10,14 @@ interface DragState {
 
 interface UseDragAndDropProps {
   collections: any[]
+  bookmarks: any[]
   user: any
   setError: (error: string) => void
+  setCollections: React.Dispatch<React.SetStateAction<any[]>>
+  setBookmarks: React.Dispatch<React.SetStateAction<any[]>>
 }
 
-export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropProps) => {
+export const useDragAndDrop = ({ collections, bookmarks, user, setError, setCollections, setBookmarks }: UseDragAndDropProps) => {
   const [draggedCollection, setDraggedCollection] = useState<string | null>(null)
   const [draggedBookmark, setDraggedBookmark] = useState<string | null>(null)
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null)
@@ -246,6 +249,16 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
         
         console.log('Child positioning:', { targetCollectionId, newSortOrder })
         
+        // Optimistic update - update local state immediately
+        const originalCollection = collections.find(c => c.id === draggedCollection)
+        setCollections(prevCollections => 
+          prevCollections.map(c => 
+            c.id === draggedCollection 
+              ? { ...c, parent_id: targetCollectionId, sort_order: newSortOrder }
+              : c
+          )
+        )
+        
         const { error } = await supabase
           .from('collections')
           .update({ 
@@ -256,6 +269,14 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
         
         if (error) {
           console.error('Child update error:', error)
+          // Revert optimistic update on error
+          setCollections(prevCollections => 
+            prevCollections.map(c => 
+              c.id === draggedCollection 
+                ? { ...c, parent_id: originalCollection?.parent_id, sort_order: originalCollection?.sort_order }
+                : c
+            )
+          )
           throw error
         }
         
@@ -288,6 +309,30 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
           } else {
             // Not enough room - need to resequence siblings
             console.log('Not enough room, resequencing siblings...')
+            
+            // Optimistic update for resequencing
+            setCollections(prevCollections => {
+              const updated = [...prevCollections]
+              for (let i = 0; i < siblings.length; i++) {
+                const sibling = siblings[i]
+                const existingIndex = updated.findIndex(c => c.id === sibling.id)
+                if (existingIndex !== -1) {
+                  if (sibling.id === targetCollectionId && i > 0) {
+                    // Insert dragged item before target
+                    const draggedIndex = updated.findIndex(c => c.id === draggedCollection)
+                    if (draggedIndex !== -1) {
+                      updated[draggedIndex] = { ...updated[draggedIndex], parent_id: targetParentId, sort_order: (i + 1) * 10 }
+                    }
+                    updated[existingIndex] = { ...updated[existingIndex], sort_order: (i + 2) * 10 }
+                  } else {
+                    // Regular sibling update
+                    const adjustedIndex = sibling.id === targetCollectionId ? i + 2 : i + 1
+                    updated[existingIndex] = { ...updated[existingIndex], sort_order: adjustedIndex * 10 }
+                  }
+                }
+              }
+              return updated
+            })
             
             // Resequence all siblings with 10-unit spacing
             for (let i = 0; i < siblings.length; i++) {
@@ -326,6 +371,16 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
         
         console.log('Sibling positioning:', { targetParentId, newSortOrder })
         
+        // Optimistic update - update local state immediately
+        const originalCollection2 = collections.find(c => c.id === draggedCollection)
+        setCollections(prevCollections => 
+          prevCollections.map(c => 
+            c.id === draggedCollection 
+              ? { ...c, parent_id: targetParentId, sort_order: newSortOrder }
+              : c
+          )
+        )
+        
         const { error } = await supabase
           .from('collections')
           .update({ 
@@ -336,6 +391,14 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
           
         if (error) {
           console.error('Reorder error:', error)
+          // Revert optimistic update on error
+          setCollections(prevCollections => 
+            prevCollections.map(c => 
+              c.id === draggedCollection 
+                ? { ...c, parent_id: originalCollection2?.parent_id, sort_order: originalCollection2?.sort_order }
+                : c
+            )
+          )
           throw error
         }
       }
@@ -389,6 +452,16 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
         userId: user?.id
       });
 
+      // Optimistic update - update local state immediately
+      const originalBookmark = bookmarks.find(b => b.id === draggedBookmark)
+      setBookmarks(prevBookmarks => 
+        prevBookmarks.map(b => 
+          b.id === draggedBookmark 
+            ? { ...b, collection_id: targetCollectionId }
+            : b
+        )
+      )
+
       const { data, error } = await supabase
         .from('bookmarks')
         .update({ collection_id: targetCollectionId })
@@ -401,6 +474,14 @@ export const useDragAndDrop = ({ collections, user, setError }: UseDragAndDropPr
           hint: error.hint,
           code: error.code
         });
+        // Revert optimistic update on error
+        setBookmarks(prevBookmarks => 
+          prevBookmarks.map(b => 
+            b.id === draggedBookmark 
+              ? { ...b, collection_id: originalBookmark?.collection_id }
+              : b
+          )
+        )
         throw error
       }
 

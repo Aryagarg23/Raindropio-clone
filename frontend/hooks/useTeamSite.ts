@@ -1063,6 +1063,10 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     teamEvents,
     presence,
     
+    // State setters (for optimistic updates)
+    setCollections,
+    setBookmarks,
+    
     // Actions
     createCollection,
     deleteCollection,
