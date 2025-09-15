@@ -214,6 +214,7 @@ export default function TeamSitePage() {
   const [embedError, setEmbedError] = useState<string | null>(null)
   const [proxyContent, setProxyContent] = useState<string | null>(null)
   const [isLoadingProxy, setIsLoadingProxy] = useState(false)
+  const [iframeBlocked, setIframeBlocked] = useState(false)
 
   // Advanced bookmark filters
   const [bookmarkFilters, setBookmarkFilters] = useState({
@@ -3770,7 +3771,7 @@ export default function TeamSitePage() {
           highlightColor={highlightColor}
           setHighlightColor={setHighlightColor}
           user={user}
-          teamId={teamId}
+          teamId={typeof teamId === 'string' ? teamId : Array.isArray(teamId) ? teamId[0] ?? '' : ''}
         />
       )}
     </div>
@@ -4046,6 +4047,8 @@ function BookmarkDetailModal({
   const [tagInput, setTagInput] = useState('')
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [bookmarkTags, setBookmarkTags] = useState<string[]>(bookmark.tags || [])
+  const [proxyContent, setProxyContent] = useState<string | null>(null)
+  const [isLoadingProxy, setIsLoadingProxy] = useState(false)
 
   // Fetch available tags on component mount
   React.useEffect(() => {
@@ -4141,6 +4144,13 @@ function BookmarkDetailModal({
     }
   }, [viewMode])
 
+  // Fetch proxy content when switching to proxy mode
+  React.useEffect(() => {
+    if (viewMode === 'proxy' && !proxyContent) {
+      fetchProxyContent(bookmark.url)
+    }
+  }, [viewMode])
+
 
 
   // Add global function for highlight clicking
@@ -4201,10 +4211,31 @@ function BookmarkDetailModal({
         if (response.ok) {
           const data = await response.json()
           if (data.success) {
+            // Clean content for reader mode - remove images, icons, and other visual elements
+            const cleanContent = (htmlContent: string): string => {
+              const tempDiv = document.createElement('div')
+              tempDiv.innerHTML = htmlContent
+              
+              // Remove all images, icons, and visual elements
+              tempDiv.querySelectorAll('img, svg, picture, video, audio, canvas, embed, object, iframe').forEach(el => el.remove())
+              
+              // Remove elements with common icon class names
+              tempDiv.querySelectorAll('[class*="icon"], [class*="Icon"], [class*="fa-"], [class*="material-"], [class*="glyphicon"]').forEach(el => el.remove())
+              
+              // Remove empty elements that might have contained only images/icons
+              tempDiv.querySelectorAll('*').forEach(el => {
+                if (el.children.length === 0 && !el.textContent?.trim()) {
+                  el.remove()
+                }
+              })
+              
+              return tempDiv.innerHTML
+            }
+            
             setExtractedContent({
               title: data.title,
               description: data.description,
-              content: data.content,
+              content: cleanContent(data.content),
               url: bookmark.url,
               extractedAt: new Date().toISOString(),
               meta_info: data.meta_info
@@ -4259,10 +4290,31 @@ function BookmarkDetailModal({
           }
         }
         
+        // Clean content for reader mode - remove images, icons, and other visual elements
+        const cleanContent = (htmlContent: string): string => {
+          const tempDiv = document.createElement('div')
+          tempDiv.innerHTML = htmlContent
+          
+          // Remove all images, icons, and visual elements
+          tempDiv.querySelectorAll('img, svg, picture, video, audio, canvas, embed, object, iframe').forEach(el => el.remove())
+          
+          // Remove elements with common icon class names
+          tempDiv.querySelectorAll('[class*="icon"], [class*="Icon"], [class*="fa-"], [class*="material-"], [class*="glyphicon"]').forEach(el => el.remove())
+          
+          // Remove empty elements that might have contained only images/icons
+          tempDiv.querySelectorAll('*').forEach(el => {
+            if (el.children.length === 0 && !el.textContent?.trim()) {
+              el.remove()
+            }
+          })
+          
+          return tempDiv.innerHTML
+        }
+        
         setExtractedContent({
           title,
           description,
-          content,
+          content: cleanContent(content),
           url: bookmark.url,
           extractedAt: new Date().toISOString()
         })
@@ -4277,6 +4329,57 @@ function BookmarkDetailModal({
 
   const getProxyUrl = (url: string) => {
     return `http://localhost:8000/content/proxy?url=${encodeURIComponent(url)}`
+  }
+
+  // Fetch proxy content for rendering
+  const fetchProxyContent = async (url: string) => {
+    setIsLoadingProxy(true)
+    setProxyContent(null)
+    
+    try {
+      const proxyUrl = getProxyUrl(url)
+      const response = await fetch(proxyUrl)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      // Check if response is JSON (from our backend) or raw HTML
+      const contentType = response.headers.get('content-type')
+      let htmlContent: string
+      
+      if (contentType?.includes('application/json')) {
+        // Our backend returns JSON with content field
+        const data = await response.json()
+        htmlContent = data.content || data
+      } else {
+        // Raw HTML response from other proxy services
+        htmlContent = await response.text()
+      }
+      
+      // Clean up malformed HTML attributes (especially SVG attributes with escaped quotes)
+      htmlContent = htmlContent
+        .replace(/\\"/g, '"')  // Fix escaped quotes
+        .replace(/\\'/g, "'")  // Fix escaped single quotes
+        .replace(/(\w+)=\\"([^"]*)\\"(?=\s|>|\/)/g, '$1="$2"')  // Fix attribute formatting
+      
+      // Fix relative URLs to absolute URLs
+      const baseUrl = new URL(url)
+      htmlContent = htmlContent
+        .replace(/src="\/([^"]*)"?/g, `src="${baseUrl.origin}/$1"`)
+        .replace(/href="\/([^"]*)"?/g, `href="${baseUrl.origin}/$1"`)
+        .replace(/src="([^"]*)"(?=\s|>)/g, (match, src) => {
+          if (src.startsWith('http') || src.startsWith('data:')) return match
+          return `src="${baseUrl.origin}/${src}"`
+        })
+      
+      setProxyContent(htmlContent)
+    } catch (error) {
+      console.error('Failed to fetch proxy content:', error)
+      setEmbedError('Failed to load content through proxy')
+    } finally {
+      setIsLoadingProxy(false)
+    }
   }
 
   const saveHighlight = async (): Promise<any> => {
@@ -4529,6 +4632,7 @@ function BookmarkDetailModal({
                   src={bookmark.url}
                   className="w-full h-full border-0"
                   title={bookmark.title || bookmark.url}
+                  onLoad={() => setEmbedError(null)}
                   onError={() => setEmbedError('This website cannot be embedded due to security restrictions')}
                 />
               )}
@@ -4536,12 +4640,41 @@ function BookmarkDetailModal({
           )}
 
           {viewMode === 'proxy' && (
-            <div className="h-full">
-              <iframe
-                src={getProxyUrl(bookmark.url)}
-                className="w-full h-full border-0"
-                title={bookmark.title || bookmark.url}
-              />
+            <div className="h-full overflow-auto">
+              {isLoadingProxy ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-grey-accent-600">Loading proxy content...</p>
+                  </div>
+                </div>
+              ) : proxyContent ? (
+                <iframe
+                  srcDoc={proxyContent}
+                  className="w-full h-full border-0"
+                  title={bookmark.title || bookmark.url}
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  style={{
+                    backgroundColor: 'white'
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">Proxy Failed</h3>
+                    <p className="text-grey-accent-600 mb-4">Failed to load content through proxy</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button onClick={() => setViewMode('embed')} variant="outline">
+                        Try Direct Embed
+                      </Button>
+                      <Button onClick={() => setViewMode('reader')} variant="outline">
+                        Try Reader View
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

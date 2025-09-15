@@ -270,6 +270,7 @@ RETURNS TABLE (
   creator_name text,
   creator_avatar text,
   creator_id uuid,
+  highlight_id uuid,
   like_count integer,
   user_liked boolean
 ) AS $$
@@ -301,6 +302,7 @@ BEGIN
     p.full_name as creator_name,
     p.avatar_url as creator_avatar,
     a.created_by as creator_id,
+    a.highlight_id,
     COALESCE(reaction_counts.like_count, 0)::integer as like_count,
     COALESCE(user_reactions.user_liked, false) as user_liked
   FROM public.annotations a
