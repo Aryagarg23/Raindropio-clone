@@ -40,6 +40,8 @@ jobs:
     - name: 🔧 Validate workflow YAML
       # Note: This step validates the file from the checkout, not the one currently running.
       run: |
+        pip install pyyaml
+        pip install PyYAML
         echo "🔧 Validating workflow YAML syntax..."
         python -c "import yaml; yaml.safe_load(open('.github/workflows/backend-ci.yml')); print('✅ Workflow YAML is valid')"
       working-directory: . # Run this step in the root directory
