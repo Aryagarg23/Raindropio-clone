@@ -7,7 +7,8 @@ load_dotenv()
 
 class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-    SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
@@ -16,6 +17,12 @@ class Settings:
         if not self.SUPABASE_URL:
             raise ValueError("SUPABASE_URL environment variable is required")
         return self.SUPABASE_URL
+    
+    @property
+    def supabase_key(self) -> str:
+        if not self.SUPABASE_ANON_KEY:
+            raise ValueError("SUPABASE_ANON_KEY environment variable is required")
+        return self.SUPABASE_ANON_KEY
     
     @property
     def supabase_service_key(self) -> str:
