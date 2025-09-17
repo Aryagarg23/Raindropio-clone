@@ -16,6 +16,7 @@ class DatabaseOptimizer:
     def __init__(self, max_concurrent_queries: int = 20, query_timeout: float = 30.0):
         self.semaphore = asyncio.Semaphore(max_concurrent_queries)
         self.query_timeout = query_timeout
+        self.max_concurrent_queries = max_concurrent_queries  # Store the bound value
         self.stats = {
             'total_queries': 0,
             'successful_queries': 0,
@@ -67,7 +68,7 @@ class DatabaseOptimizer:
             **self.stats,
             'success_rate': (self.stats['successful_queries'] / max(self.stats['total_queries'], 1)) * 100,
             'current_concurrent_queries': self.semaphore._value,
-            'max_concurrent_queries': self.semaphore._bound_value
+            'max_concurrent_queries': self.max_concurrent_queries
         }
 
 # Global database optimizer instance

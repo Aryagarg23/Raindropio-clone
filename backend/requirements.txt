@@ -11,3 +11,11 @@ lxml
 # Performance optimizations
 gunicorn
 asyncio-throttle
+
+# Testing dependencies
+pytest
+pytest-asyncio
+pytest-mock
+pytest-cov
+httpx  # for testing FastAPI endpoints
+faker  # for generating test data
