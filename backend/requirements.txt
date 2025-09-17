@@ -14,6 +14,7 @@ asyncio-throttle
 
 # Testing dependencies
 pytest
+PyYAML
 pytest-asyncio
 pytest-mock
 pytest-cov

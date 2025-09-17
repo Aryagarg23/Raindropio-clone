@@ -88,12 +88,14 @@ class TestConfig:
         """Test settings with environment variables"""
         # Clear existing env vars first
         monkeypatch.delenv("SUPABASE_URL", raising=False)
-        monkeypatch.delenv("SUPABASE_KEY", raising=False)
+        monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
+        monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
         monkeypatch.delenv("FRONTEND_URL", raising=False)
         
         # Set test values
         monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "test-key")
+        monkeypatch.setenv("SUPABASE_ANON_KEY", "test-anon-key")
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
         monkeypatch.setenv("FRONTEND_URL", "https://test.com")
 
         # Force reload of settings
@@ -112,7 +114,7 @@ class TestConfig:
     def test_settings_missing_required(self, monkeypatch):
         """Test settings with missing required variables"""
         # Mock os.getenv to return empty strings
-        monkeypatch.setattr("os.getenv", lambda key, default="": "" if key in ["SUPABASE_URL", "SUPABASE_KEY"] else default)
+        monkeypatch.setattr("os.getenv", lambda key, default="": "" if key in ["SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SUPABASE_ANON_KEY"] else default)
         
         # Force reload of settings
         import importlib

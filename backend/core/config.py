@@ -27,7 +27,7 @@ class Settings:
     @property
     def supabase_service_key(self) -> str:
         if not self.SUPABASE_SERVICE_KEY:
-            raise ValueError("SUPABASE_KEY environment variable is required")
+            raise ValueError("SUPABASE_SERVICE_KEY environment variable is required")
         return self.SUPABASE_SERVICE_KEY
 
 settings = Settings()

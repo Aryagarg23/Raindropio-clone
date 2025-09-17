@@ -1,6 +1,7 @@
 """
 Base service class and common service functionality
 """
+import asyncio
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 from abc import ABC, abstractmethod
 from core.supabase_client import supabase_service
@@ -25,7 +26,8 @@ class BaseService(ABC):
         """
         Execute a database query with optimization
         """
-        return await query_func(*args, **kwargs)
+        # Run sync Supabase query in thread pool to avoid blocking
+        return await asyncio.to_thread(query_func, *args, **kwargs)
 
     async def _select_one(self, table: str, filters: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

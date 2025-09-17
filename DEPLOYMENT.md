@@ -25,7 +25,7 @@ Set these in your backend deployment platform (Railway, Render, etc.):
 ```bash
 # Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-service-role-key
+SUPABASE_SERVICE_KEY=your-service-role-key
 
 # Frontend URL for CORS configuration
 FRONTEND_URL=https://your-frontend-domain.com
@@ -52,7 +52,7 @@ LOG_LEVEL=info
 2. **NEXT_PUBLIC_** prefix is required for frontend environment variables in Next.js
 3. **FRONTEND_URL** is used by the backend for CORS configuration
 4. **NEXT_PUBLIC_API_URL** is used by the frontend to communicate with the backend
-5. **SUPABASE_KEY** in backend should be the service role key, not the anon key
+5. **SUPABASE_SERVICE_KEY** in backend should be the service role key, not the anon key
 
 ## Verification
 

@@ -21,7 +21,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             # Create user-specific client with JWT token for proper RLS context
             http_client = httpx.Client(
                 timeout=httpx.Timeout(30.0),
-                verify=True
+                verify=True,
+                headers={'Authorization': f'Bearer {credentials.credentials}'}
             )
             options = SyncClientOptions(
                 httpx_client=http_client,
@@ -34,7 +35,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
                 settings.supabase_key,  # Use anon key, not service key
                 options=options
             )
-            user_client.auth.set_auth(credentials.credentials)  # Set user's JWT token
+            # No need for set_auth, token is in headers
             
             # Fetch user role from profiles table
             result = user_client.table("profiles").select("role").eq("user_id", user_id).execute()
@@ -74,7 +75,8 @@ def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> D
         # Create user-specific client with JWT token for proper RLS context
         http_client = httpx.Client(
             timeout=httpx.Timeout(30.0),
-            verify=True
+            verify=True,
+            headers={'Authorization': f'Bearer {token}'}
         )
         options = SyncClientOptions(
             httpx_client=http_client,
@@ -87,7 +89,7 @@ def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> D
             settings.supabase_key,  # Use anon key, not service key
             options=options
         )
-        user_client.auth.set_auth(token)  # Set user's JWT token
+        # No need for set_auth, token is in headers
         
         result = user_client.table("profiles").select("role").eq("user_id", user_id).execute()
         
