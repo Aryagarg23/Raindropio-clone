@@ -18,10 +18,10 @@ export function useAuth(teamId: string | string[] | undefined) {
 
   // Auth check and team membership verification (memoized to prevent duplicate calls)
   const checkAuth = useCallback(async () => {
-    console.log('=== AUTH CHECK START ===', { teamId: actualTeamId });
+    console.log('=== AUTH CHECK START ===', { teamId: actualTeamId, timestamp: new Date().toISOString() });
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Auth user check:', { user: user?.id, email: user?.email });
+      console.log('🔍 Auth user check:', { user: user?.id, email: user?.email, timestamp: new Date().toISOString() });
 
       if (!user) {
         console.log('No authenticated user, redirecting to home');
@@ -34,7 +34,7 @@ export function useAuth(teamId: string | string[] | undefined) {
       if (!actualTeamId) {
         console.log('No teamId provided, skipping team membership check');
       } else {
-        console.log('Checking team membership:', { teamId: actualTeamId, userId: user.id });
+        console.log('🔍 Checking team membership:', { teamId: actualTeamId, userId: user.id, timestamp: new Date().toISOString() });
         const { data: membership, error: membershipError } = await supabase
           .from('team_memberships')
           .select('*')
@@ -42,7 +42,12 @@ export function useAuth(teamId: string | string[] | undefined) {
           .eq('user_id', user.id)
           .single();
 
-        console.log('Team membership result:', { membership, membershipError });
+        console.log('📋 Team membership result:', {
+          membership,
+          membershipError,
+          hasMembership: !!membership,
+          timestamp: new Date().toISOString()
+        });
 
         if (membershipError || !membership) {
           console.error('Team membership denied:', { membershipError, membership });
@@ -52,14 +57,20 @@ export function useAuth(teamId: string | string[] | undefined) {
       }
 
       // Get user profile
-      console.log('Loading user profile for:', user.id);
+      console.log('👤 Loading user profile for:', user.id, { timestamp: new Date().toISOString() });
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
-      console.log('Profile result:', { profileData, profileError });
+      console.log('📄 Profile result:', {
+        profileData,
+        profileError,
+        hasProfile: !!profileData,
+        profileFields: profileData ? Object.keys(profileData) : [],
+        timestamp: new Date().toISOString()
+      });
 
       if (profileData) {
         setProfile(profileData);

@@ -41,33 +41,37 @@ export function useRealtimeSubscriptions({
         },
         async (payload: any) => {
           console.log('📡 Collections realtime event:', payload);
-          if (payload.eventType === 'INSERT') {
-            console.log('📡 Inserting collection:', payload.new);
-            console.log('📡 setCollections function available:', typeof setCollections);
-            setCollections(prev => {
-              console.log('📡 Current collections before insert:', prev.length);
-              const newCollection = payload.new;
-              // Insert at the correct position based on sort_order
-              const insertIndex = prev.findIndex(c => (c.sort_order || 0) > (newCollection.sort_order || 0));
-              const newCollections = insertIndex === -1 
-                ? [...prev, newCollection]
-                : [...prev.slice(0, insertIndex), newCollection, ...prev.slice(insertIndex)];
-              console.log('📡 Collections after insert:', newCollections.length);
-              return newCollections;
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            console.log('📡 Updating collection:', payload.new);
-            console.log('📡 setCollections function available:', typeof setCollections);
-            setCollections(prev => {
-              console.log('📡 Updating collection in state, prev length:', prev.length);
-              const updated = prev.map(c => c.id === payload.new.id ? payload.new : c);
-              console.log('📡 Collection updated, new length:', updated.length);
-              return updated;
-            });
-          } else if (payload.eventType === 'DELETE') {
-            console.log('📡 Deleting collection:', payload.old);
-            console.log('📡 setCollections function available:', typeof setCollections);
-            setCollections(prev => prev.filter(c => c.id !== payload.old.id));
+          try {
+            if (payload.eventType === 'INSERT') {
+              console.log('📡 Inserting collection:', payload.new);
+              console.log('📡 setCollections function available:', typeof setCollections);
+              setCollections(prev => {
+                console.log('📡 Current collections before insert:', prev.length);
+                const newCollection = payload.new;
+                // Insert at the correct position based on sort_order
+                const insertIndex = prev.findIndex(c => (c.sort_order || 0) > (newCollection.sort_order || 0));
+                const newCollections = insertIndex === -1 
+                  ? [...prev, newCollection]
+                  : [...prev.slice(0, insertIndex), newCollection, ...prev.slice(insertIndex)];
+                console.log('📡 Collections after insert:', newCollections.length);
+                return newCollections;
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              console.log('📡 Updating collection:', payload.new);
+              console.log('📡 setCollections function available:', typeof setCollections);
+              setCollections(prev => {
+                console.log('📡 Updating collection in state, prev length:', prev.length);
+                const updated = prev.map(c => c.id === payload.new.id ? payload.new : c);
+                console.log('📡 Collection updated, new length:', updated.length);
+                return updated;
+              });
+            } else if (payload.eventType === 'DELETE') {
+              console.log('📡 Deleting collection:', payload.old);
+              console.log('📡 setCollections function available:', typeof setCollections);
+              setCollections(prev => prev.filter(c => c.id !== payload.old.id));
+            }
+          } catch (err) {
+            console.error('📡 Error handling collections realtime event:', err);
           }
         }
       )
@@ -82,70 +86,84 @@ export function useRealtimeSubscriptions({
         { event: '*', schema: 'public', table: 'bookmarks', filter: 'team_id=eq.' + teamId },
         async (payload: any) => {
           console.log('📡 Bookmarks realtime event:', payload);
-          if (payload.eventType === 'INSERT') {
-            console.log('📡 setBookmarks function available:', typeof setBookmarks);
-            // Fetch the full bookmark with relations
-            const { data: newBookmark } = await supabase
-              .from('bookmarks')
-              .select(`
-                *,
-                profiles:created_by (
-                  user_id,
-                  full_name,
-                  avatar_url
-                ),
-                collections (
-                  id,
-                  name,
-                  color
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
+          try {
+            if (payload.eventType === 'INSERT') {
+              console.log('📡 setBookmarks function available:', typeof setBookmarks);
+              // Fetch the full bookmark with relations
+              const { data: newBookmark, error } = await supabase
+                .from('bookmarks')
+                .select(`
+                  *,
+                  profiles:created_by (
+                    user_id,
+                    full_name,
+                    avatar_url
+                  ),
+                  collections (
+                    id,
+                    name,
+                    color
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
 
-            if (newBookmark) {
-              console.log('📡 Adding bookmark to state:', newBookmark.title);
-              setBookmarks(prev => [newBookmark, ...prev]);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            console.log('📡 Updating bookmark:', payload.new);
-            console.log('📡 setBookmarks function available:', typeof setBookmarks);
-            // Fetch the updated bookmark with full relations
-            const { data: updatedBookmark } = await supabase
-              .from('bookmarks')
-              .select(`
-                *,
-                profiles:created_by (
-                  user_id,
-                  full_name,
-                  avatar_url
-                ),
-                collections (
-                  id,
-                  name,
-                  color
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
+              if (error) {
+                console.error('📡 Failed to fetch new bookmark:', error);
+                return;
+              }
 
-            if (updatedBookmark) {
+              if (newBookmark) {
+                console.log('📡 Adding bookmark to state:', newBookmark.title);
+                setBookmarks(prev => [newBookmark, ...prev]);
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              console.log('📡 Updating bookmark:', payload.new);
+              console.log('📡 setBookmarks function available:', typeof setBookmarks);
+              // Fetch the updated bookmark with full relations
+              const { data: updatedBookmark, error } = await supabase
+                .from('bookmarks')
+                .select(`
+                  *,
+                  profiles:created_by (
+                    user_id,
+                    full_name,
+                    avatar_url
+                  ),
+                  collections (
+                    id,
+                    name,
+                    color
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
+
+              if (error) {
+                console.error('📡 Failed to fetch updated bookmark:', error);
+                return;
+              }
+
+              if (updatedBookmark) {
+                setBookmarks(prev => {
+                  console.log('📡 Updating bookmark in state, prev length:', prev.length);
+                  const updated = prev.map(b => b.id === updatedBookmark.id ? updatedBookmark : b);
+                  console.log('📡 Bookmark updated, new length:', updated.length);
+                  return updated;
+                });
+              }
+            } else if (payload.eventType === 'DELETE') {
+              console.log('📡 Deleting bookmark:', payload.old);
+              console.log('📡 setBookmarks function available:', typeof setBookmarks);
               setBookmarks(prev => {
-                console.log('📡 Updating bookmark in state, prev length:', prev.length);
-                const updated = prev.map(b => b.id === updatedBookmark.id ? updatedBookmark : b);
-                console.log('📡 Bookmark updated, new length:', updated.length);
-                return updated;
+                console.log('📡 Deleting bookmark from state, prev length:', prev.length);
+                const filtered = prev.filter(b => b.id !== payload.old.id);
+                console.log('📡 Bookmark deleted, new length:', filtered.length);
+                return filtered;
               });
             }
-          } else if (payload.eventType === 'DELETE') {
-            console.log('📡 Deleting bookmark:', payload.old);
-            console.log('📡 setBookmarks function available:', typeof setBookmarks);
-            setBookmarks(prev => {
-              console.log('📡 Deleting bookmark from state, prev length:', prev.length);
-              const filtered = prev.filter(b => b.id !== payload.old.id);
-              console.log('📡 Bookmark deleted, new length:', filtered.length);
-              return filtered;
-            });
+          } catch (err) {
+            console.error('📡 Error handling bookmarks realtime event:', err);
           }
         }
       )

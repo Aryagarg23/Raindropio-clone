@@ -11,6 +11,7 @@ import TabNavigation from '../components/admin/TabNavigation';
 import Modal from '../components/admin/Modal';
 import TeamManagementSection from '../components/admin/TeamManagementSection';
 import MemberManagementSection from '../components/admin/MemberManagementSection';
+import { GlobalLoadingState } from '../components/shared/GlobalLoadingState';
 
 export default function AdminPanel() {
   const router = useRouter();
@@ -32,9 +33,11 @@ export default function AdminPanel() {
 
   if (loading) {
     return (
-      <AdminPanelLayout>
-        <LoadingSpinner message="Loading admin panel..." />
-      </AdminPanelLayout>
+      <GlobalLoadingState
+        message="Loading admin panel..."
+        error={error}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 

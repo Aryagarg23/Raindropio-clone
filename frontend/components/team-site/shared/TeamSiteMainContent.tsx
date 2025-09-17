@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { Folder, Grid3X3, List, ExternalLink, Copy, ChevronDown, ChevronRight, Search, Plus, Share2, Settings, Users } from 'lucide-react';
+import { Folder, Grid3X3, List, ExternalLink, Copy, ChevronDown, ChevronRight, Search, Plus, Share2, Settings, Users, Home, Bookmark, Activity } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
 import { DirectoryModal } from './DirectoryModal';
@@ -81,6 +81,8 @@ interface TeamSiteMainContentProps {
   onHandleBookmarkDragStart: (e: any, bookmarkId: string) => void;
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
+  onCreateCollection: () => void;
+  onCreateBookmark: () => void;
 }
 
 export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
@@ -130,31 +132,45 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
   onHandleDrop,
   onHandleBookmarkDragStart,
   onHandleBookmarkDragOver,
-  onHandleBookmarkDrop
+  onHandleBookmarkDrop,
+  onCreateCollection,
+  onCreateBookmark
 }) => {
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="w-full">
       <Tabs value={activeTab} onValueChange={onActiveTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8">
-          <TabsTrigger value="main" className="flex items-center gap-2">
-            <Grid3X3 className="w-4 h-4" />
-            Main
+        <TabsList className="grid w-full grid-cols-4 h-12 p-1 text-slate-600 bg-slate-200 rounded-xl">
+          <TabsTrigger
+            value="main"
+            className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-lg transition-colors"
+          >
+            <Home className="w-4 h-4" />
+            Overview
           </TabsTrigger>
-          <TabsTrigger value="bookmarks" className="flex items-center gap-2">
-            <List className="w-4 h-4" />
+          <TabsTrigger
+            value="bookmarks"
+            className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-lg transition-colors"
+          >
+            <Bookmark className="w-4 h-4" />
             Bookmarks ({bookmarks.length})
           </TabsTrigger>
-          <TabsTrigger value="collections" className="flex items-center gap-2">
+          <TabsTrigger
+            value="collections"
+            className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-lg transition-colors"
+          >
             <Folder className="w-4 h-4" />
             Collections ({collections.length})
           </TabsTrigger>
-          <TabsTrigger value="activity" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
+          <TabsTrigger
+            value="activity"
+            className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-lg transition-colors"
+          >
+            <Activity className="w-4 h-4" />
             Activity
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="main" className="space-y-8">
+        <TabsContent value="main" className="space-y-8 mt-6">
           <MainTabContent
             viewMode={viewMode}
             collections={nestedCollections}
@@ -180,10 +196,12 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
             onHandleBookmarkDragStart={onHandleBookmarkDragStart}
             onHandleBookmarkDragOver={onHandleBookmarkDragOver}
             onHandleBookmarkDrop={onHandleBookmarkDrop}
+            onCreateCollection={onCreateCollection}
+            onCreateBookmark={onCreateBookmark}
           />
         </TabsContent>
 
-        <TabsContent value="bookmarks" className="space-y-6">
+        <TabsContent value="bookmarks" className="space-y-6 mt-6">
           <BookmarksTabContent
             viewMode={viewMode}
             advancedFilteredBookmarks={advancedFilteredBookmarks}
@@ -198,7 +216,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
           />
         </TabsContent>
 
-        <TabsContent value="collections" className="space-y-6">
+        <TabsContent value="collections" className="space-y-6 mt-6">
           <CollectionsTabContent
             filteredCollections={filteredCollections}
             collectionFilters={collectionFilters}
@@ -215,7 +233,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
           />
         </TabsContent>
 
-        <TabsContent value="activity" className="space-y-6">
+        <TabsContent value="activity" className="space-y-6 mt-6">
           <ActivityTabContent teamEvents={teamEvents} />
         </TabsContent>
       </Tabs>

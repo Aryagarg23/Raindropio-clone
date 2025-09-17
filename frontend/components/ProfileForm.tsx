@@ -41,45 +41,82 @@ export default function ProfileForm({ user, profile, onProfileUpdated }: Profile
   }
 
   return (
-    <form onSubmit={handleProfileSubmit} style={{ background: "var(--surface)", borderRadius: "16px", boxShadow: "var(--shadow-md)", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", minWidth: "320px" }}>
-      <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>Complete Your Profile</h2>
-      <label htmlFor="profile-name" style={{ fontWeight: 600 }}>
-        Name
-        <input 
-          id="profile-name"
-          name="fullName"
-          type="text" 
-          value={name} 
-          onChange={e => setName(e.target.value)} 
-          required 
-          style={{ background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px", marginTop: "8px", fontSize: "1rem", display: "block", width: "100%" }} 
-        />
-      </label>
-      <label htmlFor="profile-avatar" style={{ fontWeight: 600 }}>
-        Avatar (PNG/JPG)
-        <input 
-          id="profile-avatar"
-          name="avatar"
-          type="file" 
-          accept="image/png, image/jpeg" 
-          onChange={handleAvatarChange} 
-          required={!profile || !profile.avatar_url || profile.avatar_url === ""} 
-          style={{ marginTop: "8px", display: "block", width: "100%" }} 
-        />
-      </label>
-      <label htmlFor="profile-color" style={{ fontWeight: 600 }}>
-        Favorite Color
-        <input 
-          id="profile-color"
-          name="favoriteColor"
-          type="color" 
-          value={color} 
-          onChange={e => setColor(e.target.value)} 
-          style={{ marginLeft: "8px", verticalAlign: "middle" }} 
-        />
-        <span style={{ marginLeft: "16px", fontWeight: 400 }}>{getClosestColorName(color)}</span>
-      </label>
-      <button type="submit" disabled={submitting} style={{ background: "var(--primary)", color: "#212529", padding: "12px 24px", borderRadius: "8px", fontSize: "1.1em", fontWeight: 600, boxShadow: "var(--shadow-md)", border: "none", cursor: "pointer", transition: "background 200ms ease-out, box-shadow 200ms ease-out" }}>{submitting ? "Saving..." : "Save Profile"}</button>
-    </form>
+    <div className="w-full max-w-2xl">
+      <form 
+        onSubmit={handleProfileSubmit} 
+        className="bg-white rounded-xl shadow-md p-8 space-y-6 border border-grey-accent-200"
+      >
+        <h2 className="text-3xl font-bold text-grey-accent-900 mb-2">Complete Your Profile</h2>
+        <p className="text-grey-accent-600 mb-6">Please fill out your information to get started.</p>
+        
+        <div className="space-y-6">
+          <div>
+            <label htmlFor="profile-name" className="block text-sm font-semibold text-grey-accent-700 mb-2">
+              Full Name
+            </label>
+            <input 
+              id="profile-name"
+              name="fullName"
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              required 
+              placeholder="Enter your full name"
+              className="w-full px-4 py-3 bg-grey-accent-50 border border-grey-accent-200 rounded-lg text-grey-accent-900 placeholder-grey-accent-400 focus:outline-none focus:ring-2 focus:ring-grey-accent-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="profile-avatar" className="block text-sm font-semibold text-grey-accent-700 mb-2">
+              Profile Picture (PNG/JPG)
+            </label>
+            <input 
+              id="profile-avatar"
+              name="avatar"
+              type="file" 
+              accept="image/png, image/jpeg" 
+              onChange={handleAvatarChange} 
+              required={!profile || !profile.avatar_url || profile.avatar_url === ""} 
+              className="w-full px-4 py-3 bg-grey-accent-50 border border-grey-accent-200 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-grey-accent-100 file:text-grey-accent-700 hover:file:bg-grey-accent-200 focus:outline-none focus:ring-2 focus:ring-grey-accent-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="profile-color" className="block text-sm font-semibold text-grey-accent-700 mb-2">
+              Favorite Color
+            </label>
+            <div className="flex items-center space-x-4">
+              <input 
+                id="profile-color"
+                name="favoriteColor"
+                type="color" 
+                value={color} 
+                onChange={e => setColor(e.target.value)} 
+                className="w-12 h-12 border-2 border-grey-accent-200 rounded-lg cursor-pointer"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-grey-accent-900">{getClosestColorName(color)}</span>
+                <div className="text-xs text-grey-accent-500 mt-1">Click the color box to choose your favorite color</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          disabled={submitting} 
+          className="w-full bg-grey-accent-800 hover:bg-grey-accent-900 disabled:bg-grey-accent-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:shadow-none"
+        >
+          {submitting ? (
+            <div className="flex items-center justify-center space-x-2">
+              <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+              <span>Saving...</span>
+            </div>
+          ) : (
+            "Save Profile"
+          )}
+        </button>
+      </form>
+    </div>
   );
 }

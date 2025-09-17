@@ -24,7 +24,7 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
       setDataLoading(true);
       setDataError(null);
 
-      console.log('Loading team site data for:', teamId);
+      console.log('🏢 Loading team site data for:', teamId, { timestamp: new Date().toISOString() });
 
       // Load collections
       const { data: collectionsData, error: collectionsError } = await supabase
@@ -34,10 +34,13 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
         .order('sort_order', { ascending: true });
 
       if (collectionsError) {
-        console.error('Collections loading failed:', collectionsError);
+        console.error('❌ Collections loading failed:', collectionsError, { timestamp: new Date().toISOString() });
         setDataError('Failed to load collections');
       } else {
-        console.log('Collections loaded:', collectionsData?.length || 0);
+        console.log('📁 Collections loaded:', collectionsData?.length || 0, {
+          collections: collectionsData?.map(c => ({ id: c.id, name: c.name })),
+          timestamp: new Date().toISOString()
+        });
         setCollections(collectionsData || []);
       }
 
@@ -61,10 +64,14 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
         .order('created_at', { ascending: false });
 
       if (bookmarksError) {
-        console.error('Bookmarks loading failed:', bookmarksError);
+        console.error('❌ Bookmarks loading failed:', bookmarksError, { timestamp: new Date().toISOString() });
         setDataError('Failed to load bookmarks');
       } else {
-        console.log('Bookmarks loaded:', bookmarksData?.length || 0);
+        console.log('🔖 Bookmarks loaded:', bookmarksData?.length || 0, {
+          bookmarks: bookmarksData?.slice(0, 3).map(b => ({ id: b.id, title: b.title, url: b.url })),
+          totalBookmarks: bookmarksData?.length || 0,
+          timestamp: new Date().toISOString()
+        });
         setBookmarks(bookmarksData || []);
       }
 
@@ -105,9 +112,17 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
         .order('last_seen', { ascending: false });
 
       if (presenceError) {
-        console.error('Presence loading failed:', presenceError);
+        console.error('❌ Presence loading failed:', presenceError, { timestamp: new Date().toISOString() });
       } else {
-        console.log('Presence loaded:', presenceData?.length || 0);
+        console.log('👥 Presence loaded:', presenceData?.length || 0, {
+          onlineUsers: presenceData?.length || 0,
+          users: presenceData?.slice(0, 3).map(p => ({
+            user_id: p.user_id,
+            full_name: p.profiles?.full_name,
+            last_seen: p.last_seen
+          })),
+          timestamp: new Date().toISOString()
+        });
         setPresence(presenceData || []);
       }
 

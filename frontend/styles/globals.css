@@ -51,6 +51,22 @@
   --transition-ease: ease-out;
 }
 
+/* Additional grey depth tokens for dashboard polish */
+:root {
+  --grey-50: #fafafa;
+  --grey-75: #f6f6f7;
+  --grey-100: #f3f4f6;
+  --grey-150: #eef0f2;
+  --grey-200: #e5e7eb;
+  --grey-300: #d1d5db;
+  --grey-350: #c7cbd1;
+  --grey-400: #9ca3af;
+  --grey-500: #6b7280;
+  --card-surface: 255 255 255; /* fallback for hsl handling */
+  --card-border: rgba(16,24,40,0.06);
+  --card-ambient: 0 0 0 / 6%;
+}
+
 .dark {
   --background: 222.2 84% 4.9%;
   --foreground: 210 40% 98%;
@@ -96,6 +112,21 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', 'Nunito Sans', sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Card utilities for layered depth */
+.card-deep {
+  background: linear-gradient(180deg, rgba(var(--card-surface), 0.98), rgba(var(--card-surface), 1));
+  border: 1px solid var(--card-border);
+  box-shadow: 0 6px 18px rgba(var(--card-ambient));
+  border-radius: 12px;
+}
+
+.card-subtle {
+  background: linear-gradient(180deg, var(--grey-50), var(--grey-75));
+  border: 1px solid rgba(16,24,40,0.04);
+  box-shadow: 0 4px 12px rgba(16,24,40,0.04);
+  border-radius: 10px;
 }
 
 /* Animation Keyframes */

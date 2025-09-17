@@ -31,6 +31,7 @@ export interface CollectionFilterState {
   selectedCreators: string[];
   selectedParents: string[];
   hasBookmarks: boolean | null;
+  dateRange: { start: Date; end: Date } | null;
   sortBy: 'created_at' | 'name' | 'bookmark_count';
   sortOrder: 'asc' | 'desc';
 }
@@ -165,6 +166,15 @@ export const filterCollections = (
     filtered = filtered.filter(collection => {
       const bookmarkCount = bookmarks.filter(b => b.collection_id === collection.id).length;
       return filters.hasBookmarks ? bookmarkCount > 0 : bookmarkCount === 0;
+    });
+  }
+
+  // Date range filter
+  if (filters.dateRange) {
+    const { start, end } = filters.dateRange;
+    filtered = filtered.filter(collection => {
+      const collectionDate = new Date(collection.created_at);
+      return collectionDate >= start && collectionDate <= end;
     });
   }
 

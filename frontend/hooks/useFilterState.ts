@@ -45,6 +45,7 @@ interface CollectionFilterState {
   selectedCreators: string[];
   selectedParents: string[];
   hasBookmarks: boolean | null;
+  dateRange: { start: Date; end: Date } | null;
   sortBy: 'created_at' | 'name' | 'bookmark_count';
   sortOrder: 'asc' | 'desc';
 }
@@ -73,6 +74,7 @@ export const useFilterState = (): FilterState & FilterActions => {
     selectedCreators: [],
     selectedParents: [],
     hasBookmarks: null,
+    dateRange: null,
     sortBy: 'created_at',
     sortOrder: 'desc'
   });

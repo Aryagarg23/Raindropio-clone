@@ -6,12 +6,10 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
   const [actionLoading, setActionLoading] = useState(false);
 
   // Create collection
-  const createCollection = async (name: string, color: string = '#3b82f6') => {
+  const createCollection = async (name: string, description?: string, color: string = '#3b82f6', parentId?: string) => {
     if (!teamId || !user) return;
 
     try {
-      setActionLoading(true);
-
       // Get max sort_order for positioning
       const { data: existingCollections } = await supabase
         .from('collections')
@@ -28,7 +26,9 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
         .insert({
           team_id: teamId,
           name,
+          description,
           color,
+          parent_id: parentId,
           created_by: user.id,
           sort_order: newSortOrder
         })
@@ -58,8 +58,6 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
       console.error('Failed to create collection:', err);
       setError('Failed to create collection');
       throw err;
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -107,8 +105,6 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
     if (!teamId || !user) return;
 
     try {
-      setActionLoading(true);
-
       // Extract content and metadata from the URL
       let extractedData = null;
       try {
@@ -186,8 +182,6 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
       console.error('Failed to create bookmark:', err);
       setError('Failed to add bookmark');
       throw err;
-    } finally {
-      setActionLoading(false);
     }
   };
 

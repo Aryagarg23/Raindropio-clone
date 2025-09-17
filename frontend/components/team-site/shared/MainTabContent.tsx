@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { Grid3X3, List, ExternalLink } from 'lucide-react';
+import { Grid3X3, List, ExternalLink, Plus } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
@@ -49,6 +49,8 @@ interface MainTabContentProps {
   onHandleBookmarkDragStart: (e: any, bookmarkId: string) => void;
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
+  onCreateCollection: () => void;
+  onCreateBookmark: () => void;
 }
 
 export const MainTabContent: React.FC<MainTabContentProps> = ({
@@ -75,17 +77,28 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   onHandleDrop,
   onHandleBookmarkDragStart,
   onHandleBookmarkDragOver,
-  onHandleBookmarkDrop
+  onHandleBookmarkDrop,
+  onCreateCollection,
+  onCreateBookmark
 }) => {
   return (
     <div className="space-y-8">
       {/* Collection Tree Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-0">
+        <div className="lg:col-span-1 lg:pr-6">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-grey-accent-900">Collections</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCreateCollection}
+              className="flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+              title="Add Collection"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Collections</CardTitle>
-            </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-y-auto">
                 <CollectionTreeRenderer
@@ -115,23 +128,34 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
         </div>
 
         {/* Bookmarks Grid */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 lg:pl-6 lg:border-l lg:border-grey-accent-200">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-grey-accent-900">
-              {selectedCollectionId
-                ? collections.find(c => c.id === selectedCollectionId)?.name || 'Collection'
-                : 'All Bookmarks'
-              }
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-grey-accent-900">
+                {selectedCollectionId
+                  ? collections.find(c => c.id === selectedCollectionId)?.name || 'All Bookmarks'
+                  : 'All Bookmarks'
+                }
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCreateBookmark}
+                className="flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+                title="Add Bookmark"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => onViewModeChange(viewMode === 'grid' ? 'list' : 'grid')}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
               >
-                {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
-                {viewMode === 'grid' ? 'List' : 'Grid'}
+                {viewMode === 'grid' ? <Grid3X3 className="w-4 h-4" /> : <List className="w-4 h-4" />}
+                <span className="capitalize">{viewMode}</span>
               </Button>
             </div>
           </div>

@@ -34,7 +34,7 @@ export const DashboardTeamsSection: React.FC<DashboardTeamsSectionProps> = ({
         <div className="space-y-6">
           {/* Team skeleton cards */}
           {[1, 2].map((i) => (
-            <div key={i} className="p-6 border border-grey-accent-200 rounded-xl bg-white animate-pulse">
+            <div key={i} className="p-6 rounded-xl card-subtle animate-pulse">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex items-start space-x-4">
                   <div className="w-12 h-12 bg-grey-accent-200 rounded-xl"></div>
@@ -60,7 +60,7 @@ export const DashboardTeamsSection: React.FC<DashboardTeamsSectionProps> = ({
           ))}
         </div>
       ) : teams.length === 0 ? (
-        <div className="p-12 text-center border-2 border-dashed border-grey-accent-300 rounded-xl bg-grey-accent-50">
+  <div className="p-12 text-center border-2 border-dashed border-grey-accent-300 rounded-xl bg-grey-accent-50 card-subtle">
           <div className="w-16 h-16 bg-gradient-to-br from-grey-accent-500 to-grey-accent-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-md border border-grey-accent-300">
             <span className="text-2xl text-white">👥</span>
           </div>
@@ -77,12 +77,13 @@ export const DashboardTeamsSection: React.FC<DashboardTeamsSectionProps> = ({
       ) : (
         <div className="grid gap-6">
           {teams.map((team: Team) => (
-            <TeamCard
-              key={team.id}
-              team={team}
-              members={teamMembers[team.id] || []}
-              membersLoading={membersLoading[team.id] || false}
-            />
+            <div key={team.id} className="p-0">
+              <TeamCard
+                team={team}
+                members={teamMembers[team.id] || []}
+                membersLoading={membersLoading[team.id] || false}
+              />
+            </div>
           ))}
         </div>
       )}
