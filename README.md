@@ -15,7 +15,9 @@ Raindropio-clone is a collaborative bookmarking and knowledge organization platf
 - **Maintainable codebase** with modular architecture and proper separation of concerns
 
 ## Project Structure
-
+```
+hi
+```
 ```
 Raindropio-clone/
 ├── backend/      # FastAPI backend (Python, Uvicorn)
