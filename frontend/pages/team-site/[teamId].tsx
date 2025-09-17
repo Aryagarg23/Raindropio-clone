@@ -24,7 +24,6 @@ import { Collection } from "../../types/api"
 import { filterBookmarks, filterCollections, getAllTags, getAvailableTags, getAllCreators, getAllCollectionCreators, getParentCollections, BookmarkFilterState, CollectionFilterState } from "../../utils/filterUtils"
 import { generateDirectoryStructure, getCollectionDirectoryMarkdown, copyDirectoryStructure } from "../../utils/directoryUtils"
 import { buildCollectionTree, flattenCollections, updateCollectionBookmarkCounts } from "../../utils/collectionTreeUtils"
-import supabase from "../../modules/supabaseClient"
 import { getApiBaseUrl } from '../../modules/apiClient'
 import { generateFallbackThumbnail } from '../../lib/utils'
 import ProfileIcon from "../../components/ProfileIcon"
@@ -129,6 +128,7 @@ export default function TeamSitePage() {
     deleteAnnotation,
     extractContent,
     fetchProxyContent,
+    updateBookmarkTags,
     bookmarkAnnotations,
     bookmarkHighlights,
     extractedContent,
@@ -198,7 +198,6 @@ export default function TeamSitePage() {
   const {
     toggleCollection,
     handleBookmarkClick,
-    updateBookmarkTags,
     updateSelectedBookmarkTags,
     handleCreateAction
   } = useUIHandlers({
@@ -210,7 +209,7 @@ export default function TeamSitePage() {
     setShowAddBookmark,
     fetchBookmarkData,
     activeTab,
-    supabase,
+    updateBookmarkTags,
     setError,
     selectedBookmark
   })

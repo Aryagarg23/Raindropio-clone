@@ -9,7 +9,7 @@ interface UseUIHandlersProps {
   setShowAddBookmark: (show: boolean) => void;
   fetchBookmarkData: (bookmarkId: string) => Promise<void>;
   activeTab: string;
-  supabase: any;
+  updateBookmarkTags: (bookmarkId: string, newTags: string[]) => Promise<void>;
   setError: (error: string | null) => void;
   selectedBookmark: any;
 }
@@ -23,7 +23,7 @@ export const useUIHandlers = ({
   setShowAddBookmark,
   fetchBookmarkData,
   activeTab,
-  supabase,
+  updateBookmarkTags,
   setError,
   selectedBookmark
 }: UseUIHandlersProps) => {
@@ -46,22 +46,9 @@ export const useUIHandlers = ({
     await fetchBookmarkData(bookmark.id)
   }, [setSelectedBookmark, setBookmarkViewMode, fetchBookmarkData])
 
-  const updateBookmarkTags = useCallback(async (bookmarkId: string, newTags: string[]) => {
-    try {
-      // Update bookmark tags via API
-      const { data, error } = await supabase
-        .from('bookmarks')
-        .update({ tags: newTags })
-        .eq('id', bookmarkId);
-
-      if (error) throw error;
-
-      // The real-time subscription will update the UI automatically
-    } catch (error) {
-      console.error('Failed to update tags:', error);
-      setError('Failed to update bookmark tags');
-    }
-  }, [supabase, setError])
+  const updateBookmarkTagsWrapper = useCallback(async (bookmarkId: string, newTags: string[]) => {
+    await updateBookmarkTags(bookmarkId, newTags);
+  }, [updateBookmarkTags])
 
   // Wrapper function for BookmarkDetailModal that uses selectedBookmark
   const updateSelectedBookmarkTags = useCallback(async (tags: string[], bookmarkId?: string) => {
@@ -82,7 +69,7 @@ export const useUIHandlers = ({
   return {
     toggleCollection,
     handleBookmarkClick,
-    updateBookmarkTags,
+    updateBookmarkTags: updateBookmarkTagsWrapper,
     updateSelectedBookmarkTags,
     handleCreateAction
   };

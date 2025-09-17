@@ -3,86 +3,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import supabase from "../modules/supabaseClient";
 import { AuthUser } from "../types/api";
+import { useAuthState } from "../hooks/useAuthState";
 
 export default function Home() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Add timeout to prevent infinite loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.error("⏰ Landing page loading timeout reached");
-        setError("Loading is taking too long. Please refresh the page or try again.");
-        setLoading(false);
-      }
-    }, 10000); // 10 second timeout for landing page
-
-    return () => clearTimeout(timeout);
-  }, [loading]);
-
-  useEffect(() => {
-    async function fetchUserAndProfile() {
-      setLoading(true);
-      setError(null);
-      try {
-        // Check if we have access_token in URL hash (OAuth redirect)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        if (accessToken) {
-          console.log("🔑 Found OAuth tokens in URL, setting session...");
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-        
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error("❌ Session error:", sessionError);
-          setError("Authentication failed. Please try signing in again.");
-          setLoading(false);
-          return;
-        }
-        
-        const { data, error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error("❌ User fetch error:", userError);
-          // Not a critical error - user might just not be logged in
-        }
-        
-        if (data?.user) {
-          console.log("✅ User authenticated, redirecting to dashboard");
-          // User is authenticated, redirect to dashboard
-          router.push('/dashboard');
-          return;
-        }
-      } catch (error) {
-        console.error("❌ Auth initialization failed:", error);
-        setError("Failed to initialize authentication. Please refresh the page and try again.");
-      }
-      setLoading(false);
+  // Use the auth state hook
+  const { user, loading, error, signInWithGoogle, setError } = useAuthState({
+    redirectToDashboard: true, // Redirect to dashboard if authenticated
+    onUserChange: (newUser) => {
+      // Handle user changes if needed
     }
-        // Listen for auth state changes (handles OAuth redirects)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      if (event === 'SIGNED_IN' && session) {
-        // Redirect to dashboard on sign in
-        router.push('/dashboard');
-      } else if (event === 'SIGNED_OUT') {
-        // Stay on landing page when signed out
-        setLoading(false);
-      }
-    });
-    fetchUserAndProfile();
-    return () => subscription?.unsubscribe();
-  }, [router]);
-
-  const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({ provider: "google" });
-  };
+  });
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">

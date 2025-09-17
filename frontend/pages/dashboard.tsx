@@ -8,156 +8,45 @@ import { DashboardLoadingState } from "../components/dashboard/DashboardLoadingS
 import { DashboardHeader } from "../components/dashboard/DashboardHeader";
 import { DashboardWelcomeMessage } from "../components/dashboard/DashboardWelcomeMessage";
 import { DashboardTeamsSection } from "../components/dashboard/DashboardTeamsSection";
+import { useAuthState } from "../hooks/useAuthState";
 
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamMembers, setTeamMembers] = useState<Record<string, UserProfile[]>>({});
-  const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [membersLoading, setMembersLoading] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch teams in parallel with profile - don't wait for profile completion
+  // Use the auth state hook
+  const { user, profile, loading, error, signOut, syncUserProfile, setError } = useAuthState({
+    redirectToHome: true, // Redirect to home if not authenticated
+    onUserChange: (newUser) => {
+      if (!newUser) {
+        setTeams([]);
+        setTeamMembers({});
+      }
+    },
+    onProfileChange: (newProfile) => {
+      // Handle profile changes if needed
+    }
+  });
+
+    // Fetch teams when user and profile are available
   useEffect(() => {
     if (user && profile) {
       fetchTeams();
     }
   }, [user, profile]);
 
-  // Add a timeout to prevent infinite loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.error("⏰ Loading timeout reached - something went wrong");
-        setError("Loading is taking too long. Please refresh the page or try again.");
-        setLoading(false);
-      }
-    }, 15000); // 15 second timeout
-
-    return () => clearTimeout(timeout);
-  }, [loading]);
-
-  useEffect(() => {
-    async function fetchUserAndProfile() {
-      setLoading(true);
-      try {
-        // Check if we have access_token in URL hash (OAuth redirect)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        if (accessToken) {
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        const { data } = await supabase.auth.getUser();
-        setUser(data?.user as AuthUser);
-        if (data?.user) {
-          console.log("✅ User found, syncing profile and fetching initial data...");
-          
-          // Start profile sync and teams fetch in parallel
-          const profilePromise = syncUserProfile();
-          const teamsPromise = fetchTeamsData();
-          
-          // Wait for both to complete, but don't block on errors
-          await Promise.allSettled([profilePromise, teamsPromise]);
-        } else {
-          // No user, redirect to login page
-          router.push('/');
-        }
-      } catch (error) {
-        console.error("❌ Auth initialization failed:", error);
-        router.push('/'); // Redirect to login page on error
-      }
-      setLoading(false);
-    }
-
-    async function syncUserProfile() {
-      setProfileLoading(true);
-      try {
-        const response = await apiClient.syncProfile();
-        console.log("✅ Profile sync successful:", response);
-        setProfile(response.profile);
-      } catch (error) {
-        console.error("❌ Profile sync failed:", error);
-        if (error instanceof ApiError && error.status === 401) {
-          console.log("🚫 Unauthorized, redirecting to login...");
-          setUser(null);
-          router.push('/'); // Redirect to login page
-          return;
-        } else if (error instanceof ApiError && error.status === 0) {
-          console.error("❌ Network error during profile sync");
-          setError("Unable to connect to the server. Please check your internet connection and try again.");
-          return;
-        } else {
-          console.error("❌ Non-auth error during profile sync, continuing without profile");
-          // Continue with no profile - let user complete it
-        }
-      } finally {
-        setProfileLoading(false);
-      }
-    }
-
-    async function fetchTeamsData() {
-      setTeamsLoading(true);
-      try {
-        console.log("🏢 Fetching user teams...");
-        const response: ListTeamsResponse = await apiClient.getTeams();
-        setTeams(response.teams || []);
-        console.log(`✅ Loaded ${response.teams?.length || 0} teams`);
-        
-        // Fetch team members in parallel for all teams
-        if (response.teams?.length) {
-          fetchAllTeamMembers(response.teams);
-        }
-      } catch (error) {
-        console.error("❌ Error fetching teams:", error);
-        setTeams([]);
-      } finally {
-        setTeamsLoading(false);
-      }
-    }
-    
-    // Listen for auth state changes (handles OAuth redirects)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      if (event === 'SIGNED_IN' && session) {
-        // Don't sync profile here - it's already handled in fetchUserAndProfile()
-        // This prevents race conditions for new users
-        console.log("🔄 Auth state changed to SIGNED_IN, user data will be handled by main flow");
-        setUser(session.user as AuthUser);
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-        setTeams([]);
-        router.push('/');
-      }
-    });
-    
-    fetchUserAndProfile();
-
-    return () => subscription?.unsubscribe();
-  }, [router]);
-
   const refreshProfile = async () => {
     console.log("🔄 Refreshing profile...");
     setError(null); // Clear any existing error
     setProfileLoading(true);
-    
+
     try {
-      const response = await apiClient.syncProfile();
-      console.log("🔍 Sync response:", response);
-      console.log("🔍 Profile from response:", response.profile);
-      setProfile(response.profile);
-      
+      await syncUserProfile();
       // Teams are fetched automatically via useEffect when profile updates
     } catch (error) {
       console.error("❌ Error refreshing profile:", error);
@@ -251,13 +140,8 @@ export default function Dashboard() {
   const retryLoading = () => {
     console.log("🔄 Retrying dashboard loading...");
     setError(null);
-    setLoading(true);
     setRetryCount(prev => prev + 1);
-    // The useEffect will trigger and run fetchUserAndProfile again
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
+    // The auth hook will handle re-initialization
   };
 
   if (loading) {
