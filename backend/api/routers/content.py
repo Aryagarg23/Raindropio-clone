@@ -5,12 +5,15 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl
 import httpx
 import asyncio
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from urllib.parse import urljoin, urlparse
 import re
 import base64
 from io import BytesIO
 import logging
+
+router = APIRouter(prefix="/content", tags=["content"])
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/content", tags=["content"])
 logger = logging.getLogger(__name__)
@@ -30,6 +33,126 @@ class ScreenshotRequest(BaseModel):
     url: HttpUrl
     width: int = 1200
     height: int = 800
+
+def html_to_formatted_text(html_content: str) -> str:
+    """
+    Convert HTML content to formatted plain text while preserving structure.
+    Preserves headings, paragraphs, lists, and removes embedded links.
+    """
+    if not html_content:
+        return ""
+    
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Remove unwanted elements
+    for element in soup.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 'advertisement', 'iframe']):
+        element.decompose()
+    
+    # Convert links to plain text (remove href but keep text)
+    for link in soup.find_all('a'):
+        if link.get('href'):
+            # Replace link with just its text content
+            link.replace_with(link.get_text())
+    
+    # Remove images and other media
+    for media in soup.find_all(['img', 'video', 'audio', 'canvas', 'svg', 'picture']):
+        media.decompose()
+    
+    # Convert the soup to formatted text
+    lines = []
+    
+    def process_element(element, indent_level=0):
+        """Recursively process elements and convert to formatted text"""
+        indent = "  " * indent_level
+        
+        if isinstance(element, NavigableString):
+            text = element.strip()
+            if text:
+                lines.append(f"{indent}{text}")
+        elif element.name:
+            if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                # Convert headings to formatted text with markers
+                level = int(element.name[1])
+                marker = "#" * level
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{marker} {text}")
+                    lines.append("")  # Add blank line after heading
+            elif element.name == 'p':
+                text = element.get_text().strip()
+                if text:
+                    lines.append(text)
+                    lines.append("")  # Add blank line after paragraph
+            elif element.name in ['ul', 'ol']:
+                # Process list items
+                for li in element.find_all('li', recursive=False):
+                    li_text = li.get_text().strip()
+                    if li_text:
+                        marker = "•" if element.name == 'ul' else f"{len(lines) + 1}."
+                        lines.append(f"{indent}{marker} {li_text}")
+                lines.append("")  # Add blank line after list
+            elif element.name == 'blockquote':
+                text = element.get_text().strip()
+                if text:
+                    # Add blockquote formatting
+                    quoted_lines = text.split('\n')
+                    for line in quoted_lines:
+                        if line.strip():
+                            lines.append(f"{indent}> {line.strip()}")
+                    lines.append("")
+            elif element.name == 'br':
+                lines.append("")
+            elif element.name in ['div', 'section', 'article', 'main']:
+                # Process children of container elements
+                for child in element.children:
+                    process_element(child, indent_level)
+            elif element.name in ['strong', 'b']:
+                # Bold text - we'll use markdown-style formatting
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{indent}**{text}**")
+            elif element.name in ['em', 'i']:
+                # Italic text
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{indent}*{text}*")
+            elif element.name == 'code':
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{indent}`{text}`")
+            elif element.name == 'pre':
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{indent}```\n{text}\n```")
+                    lines.append("")
+            else:
+                # For other elements, just process their text content
+                text = element.get_text().strip()
+                if text:
+                    lines.append(f"{indent}{text}")
+    
+    # Process the root element
+    for child in soup.children:
+        process_element(child)
+    
+    # Clean up the output
+    cleaned_lines = []
+    prev_blank = False
+    
+    for line in lines:
+        is_blank = line.strip() == ""
+        if not (is_blank and prev_blank):  # Avoid consecutive blank lines
+            cleaned_lines.append(line)
+        prev_blank = is_blank
+    
+    # Join lines and clean up extra whitespace
+    result = "\n".join(cleaned_lines).strip()
+    
+    # Final cleanup: normalize whitespace
+    result = re.sub(r'\n{3,}', '\n\n', result)  # Max 2 consecutive newlines
+    result = re.sub(r' {2,}', ' ', result)  # Normalize multiple spaces
+    
+    return result
 
 @router.post("/extract", response_model=ContentExtractionResponse)
 async def extract_content(request: ContentExtractionRequest):
@@ -315,7 +438,7 @@ async def extract_content(request: ContentExtractionRequest):
             return ContentExtractionResponse(
                 title=title or "Untitled",
                 description=description,
-                content=content,
+                content=html_to_formatted_text(content),
                 meta_info=meta_info,
                 extracted_at=str(asyncio.get_event_loop().time()),
                 success=True
