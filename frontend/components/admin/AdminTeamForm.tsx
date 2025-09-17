@@ -48,10 +48,12 @@ export default function AdminTeamForm({
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Team Name */}
       <div>
-        <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+        <label htmlFor="team-name" className="block text-sm font-medium text-grey-accent-700 mb-2">
           Team Name *
         </label>
         <input
+          id="team-name"
+          name="teamName"
           type="text"
           value={teamForm.name}
           onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
@@ -63,10 +65,12 @@ export default function AdminTeamForm({
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+        <label htmlFor="team-description" className="block text-sm font-medium text-grey-accent-700 mb-2">
           Description
         </label>
         <textarea
+          id="team-description"
+          name="teamDescription"
           value={teamForm.description}
           onChange={(e) => setTeamForm({ ...teamForm, description: e.target.value })}
           className="w-full px-4 py-3 border border-grey-accent-300 rounded-lg bg-grey-accent-50 focus:bg-white focus:border-grey-accent-500 focus:ring-2 focus:ring-grey-accent-100 text-grey-accent-900 placeholder-grey-accent-500 transition-all duration-200 resize-none"
@@ -77,11 +81,13 @@ export default function AdminTeamForm({
 
       {/* Team Logo */}
       <div>
-        <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+        <label htmlFor="team-logo" className="block text-sm font-medium text-grey-accent-700 mb-2">
           Team Logo (PNG/JPG, optional)
         </label>
         <div className="relative">
           <input
+            id="team-logo"
+            name="teamLogo"
             type="file"
             accept="image/png, image/jpeg"
             onChange={handleLogoChange}

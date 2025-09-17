@@ -43,17 +43,40 @@ export default function ProfileForm({ user, profile, onProfileUpdated }: Profile
   return (
     <form onSubmit={handleProfileSubmit} style={{ background: "var(--surface)", borderRadius: "16px", boxShadow: "var(--shadow-md)", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", minWidth: "320px" }}>
       <h2 style={{ fontSize: "2rem", fontWeight: 700 }}>Complete Your Profile</h2>
-      <label style={{ fontWeight: 600 }}>
+      <label htmlFor="profile-name" style={{ fontWeight: 600 }}>
         Name
-        <input type="text" value={name} onChange={e => setName(e.target.value)} required style={{ background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px", marginTop: "8px", fontSize: "1rem" }} />
+        <input 
+          id="profile-name"
+          name="fullName"
+          type="text" 
+          value={name} 
+          onChange={e => setName(e.target.value)} 
+          required 
+          style={{ background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px", marginTop: "8px", fontSize: "1rem", display: "block", width: "100%" }} 
+        />
       </label>
-      <label style={{ fontWeight: 600 }}>
+      <label htmlFor="profile-avatar" style={{ fontWeight: 600 }}>
         Avatar (PNG/JPG)
-        <input type="file" accept="image/png, image/jpeg" onChange={handleAvatarChange} required={!profile || !profile.avatar_url || profile.avatar_url === ""} style={{ marginTop: "8px" }} />
+        <input 
+          id="profile-avatar"
+          name="avatar"
+          type="file" 
+          accept="image/png, image/jpeg" 
+          onChange={handleAvatarChange} 
+          required={!profile || !profile.avatar_url || profile.avatar_url === ""} 
+          style={{ marginTop: "8px", display: "block", width: "100%" }} 
+        />
       </label>
-      <label style={{ fontWeight: 600 }}>
+      <label htmlFor="profile-color" style={{ fontWeight: 600 }}>
         Favorite Color
-        <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ marginLeft: "8px", verticalAlign: "middle" }} />
+        <input 
+          id="profile-color"
+          name="favoriteColor"
+          type="color" 
+          value={color} 
+          onChange={e => setColor(e.target.value)} 
+          style={{ marginLeft: "8px", verticalAlign: "middle" }} 
+        />
         <span style={{ marginLeft: "16px", fontWeight: 400 }}>{getClosestColorName(color)}</span>
       </label>
       <button type="submit" disabled={submitting} style={{ background: "var(--primary)", color: "#212529", padding: "12px 24px", borderRadius: "8px", fontSize: "1.1em", fontWeight: 600, boxShadow: "var(--shadow-md)", border: "none", cursor: "pointer", transition: "background 200ms ease-out, box-shadow 200ms ease-out" }}>{submitting ? "Saving..." : "Save Profile"}</button>

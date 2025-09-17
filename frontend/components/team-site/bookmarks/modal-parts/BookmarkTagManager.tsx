@@ -47,7 +47,7 @@ export function BookmarkTagManager({
 
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-grey-accent-700 mb-2">
+      <label htmlFor="bookmark-tags-input" className="block text-sm font-medium text-grey-accent-700 mb-2">
         Bookmark Tags
       </label>
 
@@ -73,6 +73,8 @@ export function BookmarkTagManager({
       {/* Tag Input with Autocomplete */}
       <div className="relative">
         <input
+          id="bookmark-tags-input"
+          name="bookmarkTags"
           type="text"
           value={tagInput}
           onChange={(e) => {
