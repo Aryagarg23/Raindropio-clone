@@ -78,7 +78,12 @@ class BaseRepository:
             response = self.supabase.table(table).update(data).eq("id", id).execute()
             return response.data[0]
         except Exception as e:
-            raise Exception(f"Database update failed: {str(e)}")
+            # Include full exception representation to help with debugging PostgREST errors
+            err_repr = repr(e)
+            err_str = str(e)
+            # Log to stdout/stderr via print so it appears in container logs
+            print(f"[BaseRepository.update] Error updating table={table} id={id} data={data}: {err_repr}")
+            raise Exception(f"Database update failed: {err_str}. Full error: {err_repr}")
 
     async def delete(self, table: str, id: str) -> bool:
         """

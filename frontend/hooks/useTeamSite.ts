@@ -25,7 +25,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     setTeamEvents,
     setPresence,
     loadTeamSiteData
-  } = useTeamData(actualTeamId || '');
+  } = useTeamData(actualTeamId || '', user, authLoading);
 
   const { actionLoading, createCollection, deleteCollection, createBookmark, deleteBookmark } = useTeamActions(
     actualTeamId || '',

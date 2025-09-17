@@ -3,6 +3,7 @@ Admin service for administrative operations
 """
 from typing import Dict, Any, List
 from fastapi import UploadFile, HTTPException, status
+import uuid
 from .base_service import BaseService
 from models.user import UserProfile
 from models.team import Team
@@ -68,8 +69,20 @@ class AdminService(BaseService):
             logo_url = ''
             if logo:
                 contents = await logo.read()
-                filename = f"avatars/team_{name}_{logo.filename}"
-                upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                # Use a UUID to avoid filename collisions in storage
+                unique_suffix = uuid.uuid4().hex
+                safe_name = name.replace(' ', '_') if name else 'team'
+                filename = f"avatars/{safe_name}_{unique_suffix}_{logo.filename}"
+                try:
+                    upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                except Exception as storage_exc:
+                    # Log and raise a clear HTTP error
+                    print(f"[AdminService.create_team] Storage upload exception: {repr(storage_exc)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Logo upload failed: {str(storage_exc)}"
+                    )
+
                 if hasattr(upload_response, 'error') and upload_response.error:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -133,8 +146,19 @@ class AdminService(BaseService):
                 update_data['description'] = description
             if logo:
                 contents = await logo.read()
-                filename = f"avatars/team_{name or 'unknown'}_{logo.filename}"
-                upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                # Use a UUID to avoid filename collisions in storage
+                unique_suffix = uuid.uuid4().hex
+                safe_name = (name or 'team').replace(' ', '_')
+                filename = f"avatars/{safe_name}_{unique_suffix}_{logo.filename}"
+                try:
+                    upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                except Exception as storage_exc:
+                    print(f"[AdminService.update_team] Storage upload exception: {repr(storage_exc)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Logo upload failed: {str(storage_exc)}"
+                    )
+
                 if hasattr(upload_response, 'error') and upload_response.error:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -171,6 +195,8 @@ class AdminService(BaseService):
         except HTTPException:
             raise
         except Exception as e:
+            # Log full exception for debugging (appears in server logs)
+            print(f"[AdminService.update_team] Exception: {repr(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error updating team: {str(e)}"

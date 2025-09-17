@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/router";
 import supabase from "../modules/supabaseClient";
 import ProfileForm from "../components/ProfileForm";
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [membersLoading, setMembersLoading] = useState<Record<string, boolean>>({});
   const [retryCount, setRetryCount] = useState(0);
 
-  // Use the auth state hook
+    // Use the auth state hook
   const { user, profile, loading, error, signOut, syncUserProfile, setError } = useAuthState({
     redirectToHome: true, // Redirect to home if not authenticated
     onUserChange: (newUser) => {
@@ -28,19 +28,47 @@ export default function Dashboard() {
         setTeamMembers({});
       }
     },
-    onProfileChange: (newProfile) => {
-      // Handle profile changes if needed
-    }
   });
 
-    // Fetch teams when user and profile are available
+  // Memoize profile completion check to prevent excessive calculations
+  // This must be called before any conditional returns to maintain hook order
+  const isProfileIncomplete = useMemo(() => {
+    if (!profile) return true;
+    
+    const incomplete = !profile.full_name || profile.full_name === "" ||
+      !profile.avatar_url || profile.avatar_url === "" ||
+      !profile.favorite_color || profile.favorite_color === "";
+    
+    return incomplete;
+  }, [profile]); // Use entire profile object to reduce recalculations
+  
+  // Only log when profile actually changes (separate from memoization)
   useEffect(() => {
-    if (user && profile) {
+    if (profile) {
+      console.log("🔍 Profile completion check:", {
+        profile_exists: !!profile,
+        full_name: profile?.full_name,
+        avatar_url: profile?.avatar_url,
+        favorite_color: profile?.favorite_color,
+        full_name_valid: !!(profile?.full_name && profile.full_name !== ""),
+        avatar_url_valid: !!(profile?.avatar_url && profile.avatar_url !== ""),
+        favorite_color_valid: !!(profile?.favorite_color && profile.favorite_color !== ""),
+        incomplete: isProfileIncomplete
+      });
+    }
+  }, [profile?.user_id, isProfileIncomplete]); // Log only when user changes or completion status changes
+
+  // Fetch teams when user and profile are available
+  const [hasLoadedTeams, setHasLoadedTeams] = useState(false);
+  
+  useEffect(() => {
+    if (user?.id && profile?.user_id && !hasLoadedTeams) {
+      setHasLoadedTeams(true);
       fetchTeams();
     }
-  }, [user, profile]);
+  }, [user?.id, profile?.user_id]); // Remove hasLoadedTeams from dependencies to prevent loops
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     console.log("🔄 Refreshing profile...");
     setError(null); // Clear any existing error
     setProfileLoading(true);
@@ -60,7 +88,7 @@ export default function Dashboard() {
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, [syncUserProfile, setError]);
 
   const fetchTeamMembers = async (teamId: string) => {
     try {
@@ -73,26 +101,34 @@ export default function Dashboard() {
   };
 
   const fetchAllTeamMembers = async (teams: Team[]) => {
-    console.log(`🔄 Fetching members for ${teams.length} teams in parallel...`);
+    // Filter out teams that already have members loaded to prevent duplicates
+    const teamsToFetch = teams.filter(team => !teamMembers[team.id]);
     
-    // Set loading state for all teams
-    const loadingStates: Record<string, boolean> = {};
-    teams.forEach(team => loadingStates[team.id] = true);
+    if (teamsToFetch.length === 0) {
+      console.log("✅ All team members already loaded, skipping fetch");
+      return;
+    }
+    
+    console.log(`🔄 Fetching members for ${teamsToFetch.length} teams in parallel...`);
+    
+    // Set loading state for teams that need fetching
+    const loadingStates: Record<string, boolean> = { ...membersLoading };
+    teamsToFetch.forEach(team => loadingStates[team.id] = true);
     setMembersLoading(loadingStates);
 
-    // Fetch all team members in parallel
-    const memberPromises = teams.map(async (team) => {
+    // Fetch team members only for teams that need it
+    const memberPromises = teamsToFetch.map(async (team) => {
       const members = await fetchTeamMembers(team.id);
       return { teamId: team.id, members };
     });
 
     try {
       const results = await Promise.allSettled(memberPromises);
-      const membersData: Record<string, UserProfile[]> = {};
-      const finalLoadingStates: Record<string, boolean> = {};
+      const membersData: Record<string, UserProfile[]> = { ...teamMembers };
+      const finalLoadingStates: Record<string, boolean> = { ...membersLoading };
 
       results.forEach((result, index) => {
-        const teamId = teams[index].id;
+        const teamId = teamsToFetch[index].id;
         finalLoadingStates[teamId] = false;
         
         if (result.status === 'fulfilled') {
@@ -105,12 +141,12 @@ export default function Dashboard() {
 
       setTeamMembers(membersData);
       setMembersLoading(finalLoadingStates);
-      console.log(`✅ Finished loading team members for ${teams.length} teams`);
+      console.log(`✅ Finished loading team members for ${teamsToFetch.length} teams`);
     } catch (error) {
       console.error("❌ Error in parallel team members fetch:", error);
-      // Clear loading states
-      const clearedStates: Record<string, boolean> = {};
-      teams.forEach(team => clearedStates[team.id] = false);
+      // Clear loading states for teams that were being fetched
+      const clearedStates: Record<string, boolean> = { ...membersLoading };
+      teamsToFetch.forEach(team => clearedStates[team.id] = false);
       setMembersLoading(clearedStates);
     }
   };
@@ -137,12 +173,12 @@ export default function Dashboard() {
     }
   };
 
-  const retryLoading = () => {
+  const retryLoading = useCallback(() => {
     console.log("🔄 Retrying dashboard loading...");
     setError(null);
     setRetryCount(prev => prev + 1);
     // The auth hook will handle re-initialization
-  };
+  }, [setError]);
 
   if (loading) {
     return (
@@ -159,24 +195,6 @@ export default function Dashboard() {
     router.push('/');
     return null;
   }
-
-  // Debug profile completion check
-  console.log("🔍 Profile completion check:", {
-    profile_exists: !!profile,
-    full_name: profile?.full_name,
-    avatar_url: profile?.avatar_url,
-    favorite_color: profile?.favorite_color,
-    full_name_valid: !!(profile?.full_name && profile.full_name !== ""),
-    avatar_url_valid: !!(profile?.avatar_url && profile.avatar_url !== ""),
-    favorite_color_valid: !!(profile?.favorite_color && profile.favorite_color !== ""),
-  });
-
-  const isProfileIncomplete = !profile ||
-    !profile.full_name || profile.full_name === "" ||
-    !profile.avatar_url || profile.avatar_url === "" ||
-    !profile.favorite_color || profile.favorite_color === "";
-
-  console.log("🔍 Profile incomplete:", isProfileIncomplete);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">

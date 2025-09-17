@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import supabase from '../modules/supabaseClient';
 import { UserProfile } from '../types/api';
@@ -16,8 +16,8 @@ export function useAuth(teamId: string | string[] | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Auth check and team membership verification
-  const checkAuth = async () => {
+  // Auth check and team membership verification (memoized to prevent duplicate calls)
+  const checkAuth = useCallback(async () => {
     console.log('=== AUTH CHECK START ===', { teamId: actualTeamId });
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -75,11 +75,11 @@ export function useAuth(teamId: string | string[] | undefined) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [actualTeamId, router]); // useCallback dependencies
 
   useEffect(() => {
     checkAuth();
-  }, [actualTeamId]);
+  }, [checkAuth]); // Include checkAuth in dependencies
 
   return {
     user,

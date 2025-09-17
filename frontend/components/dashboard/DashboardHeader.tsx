@@ -31,7 +31,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <div className="flex items-center space-x-4">
                 <div className="relative">
                   <img
-                    src={profile?.avatar_url || "/default-avatar.png"}
+                    src={profile?.avatar_url || "/default-avatar.svg"}
                     alt="Avatar"
                     className="w-12 h-12 rounded-full shadow-md ring-2 ring-grey-accent-200"
                   />

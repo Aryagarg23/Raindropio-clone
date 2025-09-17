@@ -1,19 +1,29 @@
 import supabase from './supabaseClient';
 import { UpdateTeamRequest } from '../types/api';
 
+// Cache API base URL to prevent excessive logging and computation
+let cachedApiBaseUrl: string | null = null;
+
 // Resolve API base URL at runtime when possible so production builds
 // don't embed a localhost fallback into the compiled bundle.
 export function getApiBaseUrl(): string {
+  // Return cached URL if already resolved
+  if (cachedApiBaseUrl) {
+    return cachedApiBaseUrl;
+  }
+
   // First priority: explicit environment variable
   if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '') {
     console.log(`🌐 Using API URL from env: ${process.env.NEXT_PUBLIC_API_URL}`);
-    return process.env.NEXT_PUBLIC_API_URL;
+    cachedApiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+    return cachedApiBaseUrl;
   }
 
   // Second priority: development mode uses localhost
   if (process.env.NODE_ENV !== 'production') {
     console.log('🌐 Using localhost API URL for development');
-    return 'http://localhost:8000';
+    cachedApiBaseUrl = 'http://localhost:8000';
+    return cachedApiBaseUrl;
   }
 
   // For production without explicit API URL, this is an error
@@ -39,8 +49,9 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
   console.log(`🌐 Making API request to: ${apiUrl}${endpoint}`);
   
   // Add timeout to prevent hanging requests
+  // Increased timeout for Render.com cold starts (can take up to 40+ seconds)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 second timeout for cold starts
   
   try {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -115,7 +126,7 @@ async function makeAuthenticatedRequest(endpoint: string, options: RequestInit =
     // Handle specific error types
     if (error instanceof Error && error.name === 'AbortError') {
       console.error("❌ Request timeout");
-      throw new ApiError('Request timed out. Please check your connection and try again.', 0, 'TIMEOUT_ERROR');
+      throw new ApiError('Server startup in progress. Render.com services require ~40 seconds to wake from sleep. Please wait and try again.', 0, 'TIMEOUT_ERROR');
     }
     
     // Network or other fetch errors

@@ -3,6 +3,7 @@ User service for handling user profile operations
 """
 from typing import Dict, Any, Optional
 from fastapi import UploadFile, HTTPException, status
+import uuid
 from .base_service import BaseService
 from models.user import UserProfile
 
@@ -104,11 +105,20 @@ class UserService(BaseService):
         if avatar:
             try:
                 contents = await avatar.read()
-                # Use a unique filename per user in the 'avatars/' subfolder of 'nis' bucket
-                filename = f"avatars/{user_id}_{avatar.filename}"
+                # Use a UUID to avoid filename collisions
+                unique_suffix = uuid.uuid4().hex
+                filename = f"avatars/{user_id}_{unique_suffix}_{avatar.filename}"
 
                 # Upload to Supabase Storage (bucket 'nis', subfolder 'avatars')
-                upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                try:
+                    upload_response = self.supabase.storage.from_("nis").upload(filename, contents)
+                except Exception as storage_exc:
+                    print(f"[UserService.update_user_profile] Storage upload exception: {repr(storage_exc)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Avatar upload failed: {str(storage_exc)}"
+                    )
+
                 if hasattr(upload_response, 'error') and upload_response.error:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -122,7 +132,7 @@ class UserService(BaseService):
 
             except HTTPException:
                 raise
-            except Exception as e:
+            except Exception:
                 # Fallback to previous avatar_url on error
                 pass
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import supabase from '../modules/supabaseClient';
 import {
   Collection,
@@ -7,7 +7,7 @@ import {
   Presence
 } from '../types/api';
 
-export function useTeamData(teamId: string) {
+export function useTeamData(teamId: string, authUser?: any, authLoading?: boolean) {
   // Data state
   const [collections, setCollections] = useState<Collection[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -16,8 +16,8 @@ export function useTeamData(teamId: string) {
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  // Load team site data
-  const loadTeamSiteData = async () => {
+  // Load team site data with useCallback to prevent unnecessary re-renders
+  const loadTeamSiteData = useCallback(async () => {
     if (!teamId) return;
 
     try {
@@ -117,13 +117,14 @@ export function useTeamData(teamId: string) {
     } finally {
       setDataLoading(false);
     }
-  };
+  }, [teamId]); // useCallback dependency
 
   useEffect(() => {
-    if (teamId) {
+    // Only load data after auth is complete and user is available
+    if (teamId && authUser && !authLoading) {
       loadTeamSiteData();
     }
-  }, [teamId]);
+  }, [teamId, authUser, authLoading, loadTeamSiteData]); // Wait for auth to complete
 
   return {
     collections,

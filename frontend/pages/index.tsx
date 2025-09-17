@@ -7,6 +7,7 @@ import { useAuthState } from "../hooks/useAuthState";
 
 export default function Home() {
   const router = useRouter();
+  const [showColdStartMessage, setShowColdStartMessage] = useState(false);
 
   // Use the auth state hook
   const { user, loading, error, signInWithGoogle, setError } = useAuthState({
@@ -15,6 +16,19 @@ export default function Home() {
       // Handle user changes if needed
     }
   });
+
+  // Show cold start message after 5 seconds of loading
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        setShowColdStartMessage(true);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    } else {
+      setShowColdStartMessage(false);
+    }
+  }, [loading]);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-grey-accent-50 to-white text-foreground font-sans">
@@ -33,14 +47,40 @@ export default function Home() {
           </p>
         </div>
         {loading ? (
-          <div className="text-center">
+          <div className="text-center space-y-4">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-grey-accent-600"></div>
             <p className="mt-2 text-grey-accent-500">Loading...</p>
+            
+            {showColdStartMessage && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-blue-700 text-sm mb-2">
+                  <span className="font-medium">Backend is starting up...</span>
+                </p>
+                <p className="text-blue-600 text-xs">
+                  Render.com services sleep after inactivity and require ~40 seconds to restart. This is normal for free hosting.
+                </p>
+              </div>
+            )}
           </div>
         ) : error ? (
           <div className="text-center space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-red-700 text-sm">{error}</p>
+            <div className={`border rounded-xl p-4 ${
+              error.includes('Render.com') || error.includes('startup in progress')
+                ? 'bg-amber-50 border-amber-200'
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <p className={`text-sm ${
+                error.includes('Render.com') || error.includes('startup in progress')
+                  ? 'text-amber-700'
+                  : 'text-red-700'
+              }`}>
+                {error}
+              </p>
+              {(error.includes('Render.com') || error.includes('startup in progress')) && (
+                <p className="text-amber-600 text-xs mt-2">
+                  Please be patient while the server starts up. This is normal for free hosting.
+                </p>
+              )}
             </div>
             <button
               onClick={() => window.location.reload()}

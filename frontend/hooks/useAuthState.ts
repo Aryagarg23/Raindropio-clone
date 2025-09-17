@@ -172,11 +172,13 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
         if (options.redirectToDashboard) {
           router.push('/dashboard');
         } else {
-          // Sync profile for authenticated users
-          try {
-            await syncUserProfile();
-          } catch (profileError) {
-            console.error("Profile sync failed on sign in:", profileError);
+          // Only sync profile if we don't already have it or user changed
+          if (!profile || profile.user_id !== signedInUser.id) {
+            try {
+              await syncUserProfile();
+            } catch (profileError) {
+              console.error("Profile sync failed on sign in:", profileError);
+            }
           }
         }
       } else if (event === 'SIGNED_OUT') {
@@ -191,11 +193,15 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       }
     });
 
-    // Initialize auth state
-    initializeAuth();
+    // Initialize auth state only once
+    let initialized = false;
+    if (!initialized) {
+      initialized = true;
+      initializeAuth();
+    }
 
     return () => subscription?.unsubscribe();
-  }, [router]);
+  }, [router.pathname]); // Only re-run if pathname changes, not router object
 
   // Add timeout to prevent infinite loading
   useEffect(() => {
