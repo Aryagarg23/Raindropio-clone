@@ -13,7 +13,7 @@ interface CollectionTreeRendererProps {
   draggedBookmark: string | null;
   dragOverTarget: string | null;
   onToggleCollection: (collectionId: string) => void;
-  onSetSelectedCollectionId: (id: string) => void;
+  onSetSelectedCollectionId: (id: string | null) => void;
   onHandleBookmarkClick: (bookmark: any) => void;
   onHandleDragStart: (e: any, collectionId: string) => void;
   onHandleDragEnd: () => void;

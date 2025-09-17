@@ -12,6 +12,8 @@ interface UseUIHandlersProps {
   updateBookmarkTags: (bookmarkId: string, newTags: string[]) => Promise<void>;
   setError: (error: string | null) => void;
   selectedBookmark: any;
+  setBookmarkFilters: (filters: any) => void;
+  bookmarkFilters: any;
 }
 
 export const useUIHandlers = ({
@@ -25,7 +27,9 @@ export const useUIHandlers = ({
   activeTab,
   updateBookmarkTags,
   setError,
-  selectedBookmark
+  selectedBookmark,
+  setBookmarkFilters,
+  bookmarkFilters
 }: UseUIHandlersProps) => {
 
   const toggleCollection = useCallback((collectionId: string) => {
@@ -39,6 +43,24 @@ export const useUIHandlers = ({
       return newSet
     })
   }, [setExpandedCollections])
+
+  const handleCollectionSelect = useCallback((collectionId: string | null) => {
+    setSelectedCollectionId(collectionId)
+    
+    // Update bookmark filters to show only bookmarks from selected collection
+    if (collectionId) {
+      setBookmarkFilters({
+        ...bookmarkFilters,
+        selectedCollections: [collectionId]
+      })
+    } else {
+      // If no collection selected (All Bookmarks), show all bookmarks
+      setBookmarkFilters({
+        ...bookmarkFilters,
+        selectedCollections: []
+      })
+    }
+  }, [setSelectedCollectionId, setBookmarkFilters, bookmarkFilters])
 
   const handleBookmarkClick = useCallback(async (bookmark: any) => {
     setSelectedBookmark(bookmark)
@@ -68,6 +90,7 @@ export const useUIHandlers = ({
 
   return {
     toggleCollection,
+    handleCollectionSelect,
     handleBookmarkClick,
     updateBookmarkTags: updateBookmarkTagsWrapper,
     updateSelectedBookmarkTags,

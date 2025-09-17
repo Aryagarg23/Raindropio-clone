@@ -19,6 +19,18 @@ export function useRealtimeSubscriptions({
   setPresence
 }: UseRealtimeSubscriptionsProps) {
   const subscriptionCleanupRef = useRef<(() => void) | null>(null);
+  
+  // Create stable references for state setters to avoid closure issues
+  const setCollectionsRef = useRef(setCollections);
+  const setBookmarksRef = useRef(setBookmarks);
+  const setTeamEventsRef = useRef(setTeamEvents);
+  const setPresenceRef = useRef(setPresence);
+  
+  // Update refs when setters change
+  setCollectionsRef.current = setCollections;
+  setBookmarksRef.current = setBookmarks;
+  setTeamEventsRef.current = setTeamEvents;
+  setPresenceRef.current = setPresence;
 
   // Setup realtime subscriptions
   const setupRealtimeSubscriptions = () => {
@@ -44,8 +56,8 @@ export function useRealtimeSubscriptions({
           try {
             if (payload.eventType === 'INSERT') {
               console.log('📡 Inserting collection:', payload.new);
-              console.log('📡 setCollections function available:', typeof setCollections);
-              setCollections(prev => {
+              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
+              setCollectionsRef.current(prev => {
                 console.log('📡 Current collections before insert:', prev.length);
                 const newCollection = payload.new;
                 // Insert at the correct position based on sort_order
@@ -54,12 +66,13 @@ export function useRealtimeSubscriptions({
                   ? [...prev, newCollection]
                   : [...prev.slice(0, insertIndex), newCollection, ...prev.slice(insertIndex)];
                 console.log('📡 Collections after insert:', newCollections.length);
+                console.log('📡 ✅ State update executed successfully!');
                 return newCollections;
               });
             } else if (payload.eventType === 'UPDATE') {
               console.log('📡 Updating collection:', payload.new);
-              console.log('📡 setCollections function available:', typeof setCollections);
-              setCollections(prev => {
+              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
+              setCollectionsRef.current(prev => {
                 console.log('📡 Updating collection in state, prev length:', prev.length);
                 const updated = prev.map(c => c.id === payload.new.id ? payload.new : c);
                 console.log('📡 Collection updated, new length:', updated.length);
@@ -67,8 +80,8 @@ export function useRealtimeSubscriptions({
               });
             } else if (payload.eventType === 'DELETE') {
               console.log('📡 Deleting collection:', payload.old);
-              console.log('📡 setCollections function available:', typeof setCollections);
-              setCollections(prev => prev.filter(c => c.id !== payload.old.id));
+              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
+              setCollectionsRef.current(prev => prev.filter(c => c.id !== payload.old.id));
             }
           } catch (err) {
             console.error('📡 Error handling collections realtime event:', err);
@@ -88,7 +101,7 @@ export function useRealtimeSubscriptions({
           console.log('📡 Bookmarks realtime event:', payload);
           try {
             if (payload.eventType === 'INSERT') {
-              console.log('📡 setBookmarks function available:', typeof setBookmarks);
+              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
               // Fetch the full bookmark with relations
               const { data: newBookmark, error } = await supabase
                 .from('bookmarks')
@@ -115,11 +128,14 @@ export function useRealtimeSubscriptions({
 
               if (newBookmark) {
                 console.log('📡 Adding bookmark to state:', newBookmark.title);
-                setBookmarks(prev => [newBookmark, ...prev]);
+                setBookmarksRef.current(prev => {
+                  console.log('📡 ✅ Bookmark state update executed successfully!');
+                  return [newBookmark, ...prev];
+                });
               }
             } else if (payload.eventType === 'UPDATE') {
               console.log('📡 Updating bookmark:', payload.new);
-              console.log('📡 setBookmarks function available:', typeof setBookmarks);
+              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
               // Fetch the updated bookmark with full relations
               const { data: updatedBookmark, error } = await supabase
                 .from('bookmarks')
@@ -145,7 +161,7 @@ export function useRealtimeSubscriptions({
               }
 
               if (updatedBookmark) {
-                setBookmarks(prev => {
+                setBookmarksRef.current(prev => {
                   console.log('📡 Updating bookmark in state, prev length:', prev.length);
                   const updated = prev.map(b => b.id === updatedBookmark.id ? updatedBookmark : b);
                   console.log('📡 Bookmark updated, new length:', updated.length);
@@ -154,8 +170,8 @@ export function useRealtimeSubscriptions({
               }
             } else if (payload.eventType === 'DELETE') {
               console.log('📡 Deleting bookmark:', payload.old);
-              console.log('📡 setBookmarks function available:', typeof setBookmarks);
-              setBookmarks(prev => {
+              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
+              setBookmarksRef.current(prev => {
                 console.log('📡 Deleting bookmark from state, prev length:', prev.length);
                 const filtered = prev.filter(b => b.id !== payload.old.id);
                 console.log('📡 Bookmark deleted, new length:', filtered.length);
@@ -193,7 +209,7 @@ export function useRealtimeSubscriptions({
             .single();
 
           if (newEvent) {
-            setTeamEvents(prev => [newEvent, ...prev.slice(0, 49)]); // Keep only 50 events
+            setTeamEventsRef.current(prev => [newEvent, ...prev.slice(0, 49)]); // Keep only 50 events
           }
         }
       )
@@ -223,7 +239,7 @@ export function useRealtimeSubscriptions({
             .single();
 
           if (newPresence) {
-            setPresence(prev => {
+            setPresenceRef.current(prev => {
               // Check if presence for this user already exists
               const exists = prev.some(p => p.user_id === newPresence.user_id && p.team_id === newPresence.team_id);
               if (exists) {
@@ -255,7 +271,7 @@ export function useRealtimeSubscriptions({
             .single();
 
           if (updatedPresence) {
-            setPresence(prev => {
+            setPresenceRef.current(prev => {
               const filtered = prev.filter(p => p.user_id !== updatedPresence.user_id);
               return [updatedPresence, ...filtered];
             });
@@ -266,7 +282,7 @@ export function useRealtimeSubscriptions({
         { event: 'DELETE', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
         (payload: any) => {
           console.log('Presence deleted:', payload);
-          setPresence(prev => prev.filter(p => p.user_id !== payload.old.user_id));
+          setPresenceRef.current(prev => prev.filter(p => p.user_id !== payload.old.user_id));
         }
       )
       .subscribe((status) => {

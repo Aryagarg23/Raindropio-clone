@@ -56,6 +56,7 @@ interface TeamSiteMainContentProps {
   teamEvents: any[];
   selectedDirectoryCollection: ExtendedCollection | null;
   showDirectoryModal: boolean;
+  orphanedBookmarks: any[];
   onActiveTabChange: (tab: string) => void;
   onSearchQueryChange: (query: string) => void;
   onViewModeChange: (mode: 'grid' | 'list') => void;
@@ -108,6 +109,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
   teamEvents,
   selectedDirectoryCollection,
   showDirectoryModal,
+  orphanedBookmarks,
   onActiveTabChange,
   onSearchQueryChange,
   onViewModeChange,
@@ -198,6 +200,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
             onHandleBookmarkDrop={onHandleBookmarkDrop}
             onCreateCollection={onCreateCollection}
             onCreateBookmark={onCreateBookmark}
+            orphanedBookmarks={orphanedBookmarks}
           />
         </TabsContent>
 

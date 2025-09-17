@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/router"
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { useDragDrop } from "../../hooks/useDragDrop"
@@ -201,6 +201,7 @@ export default function TeamSitePage() {
 
   const {
     toggleCollection,
+    handleCollectionSelect,
     handleBookmarkClick,
     updateSelectedBookmarkTags,
     handleCreateAction
@@ -215,7 +216,9 @@ export default function TeamSitePage() {
     activeTab,
     updateBookmarkTags,
     setError,
-    selectedBookmark
+    selectedBookmark,
+    setBookmarkFilters,
+    bookmarkFilters
   })
 
   // Get all unique tags from bookmarks
@@ -247,26 +250,26 @@ export default function TeamSitePage() {
   const filteredCollections = useMemo(() => filterCollections(allFlatCollections, collectionFilters, bookmarks), [allFlatCollections, collectionFilters, bookmarks])
 
   // Generate directory structure in markdown format
-  const generateDirectoryStructure = (collection: ExtendedCollection): string => {
+  const generateDirectoryStructure = useCallback((collection: ExtendedCollection): string => {
     return getCollectionDirectoryMarkdown(collection, bookmarks)
-  }
+  }, [bookmarks])
 
   // Copy directory structure to clipboard
-  const copyDirectoryStructureToClipboard = async (collection: ExtendedCollection) => {
+  const copyDirectoryStructureToClipboard = useCallback(async (collection: ExtendedCollection) => {
     await copyDirectoryStructure(collection, bookmarks)
-  }
+  }, [bookmarks])
 
   // Get orphaned bookmarks (bookmarks without a collection or with invalid collection_id)
-  const orphanedBookmarks = bookmarks.filter(bookmark => 
+  const orphanedBookmarks = useMemo(() => bookmarks.filter(bookmark => 
     !bookmark.collection_id || !collections.some(col => col.id === bookmark.collection_id)
-  );
+  ), [bookmarks, collections]);
 
-  const filteredBookmarks = bookmarks.filter(
+  const filteredBookmarks = useMemo(() => bookmarks.filter(
     (bookmark) =>
       bookmark.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bookmark.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bookmark.tags?.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  ), [bookmarks, searchQuery]);
 
   if (loading) {
     return (
@@ -358,7 +361,7 @@ export default function TeamSitePage() {
         onSearchQueryChange={setSearchQuery}
         onViewModeChange={setViewMode}
         onToggleCollection={toggleCollection}
-        onSelectCollection={setSelectedCollectionId}
+        onSelectCollection={handleCollectionSelect}
         onBookmarkClick={handleBookmarkClick}
         onSetBookmarkFilters={setBookmarkFilters}
         onSetShowFilters={setShowFilters}
@@ -381,6 +384,7 @@ export default function TeamSitePage() {
         onHandleBookmarkDrop={handleBookmarkDrop}
         onCreateCollection={() => setShowCreateCollection(true)}
         onCreateBookmark={() => setShowAddBookmark(true)}
+        orphanedBookmarks={orphanedBookmarks}
       />
           </div>
       </div>

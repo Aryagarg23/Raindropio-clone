@@ -5,6 +5,7 @@ import { Grid3X3, List, ExternalLink, Plus } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
+import { OrphanedBookmarksList } from './DirectoryTreeView';
 
 interface ExtendedCollection {
   id: string;
@@ -40,7 +41,7 @@ interface MainTabContentProps {
   onBookmarkClick: (bookmark: any) => void;
   onSetBookmarkFilters: (filters: any) => void;
   onToggleCollection: (collectionId: string) => void;
-  onSetSelectedCollectionId: (id: string) => void;
+  onSetSelectedCollectionId: (id: string | null) => void;
   onHandleDragStart: (e: any, collectionId: string) => void;
   onHandleDragEnd: () => void;
   onHandleDragOver: (e: any, collectionId: string) => void;
@@ -51,6 +52,7 @@ interface MainTabContentProps {
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
   onCreateCollection: () => void;
   onCreateBookmark: () => void;
+  orphanedBookmarks: any[];
 }
 
 export const MainTabContent: React.FC<MainTabContentProps> = ({
@@ -79,15 +81,16 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   onHandleBookmarkDragOver,
   onHandleBookmarkDrop,
   onCreateCollection,
-  onCreateBookmark
+  onCreateBookmark,
+  orphanedBookmarks
 }) => {
   return (
     <div className="space-y-8">
       {/* Collection Tree Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-0">
-        <div className="lg:col-span-1 lg:pr-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 min-h-[600px]">
+        <div className="lg:col-span-1 lg:pr-6 flex flex-col">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-grey-accent-900">Collections</h2>
+            <h2 className="text-2xl font-bold text-grey-accent-900">Directory</h2>
             <Button
               variant="ghost"
               size="sm"
@@ -98,29 +101,40 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
               <Plus className="w-4 h-4" />
             </Button>
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <div className="max-h-96 overflow-y-auto">
-                <CollectionTreeRenderer
-                  collections={collections}
-                  bookmarks={bookmarks}
-                  expandedCollections={expandedCollections}
-                  selectedCollectionId={selectedCollectionId}
-                  dragOverData={dragOverData}
-                  draggedCollection={draggedCollection}
-                  draggedBookmark={draggedBookmark}
-                  dragOverTarget={dragOverTarget}
-                  onToggleCollection={onToggleCollection}
-                  onSetSelectedCollectionId={onSetSelectedCollectionId}
-                  onHandleBookmarkClick={onBookmarkClick}
-                  onHandleDragStart={onHandleDragStart}
-                  onHandleDragEnd={onHandleDragEnd}
-                  onHandleDragOver={onHandleDragOver}
-                  onHandleDragLeave={onHandleDragLeave}
-                  onHandleDrop={onHandleDrop}
-                  onHandleBookmarkDragStart={onHandleBookmarkDragStart}
-                  onHandleBookmarkDragOver={onHandleBookmarkDragOver}
-                  onHandleBookmarkDrop={onHandleBookmarkDrop}
+          <Card className="flex-1">
+            <CardContent className="p-0 h-full">
+              <div className="p-4 h-full flex flex-col">
+                {/* Collections Section */}
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-grey-accent-800 mb-3">Collections</h3>
+                  <CollectionTreeRenderer
+                    collections={collections}
+                    bookmarks={bookmarks}
+                    expandedCollections={expandedCollections}
+                    selectedCollectionId={selectedCollectionId}
+                    dragOverData={dragOverData}
+                    draggedCollection={draggedCollection}
+                    draggedBookmark={draggedBookmark}
+                    dragOverTarget={dragOverTarget}
+                    onToggleCollection={onToggleCollection}
+                    onSetSelectedCollectionId={onSetSelectedCollectionId}
+                    onHandleBookmarkClick={onBookmarkClick}
+                    onHandleDragStart={onHandleDragStart}
+                    onHandleDragEnd={onHandleDragEnd}
+                    onHandleDragOver={onHandleDragOver}
+                    onHandleDragLeave={onHandleDragLeave}
+                    onHandleDrop={onHandleDrop}
+                    onHandleBookmarkDragStart={onHandleBookmarkDragStart}
+                    onHandleBookmarkDragOver={onHandleBookmarkDragOver}
+                    onHandleBookmarkDrop={onHandleBookmarkDrop}
+                  />
+                </div>
+                
+                {/* Orphaned Bookmarks - directly after collections */}
+                <OrphanedBookmarksList
+                  orphanedBookmarks={orphanedBookmarks}
+                  onBookmarkClick={onBookmarkClick}
+                  onBookmarkDragStart={onHandleBookmarkDragStart}
                 />
               </div>
             </CardContent>
@@ -131,7 +145,10 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
         <div className="lg:col-span-3 lg:pl-6 lg:border-l lg:border-grey-accent-200">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-grey-accent-900">
+              <h2 
+                className="text-2xl font-bold text-grey-accent-900 cursor-pointer hover:text-blue-600 transition-colors"
+                onClick={() => onSetSelectedCollectionId(null)}
+              >
                 {selectedCollectionId
                   ? collections.find(c => c.id === selectedCollectionId)?.name || 'All Bookmarks'
                   : 'All Bookmarks'
@@ -161,7 +178,7 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
           </div>
 
           {advancedFilteredBookmarks.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="text-left py-12">
               <div className="text-6xl mb-4">📚</div>
               <h3 className="text-xl font-semibold mb-2">No bookmarks found</h3>
               <p className="text-muted-foreground">

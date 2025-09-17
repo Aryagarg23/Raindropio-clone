@@ -1,5 +1,5 @@
 import React from "react"
-import { Folder } from "lucide-react"
+import { Folder, FileText, ExternalLink } from "lucide-react"
 import { FaviconImage } from "../shared/FaviconImage"
 
 interface ExtendedCollection {
@@ -17,6 +17,68 @@ interface DirectoryTreeViewProps {
   collection: ExtendedCollection
   bookmarks: any[]
   level?: number
+}
+
+interface OrphanedBookmarksListProps {
+  orphanedBookmarks: any[]
+  onBookmarkClick?: (bookmark: any) => void
+  onBookmarkDragStart?: (e: any, bookmarkId: string) => void
+}
+
+export const OrphanedBookmarksList: React.FC<OrphanedBookmarksListProps> = ({
+  orphanedBookmarks,
+  onBookmarkClick,
+  onBookmarkDragStart
+}) => {
+  if (orphanedBookmarks.length === 0) return null
+
+  return (
+    <div>
+      <h4 className="text-md font-medium text-grey-accent-700 mb-3">Orphans</h4>
+      
+      {/* Orphaned Bookmarks Container with subtle background */}
+      <div className="p-3 rounded-lg bg-grey-accent-50 border border-grey-accent-200">
+        <div className="space-y-1">
+          {orphanedBookmarks.map((bookmark) => (
+            <div
+              key={`orphaned-${bookmark.id}`}
+              className="group flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-white hover:shadow-sm transition-all duration-200 border border-transparent hover:border-grey-accent-300"
+              draggable
+              onDragStart={(e) => onBookmarkDragStart?.(e, bookmark.id)}
+              onClick={() => onBookmarkClick?.(bookmark)}
+            >
+              {/* Favicon */}
+              <div className="w-4 h-4 flex items-center justify-start">
+                <FaviconImage
+                  url={bookmark.url}
+                  faviconUrl={bookmark.favicon_url}
+                  size="w-3 h-3"
+                />
+              </div>
+
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <span className="text-xs text-grey-accent-700 truncate flex-1">
+                  {bookmark.title || new URL(bookmark.url).hostname}
+                </span>
+              </div>
+
+              {/* External link button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.open(bookmark.url, '_blank', 'noopener,noreferrer')
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-grey-accent-200 rounded transition-all"
+                title="Open link"
+              >
+                <ExternalLink className="w-3 h-3 text-grey-accent-500" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const DirectoryTreeView: React.FC<DirectoryTreeViewProps> = ({
