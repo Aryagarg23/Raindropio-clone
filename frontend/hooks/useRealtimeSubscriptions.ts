@@ -190,34 +190,31 @@ export function useRealtimeSubscriptions({
         { event: 'INSERT', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
         async (payload: any) => {
           console.log('Presence user joined:', payload);
-          if (payload.new.is_online) {
-            const { data: newPresence } = await supabase
-              .from('presence')
-              .select(`
-                *,
-                profiles:user_id (
-                  user_id,
-                  full_name,
-                  avatar_url
-                )
-              `)
-              .eq('team_id', teamId)
-              .eq('user_id', payload.new.user_id)
-              .eq('is_online', true)
-              .single();
+          const { data: newPresence } = await supabase
+            .from('presence')
+            .select(`
+              *,
+              profiles:user_id (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('team_id', teamId)
+            .eq('user_id', payload.new.user_id)
+            .single();
 
-            if (newPresence) {
-              setPresence(prev => {
-                // Check if presence for this user already exists
-                const exists = prev.some(p => p.user_id === newPresence.user_id && p.team_id === newPresence.team_id);
-                if (exists) {
-                  console.log('Presence for user already exists, skipping duplicate insert');
-                  return prev;
-                }
-                const filtered = prev.filter(p => p.user_id !== newPresence.user_id);
-                return [newPresence, ...filtered];
-              });
-            }
+          if (newPresence) {
+            setPresence(prev => {
+              // Check if presence for this user already exists
+              const exists = prev.some(p => p.user_id === newPresence.user_id && p.team_id === newPresence.team_id);
+              if (exists) {
+                console.log('Presence for user already exists, skipping duplicate insert');
+                return prev;
+              }
+              const filtered = prev.filter(p => p.user_id !== newPresence.user_id);
+              return [newPresence, ...filtered];
+            });
           }
         }
       )
@@ -225,30 +222,25 @@ export function useRealtimeSubscriptions({
         { event: 'UPDATE', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
         async (payload: any) => {
           console.log('Presence updated:', payload);
-          if (payload.new.is_online) {
-            const { data: updatedPresence } = await supabase
-              .from('presence')
-              .select(`
-                *,
-                profiles:user_id (
-                  user_id,
-                  full_name,
-                  avatar_url
-                )
-              `)
-              .eq('team_id', teamId)
-              .eq('user_id', payload.new.user_id)
-              .eq('is_online', true)
-              .single();
+          const { data: updatedPresence } = await supabase
+            .from('presence')
+            .select(`
+              *,
+              profiles:user_id (
+                user_id,
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('team_id', teamId)
+            .eq('user_id', payload.new.user_id)
+            .single();
 
-            if (updatedPresence) {
-              setPresence(prev => {
-                const filtered = prev.filter(p => p.user_id !== updatedPresence.user_id);
-                return [updatedPresence, ...filtered];
-              });
-            }
-          } else {
-            setPresence(prev => prev.filter(p => p.user_id !== payload.new.user_id));
+          if (updatedPresence) {
+            setPresence(prev => {
+              const filtered = prev.filter(p => p.user_id !== updatedPresence.user_id);
+              return [updatedPresence, ...filtered];
+            });
           }
         }
       )

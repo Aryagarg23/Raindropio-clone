@@ -10,7 +10,7 @@ import { Search, Share2, Settings, Users, Grid3X3, List, Plus, Folder, ExternalL
 
 interface Presence {
   user_id: string;
-  is_online: boolean;
+  last_seen: string;
   profiles?: {
     user_id: string;
     full_name?: string;
@@ -72,37 +72,64 @@ export function TeamSiteHeader({
               {/* Online members */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-                  <span className="text-sm font-medium text-grey-accent-600">
-                    {presence.length === 0 ? 'No one online' : `${presence.length} online`}
-                  </span>
-                </div>
-
-                {presence.length > 0 && (
-                  <div className="flex -space-x-2">
-                    {presence.slice(0, 5).map((p) => {
-                      const displayName = p.profiles?.full_name || p.profiles?.user_id || 'Unknown User';
-                      const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                    {/* Compute online members from last_seen (recent within threshold) */}
+                    {(() => {
+                      const now = Date.now();
+                      const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+                      const onlineMembers = presence.filter(p => {
+                        if (!p.last_seen) return false;
+                        const last = new Date(p.last_seen).getTime();
+                        return (now - last) <= ONLINE_THRESHOLD_MS;
+                      });
 
                       return (
-                        <div
-                          key={p.user_id}
-                          title={`${displayName} (Online)`}
-                        >
-                          <ProfileIcon
-                            user={{
-                              avatar_url: p.profiles?.avatar_url,
-                              full_name: p.profiles?.full_name,
-                              email: p.profiles?.user_id
-                            }}
-                            size="md"
-                            className="border-2 border-white shadow-md"
-                          />
-                        </div>
+                        <>
+                          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                          <span className="text-sm font-medium text-grey-accent-600">
+                            {onlineMembers.length === 0 ? 'No one online' : `${onlineMembers.length} online`}
+                          </span>
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
-                )}
+
+                {(() => {
+                  const now = Date.now();
+                  const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+                  const onlineMembers = presence.filter(p => {
+                    if (!p.last_seen) return false;
+                    const last = new Date(p.last_seen).getTime();
+                    return (now - last) <= ONLINE_THRESHOLD_MS;
+                  });
+
+                  if (onlineMembers.length === 0) return null;
+
+                  return (
+                    <div className="flex -space-x-2">
+                      {onlineMembers.slice(0, 5).map((p) => {
+                        const displayName = p.profiles?.full_name || p.profiles?.user_id || 'Unknown User';
+                        const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
+                        return (
+                          <div
+                            key={p.user_id}
+                            title={`${displayName} (Online)`}
+                          >
+                            <ProfileIcon
+                              user={{
+                                avatar_url: p.profiles?.avatar_url,
+                                full_name: p.profiles?.full_name,
+                                email: p.profiles?.user_id
+                              }}
+                              size="md"
+                              className="border-2 border-white shadow-md"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               <Button variant="outline" size="sm" className="border-grey-accent-300 text-grey-accent-700 hover:bg-grey-accent-100 hover:border-grey-accent-400">
@@ -120,7 +147,16 @@ export function TeamSiteHeader({
           <div className="flex items-center gap-6 mt-4 text-sm text-grey-accent-600">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              {presence.length} members online
+              {(() => {
+                const now = Date.now();
+                const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+                const onlineCount = presence.filter(p => {
+                  if (!p.last_seen) return false;
+                  const last = new Date(p.last_seen).getTime();
+                  return (now - last) <= ONLINE_THRESHOLD_MS;
+                }).length;
+                return `${onlineCount} members online`;
+              })()}
             </div>
             <div className="flex items-center gap-1">
               <ExternalLink className="w-4 h-4" />

@@ -90,7 +90,7 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
         setTeamEvents(eventsData || []);
       }
 
-      // Load current presence
+      // Load current presence (compute online from last_seen only)
       const { data: presenceData, error: presenceError } = await supabase
         .from('presence')
         .select(`
@@ -102,7 +102,7 @@ export function useTeamData(teamId: string, authUser?: any, authLoading?: boolea
           )
         `)
         .eq('team_id', teamId)
-        .eq('is_online', true);
+        .order('last_seen', { ascending: false });
 
       if (presenceError) {
         console.error('Presence loading failed:', presenceError);

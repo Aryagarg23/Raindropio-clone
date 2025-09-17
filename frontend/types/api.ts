@@ -149,7 +149,6 @@ export interface Presence {
   user_id: string;
   last_seen: string;
   current_page?: string;
-  is_online: boolean;
 }
 
 export interface Highlight {

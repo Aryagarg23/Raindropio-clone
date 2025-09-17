@@ -15,27 +15,20 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
   const activityThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update presence
-  const updatePresence = async (isOnline: boolean = true) => {
+  const updatePresence = async () => {
     if (!user?.id || !teamId) return;
 
     try {
-      const { data, error } = await supabase
-        .from('presence')
-        .upsert({
-          team_id: teamId,
-          user_id: user.id,
-          is_online: isOnline,
-          last_seen: new Date().toISOString()
-        }, {
-          onConflict: 'team_id,user_id'
-        })
-        .select()
-        .single();
+      // Use server-side RPC to stamp last_seen with server time and avoid client clock skew
+      const { data, error } = await supabase.rpc('touch_presence', {
+        team: teamId,
+        userid: user.id
+      });
 
       if (error) {
-        console.error('[PRESENCE] Failed to update presence:', error);
+        console.error('[PRESENCE] touch_presence RPC failed:', error);
       } else {
-        console.log('[PRESENCE] Initial presence set for team:', teamId);
+        console.log('[PRESENCE] touch_presence invoked for team:', teamId);
       }
     } catch (err) {
       console.error('[PRESENCE] Error updating presence:', err);
@@ -48,13 +41,11 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
 
     const updateActivityInDatabase = async () => {
       try {
-        await supabase
-          .from('presence')
-          .update({
-            last_seen: new Date().toISOString()
-          })
-          .eq('team_id', teamId)
-          .eq('user_id', user.id);
+        // Use RPC to update presence with server timestamp
+        await supabase.rpc('touch_presence', {
+          team: teamId,
+          userid: user.id
+        });
         
         lastActivityUpdateRef.current = Date.now();
       } catch (error) {
@@ -90,18 +81,11 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
       }
 
       // Set new timeout for marking offline (5 minutes)
-      activityTimeoutRef.current = setTimeout(async () => {
-        if (user?.id && teamId) {
-          console.log(`[PRESENCE] Marking offline due to inactivity in team:`, teamId);
-          await supabase
-            .from('presence')
-            .update({
-              is_online: false,
-              last_seen: new Date().toISOString()
-            })
-            .eq('team_id', teamId)
-            .eq('user_id', user.id);
-        }
+      // Note: With last_seen only approach, we don't need to explicitly mark offline
+      // The UI will compute offline status from last_seen age
+      activityTimeoutRef.current = setTimeout(() => {
+        console.log(`[PRESENCE] User inactive for 5 minutes in team:`, teamId);
+        // No action needed - UI will show offline based on last_seen age
       }, 5 * 60 * 1000); // 5 minutes
     };
 
@@ -141,7 +125,7 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
   // Initialize presence after auth and data loading
   useEffect(() => {
     if (user && teamId && !authLoading && !dataLoading) {
-      updatePresence(true);
+      updatePresence();
     }
   }, [user, teamId, authLoading, dataLoading]);
 
