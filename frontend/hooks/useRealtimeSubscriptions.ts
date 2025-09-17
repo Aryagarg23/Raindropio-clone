@@ -22,7 +22,7 @@ export function useRealtimeSubscriptions({
 
   // Setup realtime subscriptions
   const setupRealtimeSubscriptions = () => {
-    if (!teamId || !user) {
+    if (!teamId || teamId === '' || !user) {
       console.log('❌ Skipping realtime setup - missing teamId or user:', { teamId, user: user?.id });
       return () => {};
     }
@@ -43,6 +43,7 @@ export function useRealtimeSubscriptions({
           console.log('📡 Collections realtime event:', payload);
           if (payload.eventType === 'INSERT') {
             console.log('📡 Inserting collection:', payload.new);
+            console.log('📡 setCollections function available:', typeof setCollections);
             setCollections(prev => {
               console.log('📡 Current collections before insert:', prev.length);
               const newCollection = payload.new;
@@ -56,6 +57,7 @@ export function useRealtimeSubscriptions({
             });
           } else if (payload.eventType === 'UPDATE') {
             console.log('📡 Updating collection:', payload.new);
+            console.log('📡 setCollections function available:', typeof setCollections);
             setCollections(prev => {
               console.log('📡 Updating collection in state, prev length:', prev.length);
               const updated = prev.map(c => c.id === payload.new.id ? payload.new : c);
@@ -64,6 +66,7 @@ export function useRealtimeSubscriptions({
             });
           } else if (payload.eventType === 'DELETE') {
             console.log('📡 Deleting collection:', payload.old);
+            console.log('📡 setCollections function available:', typeof setCollections);
             setCollections(prev => prev.filter(c => c.id !== payload.old.id));
           }
         }
@@ -80,6 +83,7 @@ export function useRealtimeSubscriptions({
         async (payload: any) => {
           console.log('📡 Bookmarks realtime event:', payload);
           if (payload.eventType === 'INSERT') {
+            console.log('📡 setBookmarks function available:', typeof setBookmarks);
             // Fetch the full bookmark with relations
             const { data: newBookmark } = await supabase
               .from('bookmarks')
@@ -100,10 +104,12 @@ export function useRealtimeSubscriptions({
               .single();
 
             if (newBookmark) {
+              console.log('📡 Adding bookmark to state:', newBookmark.title);
               setBookmarks(prev => [newBookmark, ...prev]);
             }
           } else if (payload.eventType === 'UPDATE') {
             console.log('📡 Updating bookmark:', payload.new);
+            console.log('📡 setBookmarks function available:', typeof setBookmarks);
             // Fetch the updated bookmark with full relations
             const { data: updatedBookmark } = await supabase
               .from('bookmarks')
@@ -133,6 +139,7 @@ export function useRealtimeSubscriptions({
             }
           } else if (payload.eventType === 'DELETE') {
             console.log('📡 Deleting bookmark:', payload.old);
+            console.log('📡 setBookmarks function available:', typeof setBookmarks);
             setBookmarks(prev => {
               console.log('📡 Deleting bookmark from state, prev length:', prev.length);
               const filtered = prev.filter(b => b.id !== payload.old.id);
@@ -152,7 +159,7 @@ export function useRealtimeSubscriptions({
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'team_events', filter: 'team_id=eq.' + teamId },
         async (payload: any) => {
-          console.log('Team event:', payload);
+          console.log('📡 Team event:', payload);
           // Fetch the full event with profile
           const { data: newEvent } = await supabase
             .from('team_events')
@@ -172,7 +179,9 @@ export function useRealtimeSubscriptions({
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Team events subscription status:', status);
+      });
 
     // Subscribe to presence changes with targeted updates
     const presenceSubscription = supabase
@@ -250,7 +259,54 @@ export function useRealtimeSubscriptions({
           setPresence(prev => prev.filter(p => p.user_id !== payload.old.user_id));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Presence subscription status:', status);
+      });
+
+    // Subscribe to highlights changes
+    const highlightsSubscription = supabase
+      .channel(`team-${teamId}-highlights`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'highlights', filter: 'team_id=eq.' + teamId },
+        async (payload: any) => {
+          console.log('📡 Highlights realtime event:', payload);
+          // For highlights, we need to update the specific bookmark's highlights
+          // This would typically trigger a refetch of bookmark highlights
+          // or update local state if we're tracking highlights separately
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Highlights subscription status:', status);
+      });
+
+    // Subscribe to annotations changes
+    const annotationsSubscription = supabase
+      .channel(`team-${teamId}-annotations`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'annotations', filter: 'team_id=eq.' + teamId },
+        async (payload: any) => {
+          console.log('📡 Annotations realtime event:', payload);
+          // For annotations, we need to update the specific bookmark's annotations
+          // This would typically trigger a refetch of bookmark annotations
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Annotations subscription status:', status);
+      });
+
+    // Subscribe to annotation reactions changes
+    const reactionsSubscription = supabase
+      .channel(`team-${teamId}-reactions`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'annotation_reactions', filter: 'team_id=eq.' + teamId },
+        async (payload: any) => {
+          console.log('📡 Annotation reactions realtime event:', payload);
+          // For reactions, we need to update the specific annotation's reaction count
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Reactions subscription status:', status);
+      });
 
     // Log active channels for debugging
     try {
@@ -269,22 +325,30 @@ export function useRealtimeSubscriptions({
       try { bookmarksSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe bookmarksSubscription', e); }
       try { eventsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe eventsSubscription', e); }
       try { presenceSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe presenceSubscription', e); }
+      try { highlightsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe highlightsSubscription', e); }
+      try { annotationsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe annotationsSubscription', e); }
+      try { reactionsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe reactionsSubscription', e); }
     };
   };
 
   // Initialize subscriptions when dependencies change
   useEffect(() => {
-    if (user && teamId) {
+    if (user?.id && teamId && teamId !== '') {
+      console.log('🔄 Setting up realtime subscriptions:', { userId: user.id, teamId });
+      
       // Clean up any existing subscriptions
       if (subscriptionCleanupRef.current) {
+        console.log('🧹 Cleaning up existing subscriptions');
         subscriptionCleanupRef.current();
       }
 
       // Set up new subscriptions and store cleanup function
       const cleanup = setupRealtimeSubscriptions();
       subscriptionCleanupRef.current = cleanup;
+    } else {
+      console.log('⏸️ Not setting up subscriptions:', { userId: user?.id, teamId });
     }
-  }, [user, teamId]);
+  }, [user?.id, teamId]);
 
   // Cleanup subscriptions on unmount
   useEffect(() => {

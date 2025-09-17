@@ -74,9 +74,17 @@ interface ExtendedCollection {
 export default function TeamSitePage() {
   const router = useRouter()
   const { teamId } = router.query
-  
-  // Normalize teamId to string for consistent usage
-  const normalizedTeamId = typeof teamId === 'string' ? teamId : Array.isArray(teamId) ? teamId[0] : undefined;
+
+  // Normalize teamId to string for consistent usage and guard against literal 'undefined'/'null'
+  const normalizedTeamId = (() => {
+    let id: string | undefined;
+    if (typeof teamId === 'string') id = teamId;
+    else if (Array.isArray(teamId) && teamId.length > 0) id = teamId[0];
+    else id = undefined;
+
+    if (id === 'undefined' || id === 'null' || id === '') return undefined;
+    return id;
+  })();
   
   const {
     user,
@@ -94,7 +102,7 @@ export default function TeamSitePage() {
     setError,
     setCollections,
     setBookmarks
-  } = useTeamSite(teamId)
+  } = useTeamSite(normalizedTeamId)
 
   const {
     draggedCollection,

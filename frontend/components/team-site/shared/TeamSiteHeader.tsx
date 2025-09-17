@@ -1,3 +1,5 @@
+"use client"
+
 import React from 'react';
 import { useRouter } from "next/router";
 import { Button } from "../../ui/button";
@@ -133,14 +135,15 @@ export function TeamSiteHeader({
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <TabsList className="grid w-fit grid-cols-4">
-            <TabsTrigger value="main">Main</TabsTrigger>
-            <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
-            <TabsTrigger value="collections">Collections</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
-
+          <div className="flex items-center justify-between mb-6">
+          <Tabs value={activeTab} onValueChange={onActiveTabChange} className="w-fit">
+            <TabsList className="grid w-fit grid-cols-4">
+              <TabsTrigger value="main">Main</TabsTrigger>
+              <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
+              <TabsTrigger value="collections">Collections</TabsTrigger>
+              <TabsTrigger value="activity">Activity</TabsTrigger>
+            </TabsList>
+          </Tabs>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />

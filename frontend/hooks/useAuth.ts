@@ -7,7 +7,8 @@ export function useAuth(teamId: string | string[] | undefined) {
   const router = useRouter();
 
   // Normalize teamId to string
-  const actualTeamId = Array.isArray(teamId) ? teamId[0] : teamId;
+  const rawTeamId = Array.isArray(teamId) ? teamId[0] : teamId;
+  const actualTeamId = (rawTeamId === 'undefined' || rawTeamId === 'null' || rawTeamId === '') ? undefined : rawTeamId;
 
   // Auth state
   const [user, setUser] = useState<any>(null);
@@ -30,20 +31,24 @@ export function useAuth(teamId: string | string[] | undefined) {
       setUser(user);
 
       // Verify team membership
-      console.log('Checking team membership:', { teamId: actualTeamId, userId: user.id });
-      const { data: membership, error: membershipError } = await supabase
-        .from('team_memberships')
-        .select('*')
-        .eq('team_id', actualTeamId)
-        .eq('user_id', user.id)
-        .single();
+      if (!actualTeamId) {
+        console.log('No teamId provided, skipping team membership check');
+      } else {
+        console.log('Checking team membership:', { teamId: actualTeamId, userId: user.id });
+        const { data: membership, error: membershipError } = await supabase
+          .from('team_memberships')
+          .select('*')
+          .eq('team_id', actualTeamId)
+          .eq('user_id', user.id)
+          .single();
 
-      console.log('Team membership result:', { membership, membershipError });
+        console.log('Team membership result:', { membership, membershipError });
 
-      if (membershipError || !membership) {
-        console.error('Team membership denied:', { membershipError, membership });
-        setError('You are not a member of this team');
-        return false;
+        if (membershipError || !membership) {
+          console.error('Team membership denied:', { membershipError, membership });
+          setError('You are not a member of this team');
+          return false;
+        }
       }
 
       // Get user profile

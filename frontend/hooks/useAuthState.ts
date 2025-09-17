@@ -26,10 +26,19 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
     if (accessToken) {
       console.log("🔑 Found OAuth tokens in URL, setting session...");
-      await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken || '',
-      });
+      try {
+        if (accessToken && accessToken !== 'undefined' && accessToken !== 'null') {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+        } else {
+          console.warn('OAuth tokens present but invalid, skipping setSession');
+        }
+      } catch (err: any) {
+        console.warn('Failed to set session from OAuth redirect:', err?.message || err);
+        // If the session is missing or invalid, continue as unauthenticated
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   };
@@ -69,21 +78,24 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       await handleOAuthRedirect();
 
       // Get current session and user
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error("❌ Session error:", sessionError);
-        setError("Authentication failed. Please try signing in again.");
-        setLoading(false);
-        return;
-      }
+      let currentUser: AuthUser | null = null;
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.warn('Session fetch warning:', sessionError?.message || sessionError);
+        }
 
-      const { data, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error("❌ User fetch error:", userError);
-        // Not critical - user might just not be logged in
-      }
+        const { data, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.warn('User fetch warning:', userError?.message || userError);
+        }
 
-      const currentUser = data?.user as AuthUser;
+        currentUser = (data?.user as AuthUser) || null;
+      } catch (err: any) {
+        // Handle AuthSessionMissingError or other client-side auth errors gracefully
+        console.warn('Auth session missing or fetch failed:', err?.message || err);
+        currentUser = null;
+      }
       setUser(currentUser);
       options.onUserChange?.(currentUser);
 
@@ -117,10 +129,18 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
   // Sign in with Google OAuth
   const signInWithGoogle = async () => {
+    // Prefer explicit public frontend URL (set in env) so dev/prod redirects work predictably.
+    // `NEXT_PUBLIC_FRONTEND_URL` is set in `.env.local` for development and in Vercel for production.
+    const frontendBase = (process.env.NEXT_PUBLIC_FRONTEND_URL && process.env.NEXT_PUBLIC_FRONTEND_URL !== '')
+      ? process.env.NEXT_PUBLIC_FRONTEND_URL
+      : (typeof window !== 'undefined' ? window.location.origin : '');
+
+    const redirectTo = `${frontendBase}${options.redirectToDashboard ? '/dashboard' : '/'}`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}${options.redirectToDashboard ? '/dashboard' : '/'}`
+        redirectTo
       }
     });
 

@@ -11,13 +11,14 @@ interface UsePresenceProps {
 export function usePresence({ teamId, user, authLoading, dataLoading }: UsePresenceProps) {
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activityHandlerRef = useRef<(() => void) | null>(null);
+  const lastActivityUpdateRef = useRef<number>(0);
+  const activityThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update presence
   const updatePresence = async (isOnline: boolean = true) => {
     if (!user?.id || !teamId) return;
 
     try {
-      console.log(`[PRESENCE] Updating presence for team:`, teamId);
       const { data, error } = await supabase
         .from('presence')
         .upsert({
@@ -34,7 +35,7 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
       if (error) {
         console.error('[PRESENCE] Failed to update presence:', error);
       } else {
-        console.log('[PRESENCE] Presence updated successfully:', data);
+        console.log('[PRESENCE] Initial presence set for team:', teamId);
       }
     } catch (err) {
       console.error('[PRESENCE] Error updating presence:', err);
@@ -45,27 +46,50 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
   useEffect(() => {
     if (!user || !teamId) return;
 
+    const updateActivityInDatabase = async () => {
+      try {
+        await supabase
+          .from('presence')
+          .update({
+            last_seen: new Date().toISOString()
+          })
+          .eq('team_id', teamId)
+          .eq('user_id', user.id);
+        
+        lastActivityUpdateRef.current = Date.now();
+      } catch (error) {
+        console.error('[PRESENCE] Failed to update activity:', error);
+      }
+    };
+
     const handleActivity = () => {
-      // Clear existing timeout
+      // Clear existing offline timeout
       if (activityTimeoutRef.current) {
         clearTimeout(activityTimeoutRef.current);
       }
 
-      // Update presence
-      supabase
-        .from('presence')
-        .update({
-          last_seen: new Date().toISOString()
-        })
-        .eq('team_id', teamId)
-        .eq('user_id', user.id)
-        .then(({ error }) => {
-          if (error) {
-            console.error('[PRESENCE] Failed to update activity:', error);
-          }
-        });
+      // Throttle database updates to at most once every 30 seconds
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastActivityUpdateRef.current;
+      const shouldUpdate = timeSinceLastUpdate > 30000; // 30 seconds
 
-      // Set new timeout for marking offline
+      if (shouldUpdate) {
+        // Update immediately if it's been more than 30 seconds
+        updateActivityInDatabase();
+      } else {
+        // Clear any pending throttled update
+        if (activityThrottleTimeoutRef.current) {
+          clearTimeout(activityThrottleTimeoutRef.current);
+        }
+        
+        // Schedule an update for when the throttle period is over
+        const timeUntilNextUpdate = 30000 - timeSinceLastUpdate;
+        activityThrottleTimeoutRef.current = setTimeout(() => {
+          updateActivityInDatabase();
+        }, timeUntilNextUpdate);
+      }
+
+      // Set new timeout for marking offline (5 minutes)
       activityTimeoutRef.current = setTimeout(async () => {
         if (user?.id && teamId) {
           console.log(`[PRESENCE] Marking offline due to inactivity in team:`, teamId);
@@ -103,6 +127,9 @@ export function usePresence({ teamId, user, authLoading, dataLoading }: UsePrese
     return () => {
       if (activityTimeoutRef.current) {
         clearTimeout(activityTimeoutRef.current);
+      }
+      if (activityThrottleTimeoutRef.current) {
+        clearTimeout(activityThrottleTimeoutRef.current);
       }
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('keypress', handleKeyPress);

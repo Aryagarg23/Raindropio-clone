@@ -12,7 +12,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   const [error, setError] = useState<string | null>(null);
 
   // Use the smaller hooks
-  const { user, profile, loading: authLoading, checkAuth } = useAuth(teamId);
+  const { user, profile, loading: authLoading, checkAuth } = useAuth(actualTeamId);
   const {
     collections,
     bookmarks,
