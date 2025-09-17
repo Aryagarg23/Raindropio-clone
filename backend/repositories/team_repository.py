@@ -83,29 +83,34 @@ class TeamRepository(BaseRepository):
             List of team members (profiles)
         """
         try:
-            # Get profiles through team_memberships join
-            response = self.supabase.table("team_memberships").select("profiles(*)").eq("team_id", team_id).execute()
-            # Extract profiles from the nested structure
-            return [item["profiles"] for item in response.data] if response.data else []
+            # First get the user_ids from team_memberships
+            memberships = self.supabase.table("team_memberships").select("user_id").eq("team_id", team_id).execute()
+            if not memberships.data:
+                return []
+            
+            user_ids = [m["user_id"] for m in memberships.data]
+            
+            # Then get the profiles for these users
+            profiles = self.supabase.table("profiles").select("*").in_("user_id", user_ids).execute()
+            
+            return profiles.data if profiles.data else []
         except Exception as e:
             raise Exception(f"Failed to get team members: {str(e)}")
 
-    async def add_team_member(self, team_id: str, user_id: str, role: str = "member") -> Dict:
+    async def add_team_member(self, team_id: str, user_id: str) -> Dict:
         """
         Add a member to a team.
 
         Args:
             team_id: The team's ID
             user_id: The user's ID
-            role: The member's role (default: member)
 
         Returns:
             The membership data
         """
         data = {
             "team_id": team_id,
-            "user_id": user_id,
-            "role": role
+            "user_id": user_id
         }
         return await self.insert("team_memberships", data)
 
