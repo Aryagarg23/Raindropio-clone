@@ -86,201 +86,6 @@ const FaviconImage = ({ url, faviconUrl, size = "w-4 h-4" }: { url: string, favi
   )
 }
 
-// Function to convert HTML to formatted text (simple version for fallback)
-const htmlToFormattedText = (html: string): string => {
-  if (!html) return ''
-  
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = html
-  
-  // Extract text with basic formatting
-  const lines: string[] = []
-  
-  const processNode = (node: Node, indent = 0): void => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent?.trim()
-      if (text) {
-        lines.push('  '.repeat(indent) + text)
-      }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const element = node as Element
-      const tagName = element.tagName.toLowerCase()
-      
-      if (tagName === 'h1' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4' || tagName === 'h5' || tagName === 'h6') {
-        const level = parseInt(tagName[1])
-        const text = element.textContent?.trim()
-        if (text) {
-          lines.push('#'.repeat(level) + ' ' + text)
-          lines.push('') // Add blank line after heading
-        }
-      } else if (tagName === 'p') {
-        const text = element.textContent?.trim()
-        if (text) {
-          lines.push(text)
-          lines.push('') // Add blank line after paragraph
-        }
-      } else if (tagName === 'li') {
-        const text = element.textContent?.trim()
-        if (text) {
-          lines.push('• ' + text)
-        }
-      } else if (tagName === 'br') {
-        lines.push('')
-      } else {
-        // Process children
-        for (const child of element.childNodes) {
-          processNode(child, indent)
-        }
-      }
-    }
-  }
-  
-  for (const child of tempDiv.childNodes) {
-    processNode(child)
-  }
-  
-  return lines.join('\n').trim()
-}
-
-// Function to convert formatted text to HTML
-const formattedTextToHtml = (text: string): string => {
-  if (!text) return ''
-  
-  // Split into lines
-  const lines = text.split('\n')
-  const htmlLines: string[] = []
-  
-  for (const line of lines) {
-    const trimmed = line.trim()
-    
-    if (!trimmed) {
-      // Empty line - add paragraph break
-      htmlLines.push('<br>')
-      continue
-    }
-    
-    // Check for headings (# Heading)
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      const level = headingMatch[1].length
-      const headingText = headingMatch[2]
-      htmlLines.push(`<h${level} class="text-${level === 1 ? '2xl' : level === 2 ? 'xl' : 'lg'} font-bold text-grey-accent-900 mb-4 mt-6">${headingText}</h${level}>`)
-      continue
-    }
-    
-    // Check for blockquotes (> text)
-    if (trimmed.startsWith('> ')) {
-      const quoteText = trimmed.substring(2)
-      htmlLines.push(`<blockquote class="border-l-4 border-grey-accent-300 pl-4 italic text-grey-accent-700 my-4">${quoteText}</blockquote>`)
-      continue
-    }
-    
-    // Check for code blocks (``` code ```)
-    if (trimmed.startsWith('```') && trimmed.endsWith('```') && trimmed.length > 6) {
-      const codeText = trimmed.slice(3, -3)
-      htmlLines.push(`<pre class="bg-grey-accent-100 p-4 rounded-lg overflow-x-auto my-4"><code>${codeText}</code></pre>`)
-      continue
-    }
-    
-    // Check for list items (• item or 1. item)
-    const listMatch = trimmed.match(/^([•]|\d+\.)\s+(.+)$/)
-    if (listMatch) {
-      const marker = listMatch[1]
-      const itemText = listMatch[2]
-      const isOrdered = /^\d+\./.test(marker)
-      if (isOrdered) {
-        htmlLines.push(`<li class="ml-6">${itemText}</li>`)
-      } else {
-        htmlLines.push(`<li class="ml-6 list-disc">${itemText}</li>`)
-      }
-      continue
-    }
-    
-    // Check for bold text (**text**)
-    let processedLine = trimmed
-    processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    
-    // Check for italic text (*text*)
-    processedLine = processedLine.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-    
-    // Check for inline code (`code`)
-    processedLine = processedLine.replace(/`(.*?)`/g, '<code class="bg-grey-accent-100 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-    
-    // Regular paragraph
-    htmlLines.push(`<p class="mb-4 leading-relaxed">${processedLine}</p>`)
-  }
-  
-  return htmlLines.join('\n')
-}
-  if (!text) return ''
-  
-  // Split into lines
-  const lines = text.split('\n')
-  const htmlLines: string[] = []
-  
-  for (const line of lines) {
-    const trimmed = line.trim()
-    
-    if (!trimmed) {
-      // Empty line - add paragraph break
-      htmlLines.push('<br>')
-      continue
-    }
-    
-    // Check for headings (# Heading)
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      const level = headingMatch[1].length
-      const headingText = headingMatch[2]
-      htmlLines.push(`<h${level} class="text-${level === 1 ? '2xl' : level === 2 ? 'xl' : 'lg'} font-bold text-grey-accent-900 mb-4 mt-6">${headingText}</h${level}>`)
-      continue
-    }
-    
-    // Check for blockquotes (> text)
-    if (trimmed.startsWith('> ')) {
-      const quoteText = trimmed.substring(2)
-      htmlLines.push(`<blockquote class="border-l-4 border-grey-accent-300 pl-4 italic text-grey-accent-700 my-4">${quoteText}</blockquote>`)
-      continue
-    }
-    
-    // Check for code blocks (``` code ```)
-    if (trimmed.startsWith('```') && trimmed.endsWith('```') && trimmed.length > 6) {
-      const codeText = trimmed.slice(3, -3)
-      htmlLines.push(`<pre class="bg-grey-accent-100 p-4 rounded-lg overflow-x-auto my-4"><code>${codeText}</code></pre>`)
-      continue
-    }
-    
-    // Check for list items (• item or 1. item)
-    const listMatch = trimmed.match(/^([••]|\d+\.)\s+(.+)$/)
-    if (listMatch) {
-      const marker = listMatch[1]
-      const itemText = listMatch[2]
-      const isOrdered = /^\d+\./.test(marker)
-      if (isOrdered) {
-        htmlLines.push(`<li class="ml-6">${itemText}</li>`)
-      } else {
-        htmlLines.push(`<li class="ml-6 list-disc">${itemText}</li>`)
-      }
-      continue
-    }
-    
-    // Check for bold text (**text**)
-    let processedLine = trimmed
-    processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    
-    // Check for italic text (*text*)
-    processedLine = processedLine.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-    
-    // Check for inline code (`code`)
-    processedLine = processedLine.replace(/`(.*?)`/g, '<code class="bg-grey-accent-100 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-    
-    // Regular paragraph
-    htmlLines.push(`<p class="mb-4 leading-relaxed">${processedLine}</p>`)
-  }
-  
-  return htmlLines.join('\n')
-}
-
 interface ExtendedCollection {
   id: string
   name: string
@@ -3438,7 +3243,7 @@ export default function TeamSitePage() {
                           
                           <div 
                             className="reader-content user-select-text relative"
-                            dangerouslySetInnerHTML={{ __html: formattedTextToHtml(extractedContent.content) }}
+                            dangerouslySetInnerHTML={{ __html: extractedContent.content }}
                             style={{
                               lineHeight: '1.8',
                               fontSize: '16px',
@@ -4643,7 +4448,7 @@ function BookmarkDetailModal({
             setExtractedContent({
               title: data.title,
               description: data.description,
-              content: data.content, // Backend already returns formatted text
+              content: cleanContent(data.content),
               url: bookmark.url,
               extractedAt: new Date().toISOString(),
               meta_info: data.meta_info
@@ -4722,7 +4527,7 @@ function BookmarkDetailModal({
         setExtractedContent({
           title,
           description,
-          content: htmlToFormattedText(cleanContent(content)),
+          content: cleanContent(content),
           url: bookmark.url,
           extractedAt: new Date().toISOString()
         })
@@ -5263,7 +5068,7 @@ function BookmarkDetailModal({
                   <div 
                     className="prose prose-lg max-w-none reader-content user-select-text relative"
                     dangerouslySetInnerHTML={{ 
-                      __html: renderHighlights(formattedTextToHtml(extractedContent.content))
+                      __html: renderHighlights(extractedContent.content)
                     }}
                     style={{
                       lineHeight: '1.8',

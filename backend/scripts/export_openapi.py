@@ -8,7 +8,8 @@ app = None
 # Ensure minimal env vars exist so `core.config` doesn't raise during import.
 # These placeholders are safe for generating the OpenAPI spec; they are NOT used to access production services.
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
-os.environ.setdefault("SUPABASE_KEY", "service_role_dummy_key")
+os.environ.setdefault("SUPABASE_ANON_KEY", "anon_dummy_key")
+os.environ.setdefault("SUPABASE_SERVICE_KEY", "service_role_dummy_key")
 
 try:
     # Preferred: import package-style when running from repo root
@@ -32,7 +33,7 @@ except Exception:
             print("Error importing FastAPI app from backend.main:", e)
             print("Hints:")
             print(" - Run this script from the repository root: `python backend/scripts/export_openapi.py`")
-            print(" - Ensure required env vars are set (e.g. SUPABASE_URL, SUPABASE_KEY) or refactor to a create_app() factory")
+            print(" - Ensure required env vars are set (e.g. SUPABASE_URL, SUPABASE_SERVICE_KEY) or refactor to a create_app() factory")
             sys.exit(1)
 
 

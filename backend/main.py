@@ -1,8 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from api.routers import users, teams, admin, content
 from core.config import settings
+from core.logging import setup_logging, get_logger
+from core.rate_limiting import RateLimitMiddleware
+from core.security_headers import SecurityHeadersMiddleware
+from core.exceptions import BusinessLogicError
 import asyncio
+
+# Setup structured logging
+setup_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="Raindropio Clone API", 
@@ -65,6 +75,77 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 # Add timeout middleware
 app.add_middleware(TimeoutMiddleware, timeout=30.0)
 
+# Add rate limiting middleware (60 requests per minute)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+
+# Add security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Custom exception handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors with detailed information"""
+    logger.warning("Validation error",
+                 path=request.url.path,
+                 method=request.method,
+                 errors=exc.errors(),
+                 body=exc.body if hasattr(exc, 'body') else None)
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Input validation failed",
+                "details": exc.errors()
+            }
+        }
+    )
+
+@app.exception_handler(BusinessLogicError)
+async def business_logic_exception_handler(request: Request, exc: BusinessLogicError):
+    """Handle business logic exceptions with structured error responses"""
+    logger.warning("Business logic error",
+                 path=request.url.path,
+                 method=request.method,
+                 error_code=exc.error_code,
+                 status_code=exc.status_code,
+                 details=exc.details)
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.error_code,
+                "message": exc.detail,
+                "details": exc.details
+            }
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected exceptions"""
+    logger.error("Unexpected error",
+                extra={
+                    "extra_fields": {
+                        "path": request.url.path,
+                        "method": request.method,
+                        "error": str(exc)
+                    }
+                },
+                exc_info=True)
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred"
+            }
+        }
+    )
+
 # Include routers
 app.include_router(users.router)
 app.include_router(teams.router)
@@ -93,6 +174,8 @@ async def health():
         # Check database health
         db_health = await check_database_health()
         
+        logger.info("Health check performed", status="ok", database_status=db_health)
+        
         return {
             "status": "ok",
             "timestamp": asyncio.get_event_loop().time(),
@@ -100,6 +183,7 @@ async def health():
             "api_version": "1.0.0"
         }
     except Exception as e:
+        logger.error("Health check failed", error=str(e))
         return {
             "status": "degraded",
             "error": str(e),

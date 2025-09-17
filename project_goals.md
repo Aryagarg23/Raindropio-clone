@@ -27,7 +27,7 @@
     - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 - **Environment Variables**:
     - `SUPABASE_URL`: Your Supabase project URL.
-    - `SUPABASE_KEY`: Your Supabase project `service_role` key (this key bypasses RLS, essential for admin tasks).
+    - `SUPABASE_SERVICE_KEY`: Your Supabase project `service_role` key (this key bypasses RLS, essential for admin tasks).
 
 ### Supabase (Database & Auth)
 - **Project Setup**: Create a new project on the Supabase dashboard.

@@ -370,7 +370,7 @@ State: Prefer server components + `@supabase/auth-helpers-nextjs`; client compon
 
 ## 12. Configuration & Secrets Management
 - Frontend `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`, `NEXTAUTH_SECRET` (if NextAuth is actually adopted; may be redundant if only Supabase auth).
-- Backend: `SUPABASE_URL`, `SUPABASE_KEY` (service), optional `LOG_LEVEL`.
+- Backend: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (service), optional `LOG_LEVEL`.
 - Future: rotate keys; consider adding a minimal config loader.
 
 ## 13. Dev Environment Setup

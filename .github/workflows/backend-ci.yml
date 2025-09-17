@@ -1,0 +1,149 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: ['**']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: 📦 Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libxml2-dev libxslt-dev
+
+    - name: 🔧 Validate workflow YAML
+      # Note: This step validates the file from the checkout, not the one currently running.
+      run: |
+        pip install pyyaml
+        pip install PyYAML
+        echo "🔧 Validating workflow YAML syntax..."
+        python -c "import yaml; yaml.safe_load(open('.github/workflows/backend-ci.yml')); print('✅ Workflow YAML is valid')"
+      working-directory: . # Run this step in the root directory
+
+    - name: 📦 Install Python dependencies
+      run: |
+        echo "📦 Installing Python dependencies..."
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install \
+          flake8 \
+          black \
+          isort \
+          mypy \
+          bandit \
+          safety \
+          pytest \
+          pytest-cov \
+          pytest-html \
+          pytest-xdist
+
+    - name: 🔍 Run security checks
+      run: |
+        echo "🔒 Running Bandit security linter..."
+        bandit -r . -f json -o bandit-report.json || true
+        echo "🛡️ Running Safety vulnerability check..."
+        safety check --json > safety-report.json || true
+
+    - name: 🎨 Check code formatting with Black
+      run: |
+        echo "🎨 Checking code formatting with Black..."
+        black --check --diff --color --verbose .
+
+    - name: 📋 Check import sorting with isort
+      run: |
+        echo "📋 Checking import sorting with isort..."
+        isort --check-only --diff --color --verbose .
+
+    - name: 🐛 Run linting with Flake8
+      run: |
+        echo "🐛 Running Flake8 linting..."
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --verbose
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --verbose
+
+    - name: 🔍 Run type checking with MyPy
+      run: |
+        echo "🔍 Running MyPy type checking..."
+        mypy . --config-file mypy.ini --show-traceback || true
+
+    - name: 🧪 Run unit tests
+      run: |
+        echo "🧪 Running unit tests..."
+        python -m pytest tests/unit/ \
+          -v \
+          --tb=long \
+          --durations=10 \
+          --strict-markers \
+          --strict-config \
+          --cov=. \
+          --cov-report=term-missing \
+          --cov-report=html:htmlcov \
+          --cov-report=xml \
+          --cov-fail-under=50 \
+          --html=report.html \
+          --self-contained-html
+
+    - name: 📊 Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        # The working-directory default applies here, so the path is relative to ./backend
+        file: ./coverage.xml
+        flags: backend
+        name: Backend Coverage
+        fail_ci_if_error: false
+
+    - name: 📁 Upload test artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ github.run_id }}
+        path: |
+          backend/htmlcov/
+          backend/report.html
+          backend/bandit-report.json
+          backend/safety-report.json
+        retention-days: 30
+
+    - name: 📋 Generate test summary
+      if: always()
+      run: |
+        echo "## 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 Code Quality Checks" >> $GITHUB_STEP_SUMMARY
+        # Add logic here to check results of previous steps if needed
+        echo "- Black formatting check" >> $GITHUB_STEP_SUMMARY
+        echo "- isort import sorting check" >> $GITHUB_STEP_SUMMARY
+        echo "- Flake8 linting" >> $GITHUB_STEP_SUMMARY
+        echo "- MyPy type checking" >> $GITHUB_STEP_SUMMARY
+        echo "- Bandit security scan" >> $GITHUB_STEP_SUMMARY
+        echo "- Safety vulnerability check" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Branch Information" >> $GITHUB_STEP_SUMMARY
+        echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Trigger: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
