@@ -365,6 +365,8 @@ pytest tests/unit/test_teams.py::TestGetUserTeams::test_get_user_teams_admin -v
 ### Warning Fixes (Future-Proofing)
 - **Pytest Markers**: Fixed `pytest.ini` configuration from `[tool:pytest]` to `[pytest]` format
 - **Supabase Deprecation Warnings**: Properly configured HTTP client using `SyncClientOptions` with `httpx_client` parameter instead of deprecated timeout/verify parameters
+- **Security Headers**: Fixed `MutableHeaders.pop()` error by using proper Starlette header deletion syntax
+- **Structured Logging**: Fixed logger error handling to use proper `extra` parameter for structured logging
 - **Coverage Configuration**: Adjusted coverage target from 80% to 50% for realistic unit test coverage expectations
 
 ### Test Coverage

@@ -127,9 +127,13 @@ async def business_logic_exception_handler(request: Request, exc: BusinessLogicE
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions"""
     logger.error("Unexpected error",
-                path=request.url.path,
-                method=request.method,
-                error=str(exc),
+                extra={
+                    "extra_fields": {
+                        "path": request.url.path,
+                        "method": request.method,
+                        "error": str(exc)
+                    }
+                },
                 exc_info=True)
 
     return JSONResponse(
