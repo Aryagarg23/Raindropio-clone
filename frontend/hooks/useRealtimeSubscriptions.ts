@@ -48,11 +48,11 @@ export function useRealtimeSubscriptions({
         { 
           event: '*', 
           schema: 'public', 
-          table: 'collections', 
-          filter: 'team_id=eq.' + teamId 
+          table: 'collections'
         },
         async (payload: any) => {
           console.log('📡 Collections realtime event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           try {
             if (payload.eventType === 'INSERT') {
               console.log('📡 Inserting collection:', payload.new);
@@ -96,9 +96,10 @@ export function useRealtimeSubscriptions({
     const bookmarksSubscription = supabase
       .channel(`team-${teamId}-bookmarks`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'bookmarks', filter: 'team_id=eq.' + teamId },
+        { event: '*', schema: 'public', table: 'bookmarks' },
         async (payload: any) => {
           console.log('📡 Bookmarks realtime event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           try {
             if (payload.eventType === 'INSERT') {
               console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
@@ -191,9 +192,10 @@ export function useRealtimeSubscriptions({
     const eventsSubscription = supabase
       .channel(`team-${teamId}-events`)
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'team_events', filter: 'team_id=eq.' + teamId },
+        { event: 'INSERT', schema: 'public', table: 'team_events' },
         async (payload: any) => {
           console.log('📡 Team event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           // Fetch the full event with profile
           const { data: newEvent } = await supabase
             .from('team_events')
@@ -221,9 +223,10 @@ export function useRealtimeSubscriptions({
     const presenceSubscription = supabase
       .channel(`team-${teamId}-presence`)
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
+        { event: 'INSERT', schema: 'public', table: 'presence' },
         async (payload: any) => {
           console.log('Presence user joined:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           const { data: newPresence } = await supabase
             .from('presence')
             .select(`
@@ -253,9 +256,10 @@ export function useRealtimeSubscriptions({
         }
       )
       .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
+        { event: 'UPDATE', schema: 'public', table: 'presence' },
         async (payload: any) => {
           console.log('Presence updated:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           const { data: updatedPresence } = await supabase
             .from('presence')
             .select(`
@@ -279,9 +283,10 @@ export function useRealtimeSubscriptions({
         }
       )
       .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'presence', filter: 'team_id=eq.' + teamId },
+        { event: 'DELETE', schema: 'public', table: 'presence' },
         (payload: any) => {
           console.log('Presence deleted:', payload);
+          if (payload.old && payload.old.team_id !== teamId) return;
           setPresenceRef.current(prev => prev.filter(p => p.user_id !== payload.old.user_id));
         }
       )
@@ -293,9 +298,10 @@ export function useRealtimeSubscriptions({
     const highlightsSubscription = supabase
       .channel(`team-${teamId}-highlights`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'highlights', filter: 'team_id=eq.' + teamId },
+        { event: '*', schema: 'public', table: 'highlights' },
         async (payload: any) => {
           console.log('📡 Highlights realtime event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           // For highlights, we need to update the specific bookmark's highlights
           // This would typically trigger a refetch of bookmark highlights
           // or update local state if we're tracking highlights separately
@@ -309,9 +315,10 @@ export function useRealtimeSubscriptions({
     const annotationsSubscription = supabase
       .channel(`team-${teamId}-annotations`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'annotations', filter: 'team_id=eq.' + teamId },
+        { event: '*', schema: 'public', table: 'annotations' },
         async (payload: any) => {
           console.log('📡 Annotations realtime event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           // For annotations, we need to update the specific bookmark's annotations
           // This would typically trigger a refetch of bookmark annotations
         }
@@ -324,9 +331,10 @@ export function useRealtimeSubscriptions({
     const reactionsSubscription = supabase
       .channel(`team-${teamId}-reactions`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'annotation_reactions', filter: 'team_id=eq.' + teamId },
+        { event: '*', schema: 'public', table: 'annotation_reactions' },
         async (payload: any) => {
           console.log('📡 Annotation reactions realtime event:', payload);
+          if (payload.new && payload.new.team_id !== teamId) return;
           // For reactions, we need to update the specific annotation's reaction count
         }
       )
