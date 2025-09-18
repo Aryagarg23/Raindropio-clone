@@ -1,11 +1,12 @@
 "use client"
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext, useState, useEffect } from 'react';
 import { useRouter } from "next/router";
 import { Button } from "../../ui/button";
 import ProfileIcon from "../../ProfileIcon";
 import { ArrowLeft, Users, Settings, ExternalLink, Folder } from "lucide-react";
 import { MemberAvatars } from "../../shared/MemberAvatars";
+import { TimeSyncContext } from '../../../context/TimeSyncContext';
 
 interface Presence {
   user_id: string;
@@ -32,16 +33,26 @@ export function TeamSiteHeader({
   onSettingsAction,
 }: TeamSiteHeaderProps) {
   const router = useRouter();
+  const timeSync = useContext(TimeSyncContext);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    // Force a re-render every 10 seconds to update the online status calculation
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const onlineMembers = useMemo(() => {
-    const now = Date.now();
-    const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+    const correctedNow = now + (timeSync?.offset || 0);
+    const ONLINE_THRESHOLD_MS = 6000; // 5 minutes
     return presence.filter(p => {
       if (!p.last_seen) return false;
       const lastSeenTime = new Date(p.last_seen).getTime();
-      return (now - lastSeenTime) <= ONLINE_THRESHOLD_MS;
+      return (correctedNow - lastSeenTime) <= ONLINE_THRESHOLD_MS;
     });
-  }, [presence]);
+  }, [presence, timeSync?.offset, now]);
 
   // Transform presence data to UserProfile format for MemberAvatars
   const onlineUserProfiles = useMemo(() => {

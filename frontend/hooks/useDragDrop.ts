@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import supabase from '../modules/supabaseClient';
 
 interface UseDragDropProps {
@@ -11,7 +11,7 @@ interface UseDragDropProps {
   setError: (error: string | null) => void;
 }
 
-export const useDragDrop = ({
+export function useDragDrop({
   user,
   profile,
   collections,
@@ -19,321 +19,165 @@ export const useDragDrop = ({
   setCollections,
   setBookmarks,
   setError
-}: UseDragDropProps) => {
+}: UseDragDropProps) {
   const [draggedCollection, setDraggedCollection] = useState<string | null>(null);
   const [draggedBookmark, setDraggedBookmark] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [dragOverData, setDragOverData] = useState<{id: string, position: 'root' | 'child'} | null>(null);
   const throttleTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDragStart = (e: React.DragEvent, collectionId: string) => {
-    console.log('=== DRAG START ===', collectionId);
+  const handleDragStart = useCallback((e: React.DragEvent, collectionId: string) => {
     setDraggedCollection(collectionId);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, []);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     console.log('=== DRAG END ===', { draggedCollection });
-
-    // Clear throttle timeout
     if (throttleTimeout.current) {
       clearTimeout(throttleTimeout.current);
       throttleTimeout.current = null;
     }
-
     setDraggedCollection(null);
     setDragOverData(null);
-  };
+  }, [draggedCollection]);
 
-  const handleDragOver = (e: React.DragEvent, collectionId: string) => {
+  const handleDragOver = useCallback((e: React.DragEvent, collectionId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    // Simple left/right position detection
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const width = rect.width;
-    const position = x < width * 0.5 ? 'root' : 'child';
+    const position = x < rect.width * 0.5 ? 'root' : 'child';
 
-    // Throttle state updates to prevent excessive re-renders while keeping visuals smooth
     if (throttleTimeout.current) {
       clearTimeout(throttleTimeout.current);
     }
 
     throttleTimeout.current = setTimeout(() => {
-      // Only update state if actually different
       if (!dragOverData || dragOverData.id !== collectionId || dragOverData.position !== position) {
         setDragOverData({ id: collectionId, position });
       }
-    }, 16); // ~60fps throttle for state updates
-  };
+    }, 16);
+  }, [dragOverData]);
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    // Clear state with slight delay to prevent flicker when moving between elements
+  const handleDragLeave = useCallback(() => {
     if (throttleTimeout.current) {
       clearTimeout(throttleTimeout.current);
     }
-
     throttleTimeout.current = setTimeout(() => {
       setDragOverData(null);
     }, 50);
-  };
+  }, []);
 
-  const handleRootDrop = async (e: React.DragEvent) => {
+  const handleRootDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
+    if (!draggedCollection || !user) {
+      setError('You must be logged in to move collections');
+      return;
+    }
 
-    if (!draggedCollection) return;
+    const originalCollection = collections.find(c => c.id === draggedCollection);
+    const rootCollections = collections.filter(c => c.parent_id === null);
+    const maxSortOrder = rootCollections.length > 0 ? Math.max(...rootCollections.map(c => c.sort_order || 0)) : 0;
+
+    setCollections(prev => prev.map(c => c.id === draggedCollection ? { ...c, parent_id: null, sort_order: maxSortOrder + 10 } : c));
 
     try {
-      // Check if user has permission to modify collections
-      if (!user) {
-        console.error('No authenticated user');
-        setError('You must be logged in to move collections');
-        return;
-      }
-
-      // Move collection to root level at the bottom
-      // Find the highest sort_order among root-level collections
-      const rootCollections = collections.filter(c => c.parent_id === null);
-      const maxSortOrder = rootCollections.length > 0
-        ? Math.max(...rootCollections.map(c => c.sort_order || 0))
-        : 0;
-
-      console.log('Moving to root bottom:', {
-        draggedCollection,
-        newSortOrder: maxSortOrder + 10,
-        userId: user.id,
-        userRole: profile?.role || 'unknown'
-      });
-
-      // Optimistic update - update local state immediately
-      const originalCollection = collections.find(c => c.id === draggedCollection);
-      setCollections(prevCollections =>
-        prevCollections.map(c =>
-          c.id === draggedCollection
-            ? { ...c, parent_id: null, sort_order: maxSortOrder + 10 }
-            : c
-        )
-      );
-
       const { error } = await supabase
         .from('collections')
-        .update({
-          parent_id: null,
-          sort_order: maxSortOrder + 10
-        })
+        .update({ parent_id: null, sort_order: maxSortOrder + 10 })
         .eq('id', draggedCollection);
 
-      if (error) {
-        console.error('Root drop error:', error);
-        // Revert optimistic update on error
-        setCollections(prevCollections =>
-          prevCollections.map(c =>
-            c.id === draggedCollection
-              ? { ...c, parent_id: originalCollection?.parent_id, sort_order: originalCollection?.sort_order }
-              : c
-          )
-        );
-        throw error;
-      }
-
+      if (error) throw error;
     } catch (error: any) {
-      console.error('Failed to move collection to root:', error);
-
-      // More specific error messages based on the error type
-      if (error.code === 'PGRST301') {
-        setError('Permission denied: Check your team membership status');
-      } else if (error.code === '42501') {
-        setError('Database permission error: Contact your team administrator');
-      } else if (error.message?.includes('policy')) {
-        setError('Access denied: You may not be a member of this team');
-      } else {
-        setError(`Failed to move collection: ${error.message || 'Unknown error'}`);
-      }
+      setError(`Failed to move collection: ${error.message}`);
+      setCollections(prev => prev.map(c => c.id === draggedCollection ? originalCollection : c).filter(Boolean) as any[]);
     } finally {
       setDraggedCollection(null);
       setDragOverData(null);
     }
-  };
+  }, [draggedCollection, user, collections, setCollections, setError]);
 
-  const handleDrop = async (e: React.DragEvent, targetCollectionId: string) => {
+  const handleDrop = useCallback(async (e: React.DragEvent, targetCollectionId: string) => {
     e.preventDefault();
+    if (!draggedCollection || !user) {
+      setError('You must be logged in to move collections');
+      return;
+    }
 
-    if (!draggedCollection) return;
+    const targetCollection = collections.find(c => c.id === targetCollectionId);
+    if (!targetCollection) return;
+
+    let targetParentId = targetCollection.parent_id;
+    let newSortOrder = 5;
+
+    if (dragOverData?.position === 'child') {
+      targetParentId = targetCollectionId;
+      const siblings = collections.filter(c => c.parent_id === targetCollectionId);
+      newSortOrder = (siblings.length > 0 ? Math.max(...siblings.map(c => c.sort_order || 0)) : 0) + 10;
+    } else {
+      const siblings = collections.filter(c => c.parent_id === targetCollection.parent_id);
+      const targetIndex = siblings.findIndex(c => c.id === targetCollectionId);
+      if (targetIndex >= 0) {
+        const targetSortOrder = targetCollection.sort_order || (targetIndex + 1) * 10;
+        const nextSibling = siblings[targetIndex + 1];
+        newSortOrder = nextSibling ? targetSortOrder + Math.floor((nextSibling.sort_order - targetSortOrder) / 2) : targetSortOrder + 10;
+      }
+    }
+
+    const originalCollection = collections.find(c => c.id === draggedCollection);
+    setCollections(prev => prev.map(c => c.id === draggedCollection ? { ...c, parent_id: targetParentId, sort_order: newSortOrder } : c));
 
     try {
-      // Check if user has permission to modify collections
-      if (!user) {
-        console.error('No authenticated user');
-        setError('You must be logged in to move collections');
-        return;
-      }
-
-      const targetCollection = collections.find(c => c.id === targetCollectionId);
-      if (!targetCollection) {
-        console.error('Target collection not found');
-        setError('Target collection not found');
-        return;
-      }
-
-      // Determine target parent and position based on dragOverData
-      let targetParentId = targetCollection.parent_id;
-      let newSortOrder = 5; // Default fallback
-
-      if (dragOverData?.position === 'child') {
-        // Nesting: make targetCollection the parent
-        targetParentId = targetCollectionId;
-
-        // Find the highest sort_order among children of targetCollection
-        const siblings = collections.filter(c => c.parent_id === targetCollectionId);
-        const maxSortOrder = siblings.length > 0
-          ? Math.max(...siblings.map(c => c.sort_order || 0))
-          : 0;
-
-        newSortOrder = maxSortOrder + 10;
-      } else {
-        // Sibling positioning: same parent as target
-        const siblings = collections.filter(c => c.parent_id === targetCollection.parent_id);
-        const targetIndex = siblings.findIndex(c => c.id === targetCollectionId);
-
-        if (targetIndex >= 0) {
-          // Calculate space between target and next sibling
-          const nextSibling = siblings[targetIndex + 1];
-          const targetSortOrder = targetCollection.sort_order || (targetIndex + 1) * 10;
-
-          if (nextSibling) {
-            const nextSortOrder = nextSibling.sort_order || (targetIndex + 2) * 10;
-            const space = nextSortOrder - targetSortOrder;
-
-            if (space > 1) {
-              // Enough room - place between target and next
-              newSortOrder = targetSortOrder + Math.floor(space / 2);
-            } else {
-              // Not enough room - need to resequence siblings
-              console.log('Not enough room, resequencing siblings...');
-
-              // Simplified resequencing - just place at end for now
-              newSortOrder = Math.max(...siblings.map(c => c.sort_order || 0)) + 10;
-            }
-          } else {
-            // No next sibling - place after target
-            newSortOrder = targetSortOrder + 10;
-          }
-        }
-      }
-
-      console.log('Moving collection:', {
-        draggedCollection,
-        targetCollectionId,
-        targetParentId,
-        newSortOrder,
-        position: dragOverData?.position
-      });
-
-      // Optimistic update - update local state immediately
-      const originalCollection = collections.find(c => c.id === draggedCollection);
-      setCollections(prevCollections =>
-        prevCollections.map(c =>
-          c.id === draggedCollection
-            ? { ...c, parent_id: targetParentId, sort_order: newSortOrder }
-            : c
-        )
-      );
-
       const { error } = await supabase
         .from('collections')
-        .update({
-          parent_id: targetParentId,
-          sort_order: newSortOrder
-        })
+        .update({ parent_id: targetParentId, sort_order: newSortOrder })
         .eq('id', draggedCollection);
 
-      if (error) {
-        console.error('Drop error:', error);
-        // Revert optimistic update on error
-        setCollections(prevCollections =>
-          prevCollections.map(c =>
-            c.id === draggedCollection
-              ? { ...c, parent_id: originalCollection?.parent_id, sort_order: originalCollection?.sort_order }
-              : c
-          )
-        );
-        throw error;
-      }
-
+      if (error) throw error;
     } catch (error: any) {
-      console.error('Failed to move collection:', error);
-
-      // More specific error messages based on the error type
-      if (error.code === 'PGRST301') {
-        setError('Permission denied: Check your team membership status');
-      } else if (error.code === '42501') {
-        setError('Database permission error: Contact your team administrator');
-      } else if (error.message?.includes('policy')) {
-        setError('Access denied: You may not be a member of this team');
-      } else {
-        setError(`Failed to move collection: ${error.message || 'Unknown error'}`);
-      }
+      setError(`Failed to move collection: ${error.message}`);
+      setCollections(prev => prev.map(c => c.id === draggedCollection ? originalCollection : c).filter(Boolean) as any[]);
     } finally {
       setDraggedCollection(null);
       setDragOverData(null);
     }
-  };
+  }, [draggedCollection, user, collections, dragOverData, setCollections, setError]);
 
-  // Bookmark drag handlers
-  const handleBookmarkDragStart = (e: React.DragEvent, bookmarkId: string) => {
+  const handleBookmarkDragStart = useCallback((e: React.DragEvent, bookmarkId: string) => {
     setDraggedBookmark(bookmarkId);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, []);
 
-  const handleBookmarkDragOver = (e: React.DragEvent, targetId: string) => {
+  const handleBookmarkDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverTarget(targetId);
-  };
+  }, []);
 
-  const handleBookmarkDrop = async (e: React.DragEvent, targetCollectionId: string | null) => {
+  const handleBookmarkDrop = useCallback(async (e: React.DragEvent, targetCollectionId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (!draggedBookmark) return;
 
-    try {
-      // Optimistic update - update local state immediately
-      const originalBookmark = bookmarks.find(b => b.id === draggedBookmark);
-      setBookmarks(prevBookmarks =>
-        prevBookmarks.map(b =>
-          b.id === draggedBookmark
-            ? { ...b, collection_id: targetCollectionId || undefined }
-            : b
-        )
-      );
+    const originalBookmark = bookmarks.find(b => b.id === draggedBookmark);
+    setBookmarks(prev => prev.map(b => b.id === draggedBookmark ? { ...b, collection_id: targetCollectionId || undefined } : b));
 
-      const { data, error } = await supabase
+    try {
+      const { error } = await supabase
         .from('bookmarks')
         .update({ collection_id: targetCollectionId })
         .eq('id', draggedBookmark);
 
-      if (error) {
-        // Revert optimistic update on error
-        setBookmarks(prevBookmarks =>
-          prevBookmarks.map(b =>
-            b.id === draggedBookmark
-              ? { ...b, collection_id: originalBookmark?.collection_id }
-              : b
-          )
-        );
-        throw error;
-      }
-
-    } catch (error) {
-      console.error('Failed to move bookmark:', error);
-      setError('Failed to move bookmark');
+      if (error) throw error;
+    } catch (error: any) {
+      setError(`Failed to move bookmark: ${error.message}`);
+      setBookmarks(prev => prev.map(b => b.id === draggedBookmark ? originalBookmark : b).filter(Boolean) as any[]);
     } finally {
       setDraggedBookmark(null);
       setDragOverTarget(null);
     }
-  };
+  }, [draggedBookmark, bookmarks, setBookmarks, setError]);
 
   return {
     draggedCollection,
@@ -350,4 +194,4 @@ export const useDragDrop = ({
     handleBookmarkDragOver,
     handleBookmarkDrop
   };
-};
+}

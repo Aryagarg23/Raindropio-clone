@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useContext } from 'react';
 import supabase from '../modules/supabaseClient';
+import { TimeSyncContext } from '../context/TimeSyncContext';
 
 interface UseRealtimeSubscriptionsProps {
   teamId: string;
@@ -21,6 +22,7 @@ export function useRealtimeSubscriptions({
   setPresence
 }: UseRealtimeSubscriptionsProps) {
   const subscriptionCleanupRef = useRef<(() => void) | null>(null);
+  const timeSync = useContext(TimeSyncContext);
   
   const setCollectionsRef = useRef(setCollections);
   const setBookmarksRef = useRef(setBookmarks);
@@ -48,8 +50,16 @@ export function useRealtimeSubscriptions({
       },
     });
 
+    // Generic handler to update time sync offset
+    const handlePayload = (payload: any) => {
+      if (payload.commit_timestamp) {
+        timeSync?.updateOffset(payload.commit_timestamp);
+      }
+    };
+
     channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'collections', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        handlePayload(payload);
         console.log('📡 Collections realtime event:', payload);
         if (payload.new && payload.new.team_id !== teamId) return;
         try {
@@ -69,6 +79,7 @@ export function useRealtimeSubscriptions({
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookmarks', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        handlePayload(payload);
         console.log('📡 Bookmarks realtime event:', payload);
         if (payload.new && payload.new.team_id !== teamId) return;
         try {
@@ -88,12 +99,14 @@ export function useRealtimeSubscriptions({
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_events', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        handlePayload(payload);
         console.log('📡 Team event:', payload);
         if (payload.new && payload.new.team_id !== teamId) return;
         const { data: newEvent } = await supabase.from('team_events').select('*, profiles:actor_id(user_id, full_name, avatar_url)').eq('id', payload.new.id).single();
         if (newEvent) setTeamEventsRef.current(prev => [newEvent, ...prev.slice(0, 49)]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'presence', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        handlePayload(payload);
         console.log('📡 Presence change:', payload);
         if (payload.new && payload.new.team_id !== teamId) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {

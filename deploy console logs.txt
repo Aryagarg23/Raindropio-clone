@@ -1,20 +1,44 @@
-Team events loaded: 29
-useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:22.528Z'}
-useAuth.ts:53 🔄 Auth state changed: SIGNED_IN
-useTeamData.ts:27 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T21:23:54.806Z'}
-useAuth.ts:53 🔄 Auth state changed: SIGNED_IN
-useTeamData.ts:27 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T21:23:54.811Z'}
-useTeamData.ts:40 📁 Collections loaded: 4 {collections: Array(4), timestamp: '2025-09-18T21:23:54.986Z'}
-usePresence.ts:31 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-useTeamData.ts:40 📁 Collections loaded: 4 {collections: Array(4), timestamp: '2025-09-18T21:23:55.114Z'}
-useTeamData.ts:70 🔖 Bookmarks loaded: 8 {bookmarks: Array(3), totalBookmarks: 8, timestamp: '2025-09-18T21:23:55.122Z'}
-useTeamData.ts:96 Team events loaded: 29
-useTeamData.ts:70 🔖 Bookmarks loaded: 8 {bookmarks: Array(3), totalBookmarks: 8, timestamp: '2025-09-18T21:23:55.229Z'}
-useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:55.355Z'}
-useTeamData.ts:96 Team events loaded: 29
-useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:55.495Z'}
-usePresence.ts:31 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-useRealtimeSubscriptions.ts:54 📡 Collections realtime event: {schema: 'public', table: 'collections', commit_timestamp: '2025-09-18T21:24:00.669Z', eventType: 'UPDATE', new: {…}, …}
-useRealtimeSubscriptions.ts:68 📡 Updating collection: {color: '#A0D2EB', created_at: '2025-09-18T20:31:23.241329+00:00', created_by: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', description: null, id: '80d7431c-e8ea-40b4-adb2-e81a77769913', …}
-useRealtimeSubscriptions.ts:54 📡 Collections realtime event: {schema: 'public', table: 'collections', commit_timestamp: '2025-09-18T21:24:19.532Z', eventType: 'UPDATE', new: {…}, …}
-useRealtimeSubscriptions.ts:68 📡 Updating collection: {color: '#A0D2EB', created_at: '2025-09-18T20:31:23.241329+00:00', created_by: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', description: null, id: '80d7431c-e8ea-40b4-adb2-e81a77769913', …}
+=== DRAG END === {draggedCollection: 'ddec081d-9719-4d0c-905f-5c6b1a34b8d0'}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.421Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.513Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.526Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.620Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.656Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.671Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.744Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.828Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.975Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:08.989Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.006Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.027Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.044Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.057Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.060Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.087Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.089Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.106Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.108Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.111Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.134Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.153Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.178Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.180Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.182Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.260Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.217Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.207Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.283Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.299Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.398Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.436Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:63 📡 Collections realtime event: {schema: 'public', table: 'collections', commit_timestamp: '2025-09-18T21:52:09.471Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:09.477Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.132Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.137Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.155Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.174Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.188Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.205Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.207Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.238Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:110 📡 Presence change: {schema: 'public', table: 'presence', commit_timestamp: '2025-09-18T21:52:10.240Z', eventType: 'UPDATE', new: {…}, …}
