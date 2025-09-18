@@ -38,6 +38,7 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   useRealtimeSubscriptions({
     teamId: actualTeamId || '',
     user,
+    authLoading,
     setCollections,
     setBookmarks,
     setTeamEvents,

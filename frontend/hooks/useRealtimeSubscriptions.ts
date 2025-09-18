@@ -4,6 +4,7 @@ import supabase from '../modules/supabaseClient';
 interface UseRealtimeSubscriptionsProps {
   teamId: string;
   user: any;
+  authLoading: boolean;
   setCollections: React.Dispatch<React.SetStateAction<any[]>>;
   setBookmarks: React.Dispatch<React.SetStateAction<any[]>>;
   setTeamEvents: React.Dispatch<React.SetStateAction<any[]>>;
@@ -13,6 +14,7 @@ interface UseRealtimeSubscriptionsProps {
 export function useRealtimeSubscriptions({
   teamId,
   user,
+  authLoading,
   setCollections,
   setBookmarks,
   setTeamEvents,
@@ -20,371 +22,147 @@ export function useRealtimeSubscriptions({
 }: UseRealtimeSubscriptionsProps) {
   const subscriptionCleanupRef = useRef<(() => void) | null>(null);
   
-  // Create stable references for state setters to avoid closure issues
   const setCollectionsRef = useRef(setCollections);
   const setBookmarksRef = useRef(setBookmarks);
   const setTeamEventsRef = useRef(setTeamEvents);
   const setPresenceRef = useRef(setPresence);
   
-  // Update refs when setters change
   setCollectionsRef.current = setCollections;
   setBookmarksRef.current = setBookmarks;
   setTeamEventsRef.current = setTeamEvents;
   setPresenceRef.current = setPresence;
 
-  // Setup realtime subscriptions
   const setupRealtimeSubscriptions = () => {
     if (!teamId || teamId === '' || !user) {
       console.log('❌ Skipping realtime setup - missing teamId or user:', { teamId, user: user?.id });
       return () => {};
     }
 
-    console.log('✅ Setting up realtime subscriptions for team:', teamId, 'user:', user.id);
+    console.log('✅ Setting up single realtime channel for team:', teamId, 'user:', user.id);
 
-    // Subscribe to collections changes
-    const collectionsSubscription = supabase
-      .channel(`team-${teamId}-collections`)
-      .on('postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'collections'
+    const channel = supabase.channel(`team-${teamId}`, {
+      config: {
+        broadcast: {
+          self: true,
         },
-        async (payload: any) => {
-          console.log('📡 Collections realtime event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          try {
-            if (payload.eventType === 'INSERT') {
-              console.log('📡 Inserting collection:', payload.new);
-              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
-              setCollectionsRef.current(prev => {
-                console.log('📡 Current collections before insert:', prev.length);
-                const newCollection = payload.new;
-                // Insert at the correct position based on sort_order
-                const insertIndex = prev.findIndex(c => (c.sort_order || 0) > (newCollection.sort_order || 0));
-                const newCollections = insertIndex === -1 
-                  ? [...prev, newCollection]
-                  : [...prev.slice(0, insertIndex), newCollection, ...prev.slice(insertIndex)];
-                console.log('📡 Collections after insert:', newCollections.length);
-                console.log('📡 ✅ State update executed successfully!');
-                return newCollections;
-              });
-            } else if (payload.eventType === 'UPDATE') {
-              console.log('📡 Updating collection:', payload.new);
-              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
-              setCollectionsRef.current(prev => {
-                console.log('📡 Updating collection in state, prev length:', prev.length);
-                const updated = prev.map(c => c.id === payload.new.id ? payload.new : c);
-                console.log('📡 Collection updated, new length:', updated.length);
-                return updated;
-              });
-            } else if (payload.eventType === 'DELETE') {
-              console.log('📡 Deleting collection:', payload.old);
-              console.log('📡 setCollections function available:', typeof setCollectionsRef.current);
-              setCollectionsRef.current(prev => prev.filter(c => c.id !== payload.old.id));
-            }
-          } catch (err) {
-            console.error('📡 Error handling collections realtime event:', err);
+      },
+    });
+
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        console.log('📡 Collections realtime event:', payload);
+        if (payload.new && payload.new.team_id !== teamId) return;
+        try {
+          if (payload.eventType === 'INSERT') {
+            setCollectionsRef.current(prev => {
+              const newCollection = payload.new;
+              const insertIndex = prev.findIndex(c => (c.sort_order || 0) > (newCollection.sort_order || 0));
+              return insertIndex === -1 ? [...prev, newCollection] : [...prev.slice(0, insertIndex), newCollection, ...prev.slice(insertIndex)];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setCollectionsRef.current(prev => prev.map(c => c.id === payload.new.id ? payload.new : c));
+          } else if (payload.eventType === 'DELETE') {
+            setCollectionsRef.current(prev => prev.filter(c => c.id !== payload.old.id));
           }
+        } catch (err) {
+          console.error('📡 Error handling collections realtime event:', err);
         }
-      )
-      .subscribe((status) => {
-        console.log('📡 Collections subscription status:', status);
-      });
-
-    // Subscribe to bookmarks changes
-    const bookmarksSubscription = supabase
-      .channel(`team-${teamId}-bookmarks`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'bookmarks' },
-        async (payload: any) => {
-          console.log('📡 Bookmarks realtime event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          try {
-            if (payload.eventType === 'INSERT') {
-              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
-              // Fetch the full bookmark with relations
-              const { data: newBookmark, error } = await supabase
-                .from('bookmarks')
-                .select(`
-                  *,
-                  profiles:created_by (
-                    user_id,
-                    full_name,
-                    avatar_url
-                  ),
-                  collections (
-                    id,
-                    name,
-                    color
-                  )
-                `)
-                .eq('id', payload.new.id)
-                .single();
-
-              if (error) {
-                console.error('📡 Failed to fetch new bookmark:', error);
-                return;
-              }
-
-              if (newBookmark) {
-                console.log('📡 Adding bookmark to state:', newBookmark.title);
-                setBookmarksRef.current(prev => {
-                  console.log('📡 ✅ Bookmark state update executed successfully!');
-                  return [newBookmark, ...prev];
-                });
-              }
-            } else if (payload.eventType === 'UPDATE') {
-              console.log('📡 Updating bookmark:', payload.new);
-              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
-              // Fetch the updated bookmark with full relations
-              const { data: updatedBookmark, error } = await supabase
-                .from('bookmarks')
-                .select(`
-                  *,
-                  profiles:created_by (
-                    user_id,
-                    full_name,
-                    avatar_url
-                  ),
-                  collections (
-                    id,
-                    name,
-                    color
-                  )
-                `)
-                .eq('id', payload.new.id)
-                .single();
-
-              if (error) {
-                console.error('📡 Failed to fetch updated bookmark:', error);
-                return;
-              }
-
-              if (updatedBookmark) {
-                setBookmarksRef.current(prev => {
-                  console.log('📡 Updating bookmark in state, prev length:', prev.length);
-                  const updated = prev.map(b => b.id === updatedBookmark.id ? updatedBookmark : b);
-                  console.log('📡 Bookmark updated, new length:', updated.length);
-                  return updated;
-                });
-              }
-            } else if (payload.eventType === 'DELETE') {
-              console.log('📡 Deleting bookmark:', payload.old);
-              console.log('📡 setBookmarks function available:', typeof setBookmarksRef.current);
-              setBookmarksRef.current(prev => {
-                console.log('📡 Deleting bookmark from state, prev length:', prev.length);
-                const filtered = prev.filter(b => b.id !== payload.old.id);
-                console.log('📡 Bookmark deleted, new length:', filtered.length);
-                return filtered;
-              });
-            }
-          } catch (err) {
-            console.error('📡 Error handling bookmarks realtime event:', err);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookmarks', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        console.log('📡 Bookmarks realtime event:', payload);
+        if (payload.new && payload.new.team_id !== teamId) return;
+        try {
+          if (payload.eventType === 'INSERT') {
+            const { data: newBookmark, error } = await supabase.from('bookmarks').select('*, profiles:created_by(user_id, full_name, avatar_url), collections(id, name, color)').eq('id', payload.new.id).single();
+            if (error) return console.error('📡 Failed to fetch new bookmark:', error);
+            if (newBookmark) setBookmarksRef.current(prev => [newBookmark, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            const { data: updatedBookmark, error } = await supabase.from('bookmarks').select('*, profiles:created_by(user_id, full_name, avatar_url), collections(id, name, color)').eq('id', payload.new.id).single();
+            if (error) return console.error('📡 Failed to fetch updated bookmark:', error);
+            if (updatedBookmark) setBookmarksRef.current(prev => prev.map(b => b.id === updatedBookmark.id ? updatedBookmark : b));
+          } else if (payload.eventType === 'DELETE') {
+            setBookmarksRef.current(prev => prev.filter(b => b.id !== payload.old.id));
           }
+        } catch (err) {
+          console.error('📡 Error handling bookmarks realtime event:', err);
         }
-      )
-      .subscribe((status) => {
-        console.log('📡 Bookmarks subscription status:', status);
-      });
-
-    // Subscribe to team events
-    const eventsSubscription = supabase
-      .channel(`team-${teamId}-events`)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'team_events' },
-        async (payload: any) => {
-          console.log('📡 Team event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          // Fetch the full event with profile
-          const { data: newEvent } = await supabase
-            .from('team_events')
-            .select(`
-              *,
-              profiles:actor_id (
-                user_id,
-                full_name,
-                avatar_url
-              )
-            `)
-            .eq('id', payload.new.id)
-            .single();
-
-          if (newEvent) {
-            setTeamEventsRef.current(prev => [newEvent, ...prev.slice(0, 49)]); // Keep only 50 events
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Team events subscription status:', status);
-      });
-
-    // Subscribe to presence changes with targeted updates
-    const presenceSubscription = supabase
-      .channel(`team-${teamId}-presence`)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'presence' },
-        async (payload: any) => {
-          console.log('Presence user joined:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          const { data: newPresence } = await supabase
-            .from('presence')
-            .select(`
-              *,
-              profiles:user_id (
-                user_id,
-                full_name,
-                avatar_url
-              )
-            `)
-            .eq('team_id', teamId)
-            .eq('user_id', payload.new.user_id)
-            .single();
-
-          if (newPresence) {
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_events', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        console.log('📡 Team event:', payload);
+        if (payload.new && payload.new.team_id !== teamId) return;
+        const { data: newEvent } = await supabase.from('team_events').select('*, profiles:actor_id(user_id, full_name, avatar_url)').eq('id', payload.new.id).single();
+        if (newEvent) setTeamEventsRef.current(prev => [newEvent, ...prev.slice(0, 49)]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'presence', filter: `team_id=eq.${teamId}` }, async (payload: any) => {
+        console.log('📡 Presence change:', payload);
+        if (payload.new && payload.new.team_id !== teamId) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const { data: presence } = await supabase.from('presence').select('*, profiles:user_id(user_id, full_name, avatar_url)').eq('team_id', teamId).eq('user_id', payload.new.user_id).single();
+          if (presence) {
             setPresenceRef.current(prev => {
-              // Check if presence for this user already exists
-              const exists = prev.some(p => p.user_id === newPresence.user_id && p.team_id === newPresence.team_id);
-              if (exists) {
-                console.log('Presence for user already exists, skipping duplicate insert');
-                return prev;
-              }
-              const filtered = prev.filter(p => p.user_id !== newPresence.user_id);
-              return [newPresence, ...filtered];
+              const filtered = prev.filter(p => p.user_id !== presence.user_id);
+              return [presence, ...filtered];
             });
           }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'presence' },
-        async (payload: any) => {
-          console.log('Presence updated:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          const { data: updatedPresence } = await supabase
-            .from('presence')
-            .select(`
-              *,
-              profiles:user_id (
-                user_id,
-                full_name,
-                avatar_url
-              )
-            `)
-            .eq('team_id', teamId)
-            .eq('user_id', payload.new.user_id)
-            .single();
-
-          if (updatedPresence) {
-            setPresenceRef.current(prev => {
-              const filtered = prev.filter(p => p.user_id !== updatedPresence.user_id);
-              return [updatedPresence, ...filtered];
-            });
-          }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'presence' },
-        (payload: any) => {
-          console.log('Presence deleted:', payload);
-          if (payload.old && payload.old.team_id !== teamId) return;
+        } else if (payload.eventType === 'DELETE') {
           setPresenceRef.current(prev => prev.filter(p => p.user_id !== payload.old.user_id));
         }
-      )
-      .subscribe((status) => {
-        console.log('📡 Presence subscription status:', status);
-      });
-
-    // Subscribe to highlights changes
-    const highlightsSubscription = supabase
-      .channel(`team-${teamId}-highlights`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'highlights' },
-        async (payload: any) => {
-          console.log('📡 Highlights realtime event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          // For highlights, we need to update the specific bookmark's highlights
-          // This would typically trigger a refetch of bookmark highlights
-          // or update local state if we're tracking highlights separately
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`✅ Realtime channel subscribed for team ${teamId}`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`❌ Realtime channel error for team ${teamId}:`, err);
+        } else {
+          console.log(`📡 Realtime channel status for team ${teamId}: ${status}`);
         }
-      )
-      .subscribe((status) => {
-        console.log('📡 Highlights subscription status:', status);
       });
 
-    // Subscribe to annotations changes
-    const annotationsSubscription = supabase
-      .channel(`team-${teamId}-annotations`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'annotations' },
-        async (payload: any) => {
-          console.log('📡 Annotations realtime event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          // For annotations, we need to update the specific bookmark's annotations
-          // This would typically trigger a refetch of bookmark annotations
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Annotations subscription status:', status);
-      });
-
-    // Subscribe to annotation reactions changes
-    const reactionsSubscription = supabase
-      .channel(`team-${teamId}-reactions`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'annotation_reactions' },
-        async (payload: any) => {
-          console.log('📡 Annotation reactions realtime event:', payload);
-          if (payload.new && payload.new.team_id !== teamId) return;
-          // For reactions, we need to update the specific annotation's reaction count
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Reactions subscription status:', status);
-      });
-
-    // Log active channels for debugging
-    try {
-      const active = (supabase.getChannels && typeof supabase.getChannels === 'function')
-        ? supabase.getChannels().map((c: any) => c.topic)
-        : null;
-      console.log('Realtime subscriptions created for team:', teamId, { activeChannels: active });
-    } catch (err) {
-      console.warn('Could not list active realtime channels:', err);
-    }
-
-    // Cleanup subscriptions on unmount
     return () => {
-      console.log('Unsubscribing realtime channels for team:', teamId);
-      try { collectionsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe collectionsSubscription', e); }
-      try { bookmarksSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe bookmarksSubscription', e); }
-      try { eventsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe eventsSubscription', e); }
-      try { presenceSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe presenceSubscription', e); }
-      try { highlightsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe highlightsSubscription', e); }
-      try { annotationsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe annotationsSubscription', e); }
-      try { reactionsSubscription.unsubscribe(); } catch (e) { console.warn('Failed to unsubscribe reactionsSubscription', e); }
+      console.log('Unsubscribing realtime channel for team:', teamId);
+      supabase.removeChannel(channel);
     };
   };
 
-  // Initialize subscriptions when dependencies change
   useEffect(() => {
-    if (user?.id && teamId && teamId !== '') {
-      console.log('🔄 Setting up realtime subscriptions:', { userId: user.id, teamId });
-      
-      // Clean up any existing subscriptions
-      if (subscriptionCleanupRef.current) {
-        console.log('🧹 Cleaning up existing subscriptions');
-        subscriptionCleanupRef.current();
+    const setup = async () => {
+      if (user?.id && teamId && teamId !== '' && !authLoading) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('❌ Realtime subscription setup failed: No session found.');
+          return;
+        }
+        
+        console.log('🔑 Manually setting realtime auth token.');
+        supabase.realtime.setAuth(session.access_token);
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        console.log('🔄 Setting up realtime subscriptions:', { userId: user.id, teamId, authLoading });
+        
+        if (subscriptionCleanupRef.current) {
+          console.log('🧹 Cleaning up existing subscriptions');
+          subscriptionCleanupRef.current();
+        }
+
+        const cleanup = setupRealtimeSubscriptions();
+        subscriptionCleanupRef.current = cleanup;
+      } else {
+        console.log('⏸️ Not setting up subscriptions:', { userId: user?.id, teamId, authLoading });
       }
-
-      // Set up new subscriptions and store cleanup function
-      const cleanup = setupRealtimeSubscriptions();
-      subscriptionCleanupRef.current = cleanup;
-    } else {
-      console.log('⏸️ Not setting up subscriptions:', { userId: user?.id, teamId });
     }
-  }, [user?.id, teamId]);
 
-  // Cleanup subscriptions on unmount
+    setup();
+
+    return () => {
+      if (subscriptionCleanupRef.current) {
+        console.log('🧹 Cleaning up subscriptions on component unmount');
+        subscriptionCleanupRef.current();
+        subscriptionCleanupRef.current = null;
+      }
+    };
+  }, [user?.id, teamId, authLoading]);
+
   useEffect(() => {
     return () => {
       if (subscriptionCleanupRef.current) {

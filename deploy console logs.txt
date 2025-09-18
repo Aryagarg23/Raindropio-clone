@@ -1,81 +1,20 @@
-User 1 logs
-🔄 Auth state changed: SIGNED_IN
-index-043be11b0e9887d5.js:1 🔄 Auth state changed: INITIAL_SESSION
-2index-043be11b0e9887d5.js:1 ✅ User authenticated
-index-043be11b0e9887d5.js:1 🌐 Using API URL from env: https://raindropio-clone.onrender.com
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/users/sync
-index-043be11b0e9887d5.js:1 🔑 Token found, making request...
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /users/sync
-index-043be11b0e9887d5.js:1 ✅ Profile sync successful: {profile: {…}, message: 'Profile synced successfully'}
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/teams
-index-043be11b0e9887d5.js:1 🔑 Token found, making request...
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /teams
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/teams/2cb203d4-5f2e-407d-9a04-e1995855e27e/members
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/teams/9607c643-3572-45cf-8bdf-63e2976a916a/members
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/teams/988514eb-378f-4d8f-8ae7-ebb6cf59d568/members
-index-043be11b0e9887d5.js:1 🌐 Making API request to: https://raindropio-clone.onrender.com/teams/a757e3f9-0c5d-476b-8363-a02fcdf0092b/members
-4index-043be11b0e9887d5.js:1 🔑 Token found, making request...
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /teams/9607c643-3572-45cf-8bdf-63e2976a916a/members
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /teams/a757e3f9-0c5d-476b-8363-a02fcdf0092b/members
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /teams/2cb203d4-5f2e-407d-9a04-e1995855e27e/members
-index-043be11b0e9887d5.js:1 📡 Response status: 200 for /teams/988514eb-378f-4d8f-8ae7-ebb6cf59d568/members
-[teamId]-d74abfd0887f1f43.js:1 === AUTH CHECK START === {teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e', timestamp: '2025-09-18T20:35:42.867Z'}
-[teamId]-d74abfd0887f1f43.js:1 ⏸️ Not setting up subscriptions: {userId: undefined, teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e'}
-[teamId]-d74abfd0887f1f43.js:1 🔍 Auth user check: {user: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', email: 'garg.arya@gmail.com', timestamp: '2025-09-18T20:35:42.962Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔍 Checking team membership: {teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e', userId: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', timestamp: '2025-09-18T20:35:42.963Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔄 Setting up realtime subscriptions: {userId: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e'}
-[teamId]-d74abfd0887f1f43.js:1 ✅ Setting up realtime subscriptions for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e user: 5dba0ffb-3107-4857-85f5-a40fdf3845e6
-[teamId]-d74abfd0887f1f43.js:1 Realtime subscriptions created for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e {activeChannels: Array(7)}
-[teamId]-d74abfd0887f1f43.js:1 📋 Team membership result: {membership: {…}, membershipError: null, hasMembership: true, timestamp: '2025-09-18T20:35:43.047Z'}
-[teamId]-d74abfd0887f1f43.js:1 👤 Loading user profile for: 5dba0ffb-3107-4857-85f5-a40fdf3845e6 {timestamp: '2025-09-18T20:35:43.047Z'}
-[teamId]-d74abfd0887f1f43.js:1 📄 Profile result: {profileData: {…}, profileError: null, hasProfile: true, profileFields: Array(7), timestamp: '2025-09-18T20:35:43.122Z'}
-[teamId]-d74abfd0887f1f43.js:1 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T20:35:43.127Z'}
-[teamId]-d74abfd0887f1f43.js:1 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-[teamId]-d74abfd0887f1f43.js:1 📡 Collections subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Bookmarks subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Team events subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Presence subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Highlights subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Annotations subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Reactions subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📁 Collections loaded: 4 {collections: Array(4), timestamp: '2025-09-18T20:35:43.272Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔖 Bookmarks loaded: 5 {bookmarks: Array(3), totalBookmarks: 5, timestamp: '2025-09-18T20:35:43.361Z'}
-[teamId]-d74abfd0887f1f43.js:1 Team events loaded: 26
-[teamId]-d74abfd0887f1f43.js:1 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T20:35:43.534Z'}
-[teamId]-d74abfd0887f1f43.js:1 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-
-
-
-User 2 logs
-🌐 Using API URL from env: https://raindropio-clone.onrender.com
-[teamId]-d74abfd0887f1f43.js:1 === AUTH CHECK START === {teamId: undefined, timestamp: '2025-09-18T20:22:07.712Z'}
-[teamId]-d74abfd0887f1f43.js:1 ⏸️ Not setting up subscriptions: {userId: undefined, teamId: ''}
-[teamId]-d74abfd0887f1f43.js:1 === AUTH CHECK START === {teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e', timestamp: '2025-09-18T20:22:07.717Z'}
-[teamId]-d74abfd0887f1f43.js:1 ⏸️ Not setting up subscriptions: {userId: undefined, teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e'}
-[teamId]-d74abfd0887f1f43.js:1 🔍 Auth user check: {user: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', email: 'garg.arya@gmail.com', timestamp: '2025-09-18T20:22:07.972Z'}
-[teamId]-d74abfd0887f1f43.js:1 No teamId provided, skipping team membership check
-[teamId]-d74abfd0887f1f43.js:1 👤 Loading user profile for: 5dba0ffb-3107-4857-85f5-a40fdf3845e6 {timestamp: '2025-09-18T20:22:07.972Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔄 Setting up realtime subscriptions: {userId: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e'}
-[teamId]-d74abfd0887f1f43.js:1 ✅ Setting up realtime subscriptions for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e user: 5dba0ffb-3107-4857-85f5-a40fdf3845e6
-[teamId]-d74abfd0887f1f43.js:1 Realtime subscriptions created for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e {activeChannels: Array(7)}
-[teamId]-d74abfd0887f1f43.js:1 🔍 Auth user check: {user: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', email: 'garg.arya@gmail.com', timestamp: '2025-09-18T20:22:08.068Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔍 Checking team membership: {teamId: '2cb203d4-5f2e-407d-9a04-e1995855e27e', userId: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', timestamp: '2025-09-18T20:22:08.068Z'}
-[teamId]-d74abfd0887f1f43.js:1 📡 Collections subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Bookmarks subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Team events subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Presence subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Highlights subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Annotations subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📡 Reactions subscription status: SUBSCRIBED
-[teamId]-d74abfd0887f1f43.js:1 📄 Profile result: {profileData: {…}, profileError: null, hasProfile: true, profileFields: Array(7), timestamp: '2025-09-18T20:22:08.319Z'}
-[teamId]-d74abfd0887f1f43.js:1 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T20:22:08.326Z'}
-[teamId]-d74abfd0887f1f43.js:1 📋 Team membership result: {membership: {…}, membershipError: null, hasMembership: true, timestamp: '2025-09-18T20:22:08.336Z'}
-[teamId]-d74abfd0887f1f43.js:1 👤 Loading user profile for: 5dba0ffb-3107-4857-85f5-a40fdf3845e6 {timestamp: '2025-09-18T20:22:08.336Z'}
-[teamId]-d74abfd0887f1f43.js:1 📄 Profile result: {profileData: {…}, profileError: null, hasProfile: true, profileFields: Array(7), timestamp: '2025-09-18T20:22:08.566Z'}
-[teamId]-d74abfd0887f1f43.js:1 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-[teamId]-d74abfd0887f1f43.js:1 📁 Collections loaded: 3 {collections: Array(3), timestamp: '2025-09-18T20:22:08.608Z'}
-[teamId]-d74abfd0887f1f43.js:1 🔖 Bookmarks loaded: 5 {bookmarks: Array(3), totalBookmarks: 5, timestamp: '2025-09-18T20:22:08.824Z'}
-[teamId]-d74abfd0887f1f43.js:1 Team events loaded: 25
-[teamId]-d74abfd0887f1f43.js:1 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T20:22:09.137Z'}
-[teamId]-d74abfd0887f1f43.js:1 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
-[teamId]-d74abfd0887f1f43.js:1 [PRESENCE] User inactive for 5 minutes in team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
+Team events loaded: 29
+useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:22.528Z'}
+useAuth.ts:53 🔄 Auth state changed: SIGNED_IN
+useTeamData.ts:27 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T21:23:54.806Z'}
+useAuth.ts:53 🔄 Auth state changed: SIGNED_IN
+useTeamData.ts:27 🏢 Loading team site data for: 2cb203d4-5f2e-407d-9a04-e1995855e27e {timestamp: '2025-09-18T21:23:54.811Z'}
+useTeamData.ts:40 📁 Collections loaded: 4 {collections: Array(4), timestamp: '2025-09-18T21:23:54.986Z'}
+usePresence.ts:31 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
+useTeamData.ts:40 📁 Collections loaded: 4 {collections: Array(4), timestamp: '2025-09-18T21:23:55.114Z'}
+useTeamData.ts:70 🔖 Bookmarks loaded: 8 {bookmarks: Array(3), totalBookmarks: 8, timestamp: '2025-09-18T21:23:55.122Z'}
+useTeamData.ts:96 Team events loaded: 29
+useTeamData.ts:70 🔖 Bookmarks loaded: 8 {bookmarks: Array(3), totalBookmarks: 8, timestamp: '2025-09-18T21:23:55.229Z'}
+useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:55.355Z'}
+useTeamData.ts:96 Team events loaded: 29
+useTeamData.ts:117 👥 Presence loaded: 5 {onlineUsers: 5, users: Array(3), timestamp: '2025-09-18T21:23:55.495Z'}
+usePresence.ts:31 [PRESENCE] touch_presence invoked for team: 2cb203d4-5f2e-407d-9a04-e1995855e27e
+useRealtimeSubscriptions.ts:54 📡 Collections realtime event: {schema: 'public', table: 'collections', commit_timestamp: '2025-09-18T21:24:00.669Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:68 📡 Updating collection: {color: '#A0D2EB', created_at: '2025-09-18T20:31:23.241329+00:00', created_by: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', description: null, id: '80d7431c-e8ea-40b4-adb2-e81a77769913', …}
+useRealtimeSubscriptions.ts:54 📡 Collections realtime event: {schema: 'public', table: 'collections', commit_timestamp: '2025-09-18T21:24:19.532Z', eventType: 'UPDATE', new: {…}, …}
+useRealtimeSubscriptions.ts:68 📡 Updating collection: {color: '#A0D2EB', created_at: '2025-09-18T20:31:23.241329+00:00', created_by: '5dba0ffb-3107-4857-85f5-a40fdf3845e6', description: null, id: '80d7431c-e8ea-40b4-adb2-e81a77769913', …}
