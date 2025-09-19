@@ -5,6 +5,10 @@ interface BookmarkHighlightTooltipProps {
     text: string
     startOffset: number
     endOffset: number
+    xpathStart?: string
+    xpathEnd?: string
+    textBefore?: string
+    textAfter?: string
   } | null
   tooltipPosition: { x: number; y: number }
   highlightColor: string

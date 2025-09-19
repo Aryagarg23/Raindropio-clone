@@ -45,7 +45,15 @@ interface BookmarkDetailModalProps {
   onSetHighlightColor: (color: string) => void
   onSetShowHighlightTooltip: (show: boolean) => void
   onSetTooltipPosition: (position: { x: number; y: number }) => void
-  onSetPendingSelection: (selection: { text: string; startOffset: number; endOffset: number } | null) => void
+  onSetPendingSelection: (selection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null) => void
   onSetTagInput: (input: string) => void
   onSetShowTagSuggestions: (show: boolean) => void
   onSetCommentInputs: (inputs: { [key: string]: string }) => void
@@ -116,7 +124,12 @@ export function BookmarkDetailModal({
         bookmark.id,
         pendingSelection.text,
         pendingSelection.startOffset,
-        pendingSelection.endOffset
+        pendingSelection.endOffset,
+        pendingSelection.textBefore,
+        pendingSelection.textAfter,
+        highlightColor,
+        pendingSelection.xpathStart,
+        pendingSelection.xpathEnd
       )
 
       onSetShowHighlightTooltip(false)

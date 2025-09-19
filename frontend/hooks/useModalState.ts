@@ -17,7 +17,15 @@ export interface ModalState {
   // Highlight/Annotation system
   showHighlightTooltip: boolean;
   tooltipPosition: { x: number; y: number };
-  pendingSelection: { text: string; startOffset: number; endOffset: number } | null;
+  pendingSelection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null;
   newAnnotation: string;
   highlightColor: string;
   bookmarkAnnotations: any[];
@@ -51,7 +59,15 @@ export interface ModalActions {
   // Highlight/Annotation system
   setShowHighlightTooltip: (show: boolean) => void;
   setTooltipPosition: (position: { x: number; y: number }) => void;
-  setPendingSelection: (selection: { text: string; startOffset: number; endOffset: number } | null) => void;
+  setPendingSelection: (selection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null) => void;
   setNewAnnotation: (annotation: string) => void;
   setHighlightColor: (color: string) => void;
   setBookmarkAnnotations: (annotations: any[]) => void;
@@ -89,7 +105,15 @@ export const useModalState = (): ModalState & ModalActions => {
   // Highlight/Annotation system
   const [showHighlightTooltip, setShowHighlightTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const [pendingSelection, setPendingSelection] = useState<{ text: string; startOffset: number; endOffset: number } | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<{ 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null>(null);
   const [newAnnotation, setNewAnnotation] = useState('');
   const [highlightColor, setHighlightColor] = useState(stickyPalette[0]);
   const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([]);

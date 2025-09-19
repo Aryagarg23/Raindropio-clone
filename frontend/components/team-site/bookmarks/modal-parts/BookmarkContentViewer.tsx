@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/tabs"
 import ProfileIcon from "../../../ProfileIcon"
 import { ImprovedReaderView } from "./ImprovedReaderView"
 import { ImprovedProxyView } from "./ImprovedProxyView"
+import { HighlightsDetailsView } from "./HighlightsDetailsView"
 
 interface BookmarkContentViewerProps {
   viewMode: 'reader' | 'proxy' | 'details'
@@ -27,7 +28,15 @@ interface BookmarkContentViewerProps {
   // Highlighting props
   onSetShowHighlightTooltip?: (show: boolean) => void
   onSetTooltipPosition?: (position: { x: number; y: number }) => void
-  onSetPendingSelection?: (selection: { text: string; startOffset: number; endOffset: number } | null) => void
+  onSetPendingSelection?: (selection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null) => void
   onCreateAnnotation?: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
   onToggleAnnotationLike?: (annotationId: string) => Promise<void>
   onDeleteAnnotation?: (annotationId: string) => Promise<void>
@@ -148,59 +157,56 @@ export function BookmarkContentViewer({
                 </CardContent>
               </Card>
 
-              {/* Highlights */}
-              {highlights.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Highlights ({highlights.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {highlights.map((highlight) => (
-                        <div key={highlight.highlight_id} className="border-l-4 border-yellow-400 pl-4">
-                          <div className="bg-yellow-50 p-3 rounded">
-                            <p className="text-grey-accent-900 mb-2">"{highlight.selected_text}"</p>
-                            <div className="flex items-center gap-2 text-xs text-grey-accent-600">
-                              <span>Highlighted by {highlight.creator_name}</span>
-                              <span>•</span>
-                              <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Highlights & Annotations (grouped by highlight) */}
+              <HighlightsDetailsView
+                annotations={annotations}
+                highlights={highlights}
+              />
 
-              {/* Annotations */}
-              {annotations.length > 0 && (
+              {/* General Annotations (not linked to highlights) */}
+              {annotations.filter(ann => !ann.highlight_id).length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Annotations ({annotations.length})</CardTitle>
+                    <CardTitle>General Annotations ({annotations.filter(ann => !ann.highlight_id).length})</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {annotations.map((annotation) => (
-                        <div key={annotation.annotation_id} className="flex gap-3">
-                          <ProfileIcon
-                            user={{
-                              avatar_url: annotation.creator_avatar,
-                              full_name: annotation.creator_name,
-                              email: annotation.creator_id
-                            }}
-                            size="md"
-                          />
-                          <div className="flex-1">
-                            <p className="text-grey-accent-900 mb-1">{annotation.content}</p>
-                            <div className="flex items-center gap-2 text-xs text-grey-accent-600">
-                              <span>{annotation.creator_name}</span>
-                              <span>•</span>
-                              <span>{new Date(annotation.created_at).toLocaleDateString()}</span>
+                      {annotations
+                        .filter(ann => !ann.highlight_id)
+                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        .map((annotation) => (
+                          <div key={annotation.annotation_id} className="flex gap-3">
+                            <ProfileIcon
+                              user={{
+                                avatar_url: annotation.creator_avatar,
+                                full_name: annotation.creator_name,
+                              }}
+                              size="sm"
+                            />
+                            <div className="flex-1">
+                              <div className="bg-grey-accent-50 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-medium text-sm text-grey-accent-900">
+                                    {annotation.creator_name}
+                                  </span>
+                                  <span className="text-xs text-grey-accent-500">
+                                    {new Date(annotation.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className="text-grey-accent-700 text-sm leading-relaxed">
+                                  {annotation.content}
+                                </p>
+                              </div>
+                              
+                              {/* Like count (read-only) */}
+                              {annotation.like_count > 0 && (
+                                <div className="flex items-center gap-1 mt-2 text-xs text-grey-accent-500">
+                                  <span>❤️ {annotation.like_count}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </CardContent>
                 </Card>

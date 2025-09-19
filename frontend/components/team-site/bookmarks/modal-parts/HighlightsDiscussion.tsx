@@ -80,7 +80,7 @@ export function HighlightsDiscussion({
             const highlightComments = annotations.filter(ann => ann.highlight_id === highlight.highlight_id)
             
             return (
-              <div key={highlight.highlight_id} className="bg-white rounded-lg shadow-sm border border-grey-accent-200 overflow-hidden">
+              <div key={highlight.highlight_id} data-highlight-id={highlight.highlight_id} className="bg-white rounded-lg shadow-sm border border-grey-accent-200 overflow-hidden">
                 {/* Highlight preview */}
                 <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-yellow-200">
                   <div className="flex items-start gap-4">

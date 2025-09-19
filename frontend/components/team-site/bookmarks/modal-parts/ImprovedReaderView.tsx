@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Readability } from '@mozilla/readability'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -58,7 +58,15 @@ interface ImprovedReaderViewProps {
   commentInputs?: { [key: string]: string }
   onSetShowHighlightTooltip?: (show: boolean) => void
   onSetTooltipPosition?: (position: { x: number; y: number }) => void
-  onSetPendingSelection?: (selection: { text: string; startOffset: number; endOffset: number } | null) => void
+  onSetPendingSelection?: (selection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null) => void
   onCreateAnnotation?: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
   onToggleAnnotationLike?: (annotationId: string) => Promise<void>
   onDeleteAnnotation?: (annotationId: string) => Promise<void>
@@ -84,9 +92,164 @@ export function ImprovedReaderView({
   onDeleteAnnotation,
   onSetCommentInputs
 }: ImprovedReaderViewProps) {
+  // Debug highlights data
+  console.log('🔍 ImprovedReaderView highlights data:', {
+    highlightsCount: highlights?.length || 0,
+    highlights: highlights,
+    bookmarkId: bookmark?.id
+  })
   const [clientSideContent, setClientSideContent] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const readerContentRef = useRef<HTMLDivElement>(null)
+
+  // Helper function to apply highlight color styling
+  const getHighlightStyle = (color: string) => {
+    // Handle different color formats and edge cases
+    let hex = color.replace('#', '')
+    
+    // Handle 3-digit hex colors
+    if (hex.length === 3) {
+      hex = hex.split('').map(char => char + char).join('')
+    }
+    
+    // Ensure we have a valid 6-digit hex
+    if (hex.length !== 6) {
+      console.warn('Invalid color format:', color, 'falling back to yellow')
+      hex = 'ffeb3b' // Default yellow
+    }
+    
+    try {
+      const r = parseInt(hex.substr(0, 2), 16)
+      const g = parseInt(hex.substr(2, 2), 16)
+      const b = parseInt(hex.substr(4, 2), 16)
+      
+      if (isNaN(r) || isNaN(g) || isNaN(b)) {
+        throw new Error('Invalid RGB values')
+      }
+      
+      return `background-color: rgba(${r}, ${g}, ${b}, 0.3); border-left: 3px solid #${hex}; padding: 2px 4px; border-radius: 3px;`
+    } catch (error) {
+      console.warn('Color parsing error:', error, 'using fallback')
+      return `background-color: rgba(255, 235, 59, 0.3); border-left: 3px solid #ffeb3b; padding: 2px 4px; border-radius: 3px;`
+    }
+  }
+
+  // Function to apply highlights to the rendered DOM
+  const applyHighlightsToDOM = () => {
+    if (!highlights || highlights.length === 0 || !readerContentRef.current) {
+      return
+    }
+
+    console.log('🎨 Applying highlights to DOM:', highlights.length, 'highlights')
+
+    const contentElement = readerContentRef.current
+    const textContent = contentElement.textContent || ''
+    
+    highlights.forEach((highlight, index) => {
+      const startPos = highlight.start_offset || 0
+      const endPos = highlight.end_offset || 0
+      
+      console.log(`🔍 Processing DOM highlight ${index + 1}:`, {
+        startPos,
+        endPos,
+        text: highlight.selected_text,
+        color: highlight.color
+      })
+      
+      // Validate positions
+      if (startPos < 0 || endPos <= startPos || endPos > textContent.length) {
+        console.warn(`⚠️ Invalid highlight positions:`, { startPos, endPos, contentLength: textContent.length })
+        return
+      }
+
+      // Find the text nodes and apply highlighting
+      const walker = document.createTreeWalker(
+        contentElement,
+        NodeFilter.SHOW_TEXT,
+        null
+      )
+
+      let currentPos = 0
+      let startNode: Text | null = null
+      let endNode: Text | null = null
+      let startOffset = 0
+      let endOffset = 0
+
+      while (walker.nextNode()) {
+        const node = walker.currentNode as Text
+        const nodeLength = node.textContent?.length || 0
+
+        if (!startNode && currentPos + nodeLength > startPos) {
+          startNode = node
+          startOffset = startPos - currentPos
+        }
+
+        if (!endNode && currentPos + nodeLength >= endPos) {
+          endNode = node
+          endOffset = endPos - currentPos
+          break
+        }
+
+        currentPos += nodeLength
+      }
+
+      if (startNode && endNode) {
+        try {
+          // Create range and highlight
+          const range = document.createRange()
+          range.setStart(startNode, startOffset)
+          range.setEnd(endNode, endOffset)
+
+          // Create highlight element
+          const highlightElement = document.createElement('mark')
+          const highlightColor = highlight.color || '#ffeb3b'
+          const style = getHighlightStyle(highlightColor)
+          
+          highlightElement.style.cssText = style
+          highlightElement.className = 'px-1 py-0.5 rounded-sm cursor-pointer hover:opacity-80 transition-all'
+          highlightElement.setAttribute('data-highlight-id', highlight.highlight_id || highlight.id)
+          highlightElement.setAttribute('data-color', highlightColor)
+          highlightElement.title = `Highlighted by ${highlight.creator_name || 'Unknown'}`
+
+          // Add click handler to scroll to annotations section
+          highlightElement.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            
+            console.log('🎯 Highlight clicked, scrolling to annotations:', highlight.highlight_id || highlight.id)
+            
+            // Find the annotations section
+            const annotationsSection = document.querySelector('[data-annotations-section]')
+            if (annotationsSection) {
+              annotationsSection.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start',
+                inline: 'nearest'
+              })
+              
+              // Optional: Highlight the specific annotation if it exists
+              const highlightAnnotations = document.querySelectorAll(`[data-highlight-id="${highlight.highlight_id || highlight.id}"]`)
+              highlightAnnotations.forEach((annotation) => {
+                annotation.classList.add('animate-pulse')
+                setTimeout(() => {
+                  annotation.classList.remove('animate-pulse')
+                }, 2000)
+              })
+            } else {
+              console.warn('⚠️ Annotations section not found')
+            }
+          })
+
+          // Apply the highlight
+          range.surroundContents(highlightElement)
+          
+          console.log(`✅ DOM highlight ${index + 1} applied successfully`)
+        } catch (error) {
+          console.warn(`⚠️ Failed to apply DOM highlight ${index + 1}:`, error)
+        }
+      }
+    })
+  }
 
   // Client-side fallback using Mozilla Readability
   const processWithReadability = async () => {
@@ -161,6 +324,46 @@ export function ImprovedReaderView({
     }
   }
 
+  // Helper function to generate XPath for a node
+  const generateXPath = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const parent = node.parentNode
+      if (!parent) return ''
+      
+      const parentXPath = generateXPath(parent)
+      const siblings = Array.from(parent.childNodes).filter(n => n.nodeType === Node.TEXT_NODE)
+      const index = siblings.indexOf(node as ChildNode)
+      
+      return `${parentXPath}/text()[${index + 1}]`
+    }
+    
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as Element
+      const tagName = element.tagName.toLowerCase()
+      
+      // If element has an id, use that for a more stable XPath
+      if (element.id) {
+        return `//*[@id='${element.id}']`
+      }
+      
+      // Otherwise, use position-based XPath
+      const parent = element.parentNode
+      if (!parent || parent.nodeType === Node.DOCUMENT_NODE) {
+        return `/${tagName}`
+      }
+      
+      const parentXPath = generateXPath(parent)
+      const siblings = Array.from(parent.childNodes).filter(n => 
+        n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName.toLowerCase() === tagName
+      )
+      const index = siblings.indexOf(element as ChildNode)
+      
+      return `${parentXPath}/${tagName}[${index + 1}]`
+    }
+    
+    return ''
+  }
+
   // Text selection handling for highlights
   const handleTextSelection = (event: MouseEvent) => {
     if (!onSetShowHighlightTooltip || !onSetTooltipPosition || !onSetPendingSelection) {
@@ -218,16 +421,29 @@ export function ImprovedReaderView({
       return
     }
 
+    // Generate XPath for start and end nodes
+    const xpathStart = generateXPath(range.startContainer)
+    const xpathEnd = generateXPath(range.endContainer)
+
+    // Get context text (before and after selection)
+    const fullText = readerContent.textContent || ''
+    const textBefore = fullText.substring(Math.max(0, startOffset - 50), startOffset)
+    const textAfter = fullText.substring(endOffset, Math.min(fullText.length, endOffset + 50))
+
     // Position the tooltip
     const rect = range.getBoundingClientRect()
     const tooltipX = rect.left + (rect.width / 2)
     const tooltipY = rect.top - 10
 
-    // Set the selection data
+    // Set the selection data with all required fields
     onSetPendingSelection({
       text: selectedText,
       startOffset,
-      endOffset
+      endOffset,
+      xpathStart,
+      xpathEnd,
+      textBefore,
+      textAfter
     })
 
     onSetTooltipPosition({ x: tooltipX, y: tooltipY })
@@ -256,35 +472,115 @@ export function ImprovedReaderView({
 
   // Function to render existing highlights in content
   const renderContentWithHighlights = (content: string) => {
+    console.log('🎨 renderContentWithHighlights called with:', {
+      highlightsCount: highlights?.length || 0,
+      highlights: highlights,
+      contentLength: content?.length || 0
+    })
+
     if (!highlights || highlights.length === 0) {
+      console.log('📝 No highlights to render')
       return content
     }
 
-    // Sort highlights by start offset to process them in order
-    const sortedHighlights = [...highlights].sort((a, b) => a.start_offset - b.start_offset)
+    if (!content) {
+      console.log('📝 No content to highlight')
+      return ''
+    }
+
+    // Sort highlights by start offset to process them in order (reverse to avoid offset issues)
+    const sortedHighlights = [...highlights].sort((a, b) => (b.start_offset || 0) - (a.start_offset || 0))
     
     let highlightedContent = content
-    let offset = 0
     
-    sortedHighlights.forEach((highlight) => {
-      const startPos = highlight.start_offset + offset
-      const endPos = highlight.end_offset + offset
+    sortedHighlights.forEach((highlight, index) => {
+      const startPos = highlight.start_offset || 0
+      const endPos = highlight.end_offset || 0
+      
+      console.log(`🔍 Processing highlight ${index + 1}:`, {
+        startPos,
+        endPos,
+        text: highlight.selected_text,
+        color: highlight.color,
+        highlightId: highlight.highlight_id
+      })
+      
+      // Validate positions
+      if (startPos < 0 || endPos <= startPos || endPos > highlightedContent.length) {
+        console.warn(`⚠️ Invalid highlight positions:`, { startPos, endPos, contentLength: highlightedContent.length })
+        return
+      }
+      
       const beforeText = highlightedContent.substring(0, startPos)
       const highlightText = highlightedContent.substring(startPos, endPos)
       const afterText = highlightedContent.substring(endPos)
       
-      const highlightSpan = `<mark class="bg-yellow-200 border-l-2 border-yellow-400 px-1 py-0.5 rounded-sm cursor-pointer hover:bg-yellow-300 transition-colors" data-highlight-id="${highlight.highlight_id}" title="Highlighted by ${highlight.creator_name}">${highlightText}</mark>`
+      // Use the highlight color from database, fallback to yellow
+      const highlightColor = highlight.color || '#ffeb3b'
+      const highlightStyle = getHighlightStyle(highlightColor)
+      
+      console.log(`🎨 Applying highlight with color:`, highlightColor, 'style:', highlightStyle)
+      
+      const highlightSpan = `<mark class="px-1 py-0.5 rounded-sm cursor-pointer hover:opacity-80 transition-all" style="${highlightStyle}" data-highlight-id="${highlight.highlight_id || highlight.id}" data-color="${highlightColor}" title="Highlighted by ${highlight.creator_name || 'Unknown'}" onclick="window.scrollToAnnotation('${highlight.highlight_id || highlight.id}')">${highlightText}</mark>`
       
       highlightedContent = beforeText + highlightSpan + afterText
-      offset += highlightSpan.length - highlightText.length
+      
+      console.log(`✅ Highlight ${index + 1} applied successfully`)
     })
     
+    console.log('🎨 Final highlighted content length:', highlightedContent.length)
     return highlightedContent
   }
 
   // Show client-side content if available and server-side failed
   const displayContent = clientSideContent || extractedContent
   const isContentAvailable = displayContent && (displayContent.success !== false)
+
+  // Apply highlights to DOM after content renders
+  useLayoutEffect(() => {
+    if (displayContent && highlights && highlights.length > 0) {
+      // Small delay to ensure ReactMarkdown has finished rendering
+      const timer = setTimeout(() => {
+        applyHighlightsToDOM()
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [displayContent, highlights])
+
+  // Set up global scroll function for HTML content highlights
+  useEffect(() => {
+    // Define global function for HTML content highlight clicks
+    (window as any).scrollToAnnotation = (highlightId: string) => {
+      console.log('🎯 HTML highlight clicked, scrolling to annotations:', highlightId)
+      
+      // Find the annotations section
+      const annotationsSection = document.querySelector('[data-annotations-section]')
+      if (annotationsSection) {
+        annotationsSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        })
+        
+        // Optional: Highlight the specific annotation if it exists
+        const highlightAnnotations = document.querySelectorAll(`[data-highlight-id="${highlightId}"]`)
+        highlightAnnotations.forEach((annotation) => {
+          annotation.classList.add('animate-pulse')
+          setTimeout(() => {
+            annotation.classList.remove('animate-pulse')
+          }, 2000)
+        })
+      } else {
+        console.warn('⚠️ Annotations section not found')
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      delete (window as any).scrollToAnnotation
+    }
+  }, [])
 
   if (isLoadingContent || isProcessing) {
     return (
@@ -537,18 +833,20 @@ export function ImprovedReaderView({
 
         {/* Highlights & Discussion Section */}
         {bookmark && user && onCreateAnnotation && onToggleAnnotationLike && onDeleteAnnotation && onSetCommentInputs && (
-          <HighlightsDiscussion
-            bookmark={bookmark}
-            annotations={annotations}
-            highlights={highlights}
-            user={user}
-            teamId={teamId || ''}
-            commentInputs={commentInputs}
-            onCreateAnnotation={onCreateAnnotation}
-            onToggleAnnotationLike={onToggleAnnotationLike}
-            onDeleteAnnotation={onDeleteAnnotation}
-            onSetCommentInputs={onSetCommentInputs}
-          />
+          <div data-annotations-section>
+            <HighlightsDiscussion
+              bookmark={bookmark}
+              annotations={annotations}
+              highlights={highlights}
+              user={user}
+              teamId={teamId || ''}
+              commentInputs={commentInputs}
+              onCreateAnnotation={onCreateAnnotation}
+              onToggleAnnotationLike={onToggleAnnotationLike}
+              onDeleteAnnotation={onDeleteAnnotation}
+              onSetCommentInputs={onSetCommentInputs}
+            />
+          </div>
         )}
       </div>
     </div>

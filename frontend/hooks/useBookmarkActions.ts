@@ -91,7 +91,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
   }
 
   // Create a new highlight
-  const createHighlight = async (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string, highlightColor?: string) => {
+  const createHighlight = async (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string, highlightColor?: string, xpathStart?: string, xpathEnd?: string) => {
     if (!user) {
       setError('You must be logged in to create highlights')
       return
@@ -118,6 +118,8 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
       textAfter,
       startOffset,
       endOffset,
+      xpathStart,
+      xpathEnd,
       highlightColor,
       userId: user.id
     })
@@ -131,7 +133,9 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
         text_after: textAfter || null,
         start_offset: startOffset,
         end_offset: endOffset,
-  color: highlightColor || stickyPalette[0],
+        xpath_start: xpathStart || null,
+        xpath_end: xpathEnd || null,
+        color: highlightColor || stickyPalette[0],
         created_by: user.id
       }
 
