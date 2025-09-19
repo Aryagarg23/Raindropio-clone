@@ -9,6 +9,7 @@ import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
 import { InlineBookmarkInput } from '../bookmarks/InlineBookmarkInput';
 import AddBookmarkModal from '../bookmarks/AddBookmarkModal';
+import { flattenCollections } from '../../../utils/collectionTreeUtils';
 // ...existing code...
 
 // Safe hostname resolver to avoid throwing during render when URL is invalid/missing
@@ -582,7 +583,7 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
       </div>
       {showAddModal && (
         <AddBookmarkModal
-          collections={collections as any}
+          collections={flattenCollections(collections as any) as any}
           onClose={() => setShowAddModal(false)}
           onCreate={async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
             try {

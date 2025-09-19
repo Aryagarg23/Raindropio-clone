@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Collection } from '../../../types/api';
 import { stickyPalette } from '../../../utils/colors';
+import CollectionTreeSelect from '../collections/CollectionTreeSelect';
 
 interface AddBookmarkModalProps {
   collections: Collection[];
@@ -107,18 +108,12 @@ export default function AddBookmarkModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">Collection</label>
-              <select
-                value={collectionId}
-                onChange={(e) => setCollectionId(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background"
-              >
-                <option value="">No collection</option>
-                {collections.map((collection) => (
-                  <option key={collection.id} value={collection.id}>
-                    📁 {collection.name}
-                  </option>
-                ))}
-              </select>
+              <CollectionTreeSelect
+                collections={collections}
+                value={collectionId || undefined}
+                onChange={(id?: string) => setCollectionId(id || '')}
+                placeholder="Choose a collection or type to search"
+              />
             </div>
 
             <div>
