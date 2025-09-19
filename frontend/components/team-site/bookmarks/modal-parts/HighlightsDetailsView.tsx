@@ -73,6 +73,7 @@ export function HighlightsDetailsView({
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-3">
@@ -242,5 +243,20 @@ export function HighlightsDetailsView({
         </div>
       </CardContent>
     </Card>
+    
+    {/* Delete Confirmation Modal */}
+    {confirmationState && (
+      <DeleteConfirmationModal
+        isOpen={confirmationState.isOpen}
+        onClose={hideConfirmation}
+        onConfirm={handleConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        confirmText={confirmationState.confirmText}
+        variant={confirmationState.variant}
+        isLoading={isLoading}
+      />
+    )}
+  </>
   )
 }

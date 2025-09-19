@@ -8,6 +8,8 @@ import ProfileIcon from "../../../ProfileIcon"
 import { ImprovedReaderView } from "./ImprovedReaderView"
 import { ImprovedProxyView } from "./ImprovedProxyView"
 import { HighlightsDetailsView } from "./HighlightsDetailsView"
+import { DeleteConfirmationModal } from "../../../ui/DeleteConfirmationModal"
+import { useDeleteConfirmation } from "../../../../hooks/useDeleteConfirmation"
 
 interface BookmarkContentViewerProps {
   viewMode: 'reader' | 'proxy' | 'details'
@@ -68,6 +70,8 @@ export function BookmarkContentViewer({
   onDeleteHighlight,
   onSetCommentInputs
 }: BookmarkContentViewerProps) {
+  const { confirmationState, isLoading, showConfirmation, hideConfirmation, handleConfirm } = useDeleteConfirmation()
+
   return (
     <div className="flex-1 flex flex-col">
       {/* View mode tabs */}
@@ -216,7 +220,15 @@ export function BookmarkContentViewer({
                                 {/* Delete button for own annotations */}
                                 {user && annotation.creator_id === user.id && onDeleteAnnotation && (
                                   <button
-                                    onClick={() => onDeleteAnnotation(annotation.annotation_id)}
+                                    onClick={() => {
+                                      showConfirmation({
+                                        title: 'Delete Annotation',
+                                        message: 'Are you sure you want to delete this general annotation? This action cannot be undone.',
+                                        confirmText: 'Delete Annotation',
+                                        variant: 'danger',
+                                        onConfirm: () => onDeleteAnnotation(annotation.annotation_id)
+                                      })
+                                    }}
                                     className="text-xs text-grey-accent-500 hover:text-red-600 px-2 py-1 rounded-full hover:bg-red-50 transition-colors ml-auto"
                                   >
                                     Delete
@@ -234,6 +246,20 @@ export function BookmarkContentViewer({
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {confirmationState && (
+        <DeleteConfirmationModal
+          isOpen={confirmationState.isOpen}
+          onClose={hideConfirmation}
+          onConfirm={handleConfirm}
+          title={confirmationState.title}
+          message={confirmationState.message}
+          confirmText={confirmationState.confirmText}
+          variant={confirmationState.variant}
+          isLoading={isLoading}
+        />
+      )}
     </div>
   )
 }
