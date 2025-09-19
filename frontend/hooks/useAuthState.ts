@@ -25,6 +25,8 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
   const inFlightSyncId = useRef<number | null>(null);
   // Incremental counter for sync requests (simple deterministic ids)
   const syncCounter = useRef<number>(0);
+  // Keep a ref to the AbortController for the current sync so it can be cancelled
+  const inFlightController = useRef<AbortController | null>(null);
   // Ensure initializeAuth only runs once per component lifecycle
   const initializedRef = useRef<boolean>(false);
   // Track whether initialization is in progress so auth-change handlers
@@ -65,13 +67,28 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
     const requestId = ++syncCounter.current;
     const doSync = (async (): Promise<UserProfile | null> => {
+      // Abort any previous in-flight controller — we are starting a new canonical sync
+      try {
+        if (inFlightController.current) {
+          console.log(`⏹️ Aborting previous sync (id=${inFlightSyncId.current}) in favor of new sync (id=${requestId})`);
+          inFlightController.current.abort();
+        }
+      } catch (abortErr) {
+        // ignore
+      }
+
+      const controller = new AbortController();
+      inFlightController.current = controller;
+
       inFlightSyncId.current = requestId;
       console.log(`▶️ Starting profile sync (id=${requestId})`);
       try {
   // Match apiClient's fetch timeout (50s) to avoid racing and false timeouts
   const timeoutMs = 50000;
-        const syncPromise = apiClient.syncProfile();
+        // Start the sync with a signal so it can be aborted when a newer sync starts
+        const syncPromise = apiClient.syncProfileWithSignal(controller.signal);
 
+        // Also race against a manual timeout to match the API client's 50s abort.
         const response = await Promise.race([
           syncPromise,
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('sync timeout')), timeoutMs)),
@@ -112,6 +129,25 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
           }
         }
 
+        // If we get a 5xx server error (e.g., transient backend cold start
+        // or similar internal error) and we don't have a cached profile,
+        // retry once after a short delay. This mirrors the timeout retry
+        // logic but targets server errors that can often be transient.
+        if (err instanceof ApiError && err.status >= 500 && !profileRef.current) {
+          console.log(`🔁 Server error during sync (id=${requestId}, status=${err.status}). Retrying once...`);
+          await new Promise(res => setTimeout(res, 1000));
+          try {
+            const retryResponse = await apiClient.syncProfile();
+            console.log(`✅ Profile sync successful on 5xx-retry (id=${requestId}):`, retryResponse);
+            setProfile(retryResponse.profile);
+            profileRef.current = retryResponse.profile;
+            options.onProfileChange?.(retryResponse.profile);
+            return retryResponse.profile;
+          } catch (retryErr: any) {
+            console.error(`❌ 5xx retry failed (id=${requestId}):`, retryErr);
+          }
+        }
+
         if (err instanceof ApiError && err.status === 401) {
           console.log("🚫 Unauthorized, clearing user state...");
           setUser(null);
@@ -127,6 +163,10 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
         throw err;
       } finally {
         console.log(`◀️ Profile sync finished (id=${requestId})`);
+        // clear controller if it's still the one we created
+        if (inFlightController.current === null || inFlightController.current.signal.aborted) {
+          inFlightController.current = null;
+        }
         inFlightSync.current = null;
         inFlightSyncId.current = null;
       }
@@ -286,6 +326,21 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
     return () => subscription?.unsubscribe();
   }, []); // Only run once on mount, not on pathname changes
+
+  // Abort any in-flight sync on unmount to prevent orphaned requests
+  useEffect(() => {
+    return () => {
+      if (inFlightController.current) {
+        try {
+          console.log('⏹️ Aborting in-flight profile sync due to unmount');
+          inFlightController.current.abort();
+        } catch (err) {
+          // ignore
+        }
+        inFlightController.current = null;
+      }
+    };
+  }, []);
 
   // Add timeout to prevent infinite loading
   useEffect(() => {

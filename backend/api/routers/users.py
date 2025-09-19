@@ -18,6 +18,11 @@ async def sync_user_profile(current_user: Dict[str, Any] = Depends(get_current_u
     except HTTPException:
         raise
     except Exception as e:
+        # Log detailed error for debugging (avoid leaking secrets)
+        try:
+            print(f"[users.sync] Exception during sync: {repr(e)}")
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"

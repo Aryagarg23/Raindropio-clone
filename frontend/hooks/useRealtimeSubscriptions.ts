@@ -133,7 +133,12 @@ export function useRealtimeSubscriptions({
 
     return () => {
       console.log('Unsubscribing realtime channel for team:', teamId);
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+        console.log(`📡 Realtime channel removed for team ${teamId}`);
+      } catch (err) {
+        console.error(`❌ Failed to remove realtime channel for team ${teamId}:`, err);
+      }
     };
   };
 

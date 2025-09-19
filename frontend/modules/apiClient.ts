@@ -77,13 +77,15 @@ export async function makeAuthenticatedRequest(endpoint: string, options: Reques
       ? { 'Authorization': `Bearer ${session.access_token}` }
       : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
     
+    // Allow caller to provide an AbortSignal via options.signal, otherwise use our controller
+    const signal = (options as any).signal || controller.signal;
     const response = await fetch(`${apiUrl}${endpoint}`, {
       ...options,
       headers: {
         ...defaultHeaders,
         ...options.headers,
       },
-      signal: controller.signal,
+      signal,
     });
 
     clearTimeout(timeoutId);
@@ -191,6 +193,14 @@ export const apiClient = {
   syncProfile: async () => {
     return makeAuthenticatedRequest('/users/sync', {
       method: 'POST',
+    });
+  },
+
+  // Variant that accepts an AbortSignal for cancellation
+  syncProfileWithSignal: async (signal: AbortSignal) => {
+    return makeAuthenticatedRequest('/users/sync', {
+      method: 'POST',
+      signal,
     });
   },
 
