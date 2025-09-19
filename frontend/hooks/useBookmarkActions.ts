@@ -452,7 +452,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
   }
 
   // Update bookmark basic information (title, description, preview_image)
-  const updateBookmark = async (bookmarkId: string, updates: { title?: string; description?: string; preview_image?: string; image_file?: File }) => {
+  const updateBookmark = async (bookmarkId: string, updates: { title?: string; description?: string; preview_image?: string; image_file?: File; color?: string }) => {
     try {
       // Use the API client to update bookmark
       const response = await apiClient.updateBookmark(
@@ -460,7 +460,8 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
         updates.title || '',
         updates.description,
         updates.preview_image,
-        updates.image_file
+        updates.image_file,
+        updates.color
       );
 
       // The real-time subscription will update the UI automatically

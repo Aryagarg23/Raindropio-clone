@@ -9,7 +9,7 @@ import CollectionTreeSelect from '../collections/CollectionTreeSelect';
 interface AddBookmarkModalProps {
   collections: Collection[];
   onClose: () => void;
-  onCreate: (url: string, title?: string, collectionId?: string, tags?: string[]) => Promise<any> | void;
+  onCreate: (url: string, collectionId?: string, color?: string) => Promise<any> | void;
 }
 
 export default function AddBookmarkModal({
@@ -18,11 +18,9 @@ export default function AddBookmarkModal({
   onCreate
 }: AddBookmarkModalProps) {
   const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
   const [collectionId, setCollectionId] = useState('');
   const [color, setColor] = useState(stickyPalette[0]);
-  const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Handle ESC key to close modal
@@ -39,11 +37,8 @@ export default function AddBookmarkModal({
 
   const resetForm = () => {
     setUrl('');
-    setTitle('');
     setCollectionId('');
     setColor(stickyPalette[0]);
-    setTagInput('');
-    setTags([]);
     setIsSubmitting(false);
   };
 
@@ -57,7 +52,7 @@ export default function AddBookmarkModal({
     if (url.trim() && !isSubmitting) {
       setIsSubmitting(true);
       try {
-        await onCreate(url.trim(), title.trim() || undefined, collectionId || undefined, tags);
+        await onCreate(url.trim(), collectionId || undefined, color);
 
         // Reset form and close modal
         resetForm();
@@ -97,16 +92,6 @@ export default function AddBookmarkModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Title</label>
-              <Input
-                type="text"
-                value={title}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-                placeholder="Optional title"
-              />
-            </div>
-
-            <div>
               <label className="block text-sm font-medium mb-2">Collection</label>
               <CollectionTreeSelect
                 collections={collections}
@@ -132,46 +117,6 @@ export default function AddBookmarkModal({
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Tags</label>
-              <div className="space-y-2">
-                <Input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault();
-                      const tag = tagInput.trim();
-                      if (tag && !tags.includes(tag)) {
-                        setTags([...tags, tag]);
-                        setTagInput('');
-                      }
-                    }
-                  }}
-                  placeholder="Add tags (press Enter or comma to add)"
-                />
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => setTags(tags.filter((_, i) => i !== index))}
-                          className="text-grey-accent-500 hover:text-grey-accent-700"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div className="flex gap-2 pt-4">
               <Button type="button" variant="outline" onClick={handleClose} className="flex-1" disabled={isSubmitting}>

@@ -20,6 +20,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fuse.js": "^7.1.0",
     "i": "^0.3.7",
     "lucide-react": "^0.544.0",
     "mark.js": "^8.11.1",

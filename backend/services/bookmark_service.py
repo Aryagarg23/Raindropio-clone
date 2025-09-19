@@ -119,6 +119,7 @@ class BookmarkService(BaseService):
             "favicon_url": extracted_content["favicon_url"],
             "preview_image": extracted_content["preview_image"],
             "tags": request.tags,
+            "color": getattr(request, 'color', None),
             "created_by": user_id
             # Let Supabase handle created_at and updated_at timestamps
         }
@@ -164,7 +165,8 @@ class BookmarkService(BaseService):
         user_id: str,
         title: str,
         description: Optional[str] = None,
-        preview_image: Optional[str] = None
+        preview_image: Optional[str] = None,
+        color: Optional[str] = None
     ) -> Bookmark:
         """
         Update a bookmark
@@ -204,6 +206,10 @@ class BookmarkService(BaseService):
         # Only update preview_image if it's provided and not empty
         if preview_image is not None and preview_image.strip():
             update_data["preview_image"] = preview_image
+
+        # Update color if provided (allow explicit empty string to clear)
+        if color is not None:
+            update_data["color"] = color
 
         # Update the bookmark in the database
         updated_record = await self.bookmark_repository.update_bookmark(bookmark_id, update_data)

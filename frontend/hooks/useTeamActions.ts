@@ -102,7 +102,7 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
   };
 
   // Create bookmark
-  const createBookmark = async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
+  const createBookmark = async (url: string, title?: string, collectionId?: string, tags?: string[], color?: string) => {
     if (!teamId || !user) return;
 
     try {
@@ -113,7 +113,8 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
           team_id: teamId,
           url,
           collection_id: collectionId,
-          tags: tags || []
+          tags: tags || [],
+          color: color || undefined
         })
       });
 

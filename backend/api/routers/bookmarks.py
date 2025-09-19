@@ -96,6 +96,7 @@ async def update_bookmark(
     title: str = Form(...),
     description: Optional[str] = Form(None),
     preview_image: Optional[str] = Form(None),
+    color: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -143,7 +144,8 @@ async def update_bookmark(
             user_id=user_id,
             title=title,
             description=description,
-            preview_image=final_preview_image
+            preview_image=final_preview_image,
+            color=color
         )
 
         return BookmarkResponse(bookmark=bookmark)

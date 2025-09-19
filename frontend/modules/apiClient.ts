@@ -262,7 +262,7 @@ export const apiClient = {
     return makeAuthenticatedRequest(`/admin/users/${userId}/teams`);
   },
 
-  updateBookmark: async (bookmarkId: string, title: string, description?: string, previewImage?: string, imageFile?: File) => {
+  updateBookmark: async (bookmarkId: string, title: string, description?: string, previewImage?: string, imageFile?: File, color?: string) => {
     const formData = new FormData();
     formData.append('title', title);
     if (description !== undefined) {
@@ -273,6 +273,9 @@ export const apiClient = {
     }
     if (imageFile) {
       formData.append('image_file', imageFile);
+    }
+    if (color !== undefined) {
+      formData.append('color', color);
     }
 
     return makeAuthenticatedFormRequest(`/bookmarks/${bookmarkId}`, formData, 'PUT');

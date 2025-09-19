@@ -229,6 +229,7 @@ export interface CreateBookmarkRequest {
   title?: string;
   description?: string;
   tags?: string[];
+  color?: string;
 }
 
 export interface UpdateBookmarkRequest {

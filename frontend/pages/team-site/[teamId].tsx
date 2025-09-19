@@ -376,8 +376,8 @@ export default function TeamSitePage() {
                 setCreateCollectionParentId(parentId);
                 setShowCreateCollection(true);
               }}
-              onCreateBookmark={async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
-                await createBookmark(url, title, collectionId, tags)
+              onCreateBookmark={async (url: string, title?: string, collectionId?: string, tags?: string[], color?: string) => {
+                await createBookmark(url, title, collectionId, tags, color)
               }}
               orphanedBookmarks={orphanedBookmarks}
             />
@@ -466,7 +466,8 @@ export default function TeamSitePage() {
                 title: updatedBookmark.title,
                 description: updatedBookmark.description,
                 preview_image: updatedBookmark.preview_image,
-                image_file: updatedBookmark.image_file
+                image_file: updatedBookmark.image_file,
+                color: updatedBookmark.color
               })
               setShowEditModal(false)
             } catch (error) {

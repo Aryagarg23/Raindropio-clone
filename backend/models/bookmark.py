@@ -12,6 +12,7 @@ class Bookmark(BaseModel):
     favicon_url: Optional[str] = None
     preview_image: Optional[str] = None
     tags: List[str] = []
+    color: Optional[str] = None
     created_by: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -21,6 +22,7 @@ class CreateBookmarkRequest(BaseModel):
     url: str
     collection_id: Optional[str] = None
     tags: List[str] = []
+    color: Optional[str] = None
 
 class BookmarkResponse(BaseModel):
     bookmark: Bookmark

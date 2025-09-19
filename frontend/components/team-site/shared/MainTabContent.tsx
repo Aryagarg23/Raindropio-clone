@@ -253,7 +253,7 @@ interface MainTabContentProps {
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
   onCreateCollection: (parentId?: string) => void;
-  onCreateBookmark: (url: string, title?: string, collectionId?: string, tags?: string[]) => Promise<void>;
+  onCreateBookmark: (url: string, collectionId?: string, color?: string) => Promise<void>;
   orphanedBookmarks: any[];
 }
 
@@ -585,9 +585,9 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
         <AddBookmarkModal
           collections={flattenCollections(collections as any) as any}
           onClose={() => setShowAddModal(false)}
-          onCreate={async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
+          onCreate={async (url: string, collectionId?: string, color?: string) => {
             try {
-              await onCreateBookmark(url, title, collectionId, tags);
+              await onCreateBookmark(url, collectionId, color);
             } catch (e) {
               console.error('Failed to add bookmark from modal', e);
               throw e;
