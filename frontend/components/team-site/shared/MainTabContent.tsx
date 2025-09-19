@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { Grid3X3, List, ExternalLink, Plus, Heart } from 'lucide-react';
+import { Grid3X3, List, ExternalLink, Plus } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
+import { BookmarkGrid } from '../bookmarks/BookmarkGrid';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
 import { InlineBookmarkInput } from '../bookmarks/InlineBookmarkInput';
+// ...existing code...
 
 // Safe hostname resolver to avoid throwing during render when URL is invalid/missing
 function safeHostname(url?: string) {
@@ -18,14 +20,24 @@ function safeHostname(url?: string) {
   }
 }
 
+const getDomain = (url?: string) => {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url.replace(/^https?:\/\//, '').split('/')[0] || url;
+  }
+};
+
 interface BookmarkListItemProps {
   bookmark: any;
   onBookmarkClick: (bookmark: any) => void;
   bookmarkFilters: any;
   onSetBookmarkFilters: (filters: any) => void;
+  viewMode: 'grid' | 'list';
 }
 
-const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmarkClick, bookmarkFilters, onSetBookmarkFilters }) => {
+const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmarkClick, bookmarkFilters, onSetBookmarkFilters, viewMode }) => {
   const getPlaceholderUrl = (url: string) => {
     const domain = url.replace(/^https?:\/\//, '').split('/')[0] || 'example.com';
     // Use backend placeholder API for better placeholders
@@ -37,13 +49,88 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
 
   const imageSrc = bookmark.preview_image || getPlaceholderUrl(bookmark.url);
 
+  if (viewMode === 'list') {
+    return (
+      <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => onBookmarkClick(bookmark)} compact>
+        <CardContent className="px-4 py-2">
+          <div className="flex items-center gap-4">
+            {/* Large favicon on left, vertically centered */}
+            <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded bg-white border border-grey-accent-100">
+              <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-8 h-8" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              {/* Title on top */}
+              <h3 className="font-medium text-grey-accent-900 truncate group-hover:text-blue-600 transition-colors text-sm">
+                {bookmark.title || safeHostname(bookmark.url)}
+              </h3>
+
+              {/* Tags below title */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {bookmark.tags && bookmark.tags.length > 0 ? (
+                  <>
+                    {bookmark.tags.map((tag: string, i: number) => (
+                      <span
+                        key={tag + i}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full cursor-pointer hover:bg-blue-50 hover:text-blue-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!bookmarkFilters.selectedTags.includes(tag)) {
+                            onSetBookmarkFilters((prev: any) => ({
+                              ...prev,
+                              selectedTags: [...prev.selectedTags, tag]
+                            }));
+                          }
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  <span className="text-xs text-grey-accent-500">No tags</span>
+                )}
+              </div>
+            </div>
+
+            {/* Right metadata: creator stacked above date + persistent external link */}
+            <div className="flex-shrink-0 flex flex-col items-end text-xs text-grey-accent-600">
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end mr-2">
+                  <span className="cursor-pointer hover:text-purple-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
+                          if (!bookmarkFilters.selectedCreators.includes(creatorName)) {
+                            onSetBookmarkFilters((prev: any) => ({
+                              ...prev,
+                              selectedCreators: [...prev.selectedCreators, creatorName]
+                            }));
+                          }
+                        }}
+                  >
+                    {(bookmark as any).profiles?.full_name || 'Unknown'}
+                  </span>
+                  <span className="text-xs text-grey-accent-600 mt-1">{new Date(bookmark.created_at).toLocaleDateString()}</span>
+                </div>
+
+                {/* redirect button removed; grid image bubble handles redirect */}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => onBookmarkClick(bookmark)} compact>
       <div className="aspect-video relative overflow-hidden bg-muted">
         <img
           src={imageSrc}
           alt={bookmark.title || bookmark.url}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          className="block w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          style={{ borderTopLeftRadius: '0.75rem', borderTopRightRadius: '0.75rem' }}
           data-debug-src={imageSrc}
           crossOrigin="anonymous"
           onLoad={(e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -67,23 +154,12 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
       </div>
 
       <CardContent className="p-3 pt-3 pb-3">
-        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0 pl-0">
             <h3 className="font-semibold text-grey-accent-900 group-hover:text-blue-600 transition-colors line-clamp-2">
               {bookmark.title || safeHostname(bookmark.url)}
             </h3>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open(bookmark.url, '_blank', 'noopener,noreferrer');
-            }}
-          >
-            <ExternalLink className="w-4 h-4" />
-          </Button>
         </div>
 
         {bookmark.description && (
@@ -96,19 +172,14 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
         <div className="flex flex-wrap gap-1 mb-3 items-center">
           {bookmark.tags && bookmark.tags.length > 0 && (
             <>
-              {bookmark.tags.slice(0, 3).map((tag: string, index: number) => (
+              {bookmark.tags.map((tag: string, index: number) => (
                 <span
-                  key={tag}
+                  key={tag + index}
                   className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full"
                 >
                   {tag}
                 </span>
               ))}
-              {bookmark.tags.length > 3 && (
-                <span className="px-2 py-1 bg-grey-accent-100 text-grey-accent-600 text-xs rounded-full">
-                  +{bookmark.tags.length - 3}
-                </span>
-              )}
             </>
           )}
         </div>
@@ -127,14 +198,9 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
               {(bookmark as any).profiles?.full_name || 'Unknown'}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
             <span>{new Date(bookmark.created_at).toLocaleDateString()}</span>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-grey-accent-500 hover:text-grey-accent-700" asChild>
-              <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </Button>
-          
+        
         </div>
         </div>
       </CardContent>
@@ -184,7 +250,7 @@ interface MainTabContentProps {
   onHandleBookmarkDragStart: (e: any, bookmarkId: string) => void;
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
-  onCreateCollection: () => void;
+  onCreateCollection: (parentId?: string) => void;
   onCreateBookmark: (url: string) => Promise<void>;
   orphanedBookmarks: any[];
 }
@@ -218,18 +284,65 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   onCreateBookmark,
   orphanedBookmarks
 }) => {
+  const [showAncestorsDropdown, setShowAncestorsDropdown] = useState(false);
+
+  const findCollectionPath = (nodes: any[], targetId: string, acc: any[] = []): any[] | null => {
+    for (const node of nodes) {
+      if (node.id === targetId) return [...acc, node];
+      if (node.children && node.children.length > 0) {
+        const res = findCollectionPath(node.children, targetId, [...acc, node]);
+        if (res) return res;
+      }
+    }
+    return null;
+  };
+
+  const currentPath = selectedCollectionId ? (findCollectionPath(collections as any[], selectedCollectionId) || []) : [];
+  const breadcrumbSegments = ['Collections', ...currentPath.map((p: any) => p.name)];
   return (
     <div className="space-y-8">
       {/* Collection Tree Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 min-h-[600px]">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 min-h-[600px]">
         <div className="lg:col-span-1 lg:pr-6 flex flex-col">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-grey-accent-900">Directory</h2>
+            <div className="flex items-center gap-2">
+              {selectedCollectionId ? (
+                <h2 className="text-2xl font-bold text-grey-accent-900">
+                  <span className="flex items-center gap-2">
+                    {currentPath.map((p: any, idx: number) => (
+                      <React.Fragment key={p.id}>
+                        {idx > 0 && <span className="text-grey-accent-400">&gt;</span>}
+                        <button
+                          onClick={() => onSetSelectedCollectionId(p.id)}
+                          className="text-2xl font-bold text-grey-accent-900 cursor-pointer hover:text-blue-600 transition-colors"
+                        >
+                          {p.name}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  </span>
+                </h2>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-bold text-grey-accent-900">Directory</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onCreateCollection(selectedCollectionId || undefined)}
+                    className="hidden lg:flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+                    title="Add Collection"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
             <Button
               variant="ghost"
               size="sm"
-              onClick={onCreateCollection}
-              className="flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+              onClick={() => onCreateCollection(selectedCollectionId || undefined)}
+              className="flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50 lg:hidden"
               title="Add Collection"
             >
               <Plus className="w-4 h-4" />
@@ -274,34 +387,77 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
             </CardContent>
           </Card>
         </div>
+        <div className="lg:col-span-3 lg:pl-4 relative">
+          <div className="flex items-center gap-2 justify-end ml-auto w-full">
+            {/** Bookmark Add Input with loading spinner */}
+            {(() => {
+              const [inputValue, setInputValue] = React.useState('');
+              const [loading, setLoading] = React.useState(false);
 
-        {/* Bookmarks Grid */}
-        <div className="lg:col-span-3 lg:pl-6 lg:border-l lg:border-grey-accent-200">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <h2 
-                className="text-2xl font-bold text-grey-accent-900 cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => onSetSelectedCollectionId(null)}
-              >
-                {selectedCollectionId
-                  ? collections.find(c => c.id === selectedCollectionId)?.name || 'All Bookmarks'
-                  : 'All Bookmarks'
+              return (
+          <>
+            <div className="relative">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                placeholder="add.bookmark-here.com"
+                className="border border-grey-accent-200 bg-grey-accent-50 rounded-lg px-4 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-200 transition placeholder:text-grey-accent-400 text-grey-accent-900"
+                style={{
+            boxShadow: '0 1px 2px 0 rgba(16,30,54,0.03)'
+                }}
+                onKeyDown={async (e) => {
+            if (e.key === 'Enter') {
+              const url = inputValue.trim();
+              if (url && !loading) {
+                setLoading(true);
+                try {
+                  await onCreateBookmark(url);
+                  setInputValue('');
+                } finally {
+                  setLoading(false);
                 }
-              </h2>
-              <InlineBookmarkInput onCreate={onCreateBookmark} />
+              }
+            }
+                }}
+                disabled={loading}
+              />
+              {loading && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+            <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+            </svg>
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onViewModeChange(viewMode === 'grid' ? 'list' : 'grid')}
-                className="flex items-center gap-2 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
-              >
-                {viewMode === 'grid' ? <Grid3X3 className="w-4 h-4" /> : <List className="w-4 h-4" />}
-                <span className="capitalize">{viewMode}</span>
-              </Button>
-            </div>
-          </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onViewModeChange(viewMode === 'grid' ? 'list' : 'grid')}
+              className="flex items-center gap-2 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+            >
+              {viewMode === 'grid' ? <Grid3X3 className="w-4 h-4" /> : <List className="w-4 h-4" />}
+              <span className="capitalize">{viewMode}</span>
+            </Button>
+          </>
+              );
+            })()}
+                      </div>
+                      <div className="lg:pl-2 lg:pt-6">
+                      {/* visual separator — absolutely positioned so it doesn't affect layout */}
+                      <div className="hidden lg:block absolute left-0 top-16 bottom-0 w-px bg-grey-accent-200" aria-hidden="true" />
+                    
+                  
+                          
+                  
+                   
+                  
+              
+                
+              
+              
+            
 
           {advancedFilteredBookmarks.length === 0 ? (
             <div className="text-left py-12">
@@ -314,19 +470,84 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
                 }
               </p>
             </div>
-          ) : (
-            <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
-              {advancedFilteredBookmarks.map((bookmark) => (
-                <BookmarkListItem
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  onBookmarkClick={onBookmarkClick}
-                  bookmarkFilters={bookmarkFilters}
-                  onSetBookmarkFilters={onSetBookmarkFilters}
-                />
-              ))}
-            </div>
+            ) : (
+            // Use BookmarkGrid for list rendering parity with modal; keep main grid rendering as-is
+            viewMode === 'grid' ? (
+                <div className={`grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3`}>
+                {advancedFilteredBookmarks.map((bookmark) => (
+                  <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 overflow-hidden bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer" onClick={() => onBookmarkClick(bookmark)} compact>
+                    <div className="aspect-video relative overflow-hidden bg-muted rounded-t-xl">
+                      <img
+                        src={bookmark.preview_image || `${(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent((bookmark.url || '').replace(/^https?:\/\//, '').split('/')[0] || 'example.com')}`}
+                        alt={bookmark.title || bookmark.url}
+                        className="block w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 rounded-t-xl"
+                        style={{ borderTopLeftRadius: '0.75rem', borderTopRightRadius: '0.75rem' }}
+                        data-debug-src={bookmark.preview_image}
+                        onError={(e: React.SyntheticEvent<HTMLImageElement>) => { const el = e.currentTarget; el.src = `${(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent((bookmark.url || '').replace(/^https?:\/\//, '').split('/')[0] || 'example.com')}`; }}
+                      />
+                      <div className="absolute bottom-2 left-2">
+                        <div className="w-8 h-8 rounded bg-white shadow-lg flex items-center justify-center border border-grey-accent-200">
+                          <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-5 h-5" />
+                        </div>
+                      </div>
+                      {/* Domain bubble - bottom-right */}
+                      <div className="absolute bottom-2 right-2">
+                        <a href={bookmark.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/80 hover:bg-white text-grey-accent-700 text-xs rounded-full shadow transition">
+                          <span className="truncate max-w-[6rem]">{getDomain(bookmark.url)}</span>
+                          <ExternalLink className="w-3 h-3 text-grey-accent-500" />
+                        </a>
+                      </div>
+                      {/* image-level overlay removed; tags are rendered in CardContent to sit in the gap */}
+                    </div>
+                    <CardContent className="p-4">
+                      {/* Tags row placed into the gap between image and title */}
+                      {bookmark.tags && bookmark.tags.length > 0 && (
+                        <div className="-mt-6 mb-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {bookmark.tags.map((tag: string, i: number) => (
+                              <span key={tag + i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-grey-accent-100 text-grey-accent-700 rounded-full text-xs">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <h3 className="font-medium text-sm line-clamp-2 mb-2">
+                        {bookmark.title || bookmark.url}
+                      </h3>
+                      {bookmark.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+                          {bookmark.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-xs text-grey-accent-600">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{(bookmark as any).profiles?.full_name || 'Unknown'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-grey-accent-600">{new Date(bookmark.created_at).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <BookmarkGrid
+                bookmarks={advancedFilteredBookmarks}
+                viewMode={viewMode}
+                editingTags={null}
+                tagInput={''}
+                onBookmarkClick={onBookmarkClick}
+                onUpdateTags={() => {}}
+                onSetEditingTags={() => {}}
+                onSetTagInput={() => {}}
+                gridColsClass={'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}
+                listColsClass={'grid-cols-1'}
+              />
+            )
           )}
+          </div>
         </div>
       </div>
     </div>

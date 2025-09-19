@@ -192,6 +192,7 @@ export default function TeamSitePage() {
 
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
+  const [createCollectionParentId, setCreateCollectionParentId] = useState<string | undefined>(undefined)
   const [editingTags, setEditingTags] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
 
@@ -371,7 +372,10 @@ export default function TeamSitePage() {
               onHandleBookmarkDragStart={handleBookmarkDragStart}
               onHandleBookmarkDragOver={handleBookmarkDragOver}
               onHandleBookmarkDrop={handleBookmarkDrop}
-              onCreateCollection={() => setShowCreateCollection(true)}
+              onCreateCollection={(parentId?: string) => {
+                setCreateCollectionParentId(parentId);
+                setShowCreateCollection(true);
+              }}
               onCreateBookmark={async (url: string) => {
                 await createBookmark(url)
               }}
@@ -393,9 +397,13 @@ export default function TeamSitePage() {
 
       {showCreateCollection && (
         <CreateCollectionModal
-          onClose={() => setShowCreateCollection(false)}
+          onClose={() => {
+            setShowCreateCollection(false);
+            setCreateCollectionParentId(undefined);
+          }}
           onCreate={createCollection}
           collections={collections}
+          initialParentId={createCollectionParentId}
         />
       )}
 

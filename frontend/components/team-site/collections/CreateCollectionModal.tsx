@@ -9,12 +9,14 @@ interface CreateCollectionModalProps {
   onClose: () => void;
   onCreate: (name: string, description?: string, color?: string, parentId?: string) => void;
   collections?: Collection[];
+  initialParentId?: string;
 }
 
 export default function CreateCollectionModal({
   onClose,
   onCreate,
   collections = []
+  , initialParentId
 }: CreateCollectionModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -38,7 +40,7 @@ export default function CreateCollectionModal({
     setName('');
     setDescription('');
     setColor('#FFEB3B');
-    setParentId('');
+    setParentId(initialParentId || '');
     setIsSubmitting(false);
   };
 
@@ -46,6 +48,11 @@ export default function CreateCollectionModal({
     resetForm();
     onClose();
   };
+
+  // Initialize parentId from prop when modal opens or prop changes
+  React.useEffect(() => {
+    if (initialParentId) setParentId(initialParentId);
+  }, [initialParentId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -83,7 +83,7 @@ interface TeamSiteMainContentProps {
   onHandleBookmarkDragStart: (e: any, bookmarkId: string) => void;
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
-  onCreateCollection: () => void;
+  onCreateCollection: (parentId?: string) => void;
   onCreateBookmark: (url: string) => Promise<void>;
 }
 
@@ -218,6 +218,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
             onBookmarkClick={onBookmarkClick}
             onSetBookmarkFilters={onSetBookmarkFilters}
             onSetShowFilters={onSetShowFilters}
+            onViewModeChange={onViewModeChange}
           />
         </TabsContent>
 
