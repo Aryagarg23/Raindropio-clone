@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any, List
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from typing import Dict, Any, List, Optional
 from api.deps import get_current_user
 from models.bookmark import Bookmark, CreateBookmarkRequest, BookmarkResponse
 from services import bookmark_service
+import uuid
 
 router = APIRouter(prefix="/bookmarks", tags=["bookmarks"])
 
@@ -87,4 +88,70 @@ async def get_bookmark(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching bookmark: {str(e)}"
+        )
+
+@router.put("/{bookmark_id}", response_model=BookmarkResponse)
+async def update_bookmark(
+    bookmark_id: str,
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    preview_image: Optional[str] = Form(None),
+    image_file: Optional[UploadFile] = File(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Update a bookmark with optional image upload
+    """
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+
+    try:
+        # If image_file is provided, upload it to storage and get URL
+        final_preview_image = preview_image
+        if image_file:
+            # Upload file to Supabase storage
+            contents = await image_file.read()
+            unique_suffix = str(uuid.uuid4())
+            filename = f"bookmarks/{bookmark_id}_{unique_suffix}_{image_file.filename}"
+
+            # Upload to Supabase Storage (bucket 'nis', subfolder 'bookmarks')
+            from core.supabase_client import supabase_service
+            supabase = supabase_service
+
+            try:
+                upload_response = supabase.storage.from_("nis").upload(filename, contents)
+                if hasattr(upload_response, 'error') and upload_response.error:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Image upload failed: {upload_response.error}"
+                    )
+
+                # Get public URL
+                public_url = supabase.storage.from_("nis").get_public_url(filename)
+                if public_url:
+                    final_preview_image = public_url.rstrip('?')
+
+            except Exception as storage_exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Image upload failed: {str(storage_exc)}"
+                )
+
+        # Update bookmark
+        bookmark = await bookmark_service.update_bookmark(
+            bookmark_id=bookmark_id,
+            user_id=user_id,
+            title=title,
+            description=description,
+            preview_image=final_preview_image
+        )
+
+        return BookmarkResponse(bookmark=bookmark)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating bookmark: {str(e)}"
         )

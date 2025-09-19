@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import supabase from '../modules/supabaseClient';
-import { getApiBaseUrl } from '../modules/apiClient';
+import { getApiBaseUrl, makeAuthenticatedRequest } from '../modules/apiClient';
 import { stickyPalette } from '../utils/colors';
 
 export function useTeamActions(teamId: string, user: any, profile: any, setError: (error: string | null) => void) {
@@ -106,57 +106,18 @@ export function useTeamActions(teamId: string, user: any, profile: any, setError
     if (!teamId || !user) return;
 
     try {
-      // Extract content and metadata from the URL
-      let extractedData = null;
-      try {
-        const response = await fetch(`${getApiBaseUrl()}/content/extract`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url })
-        });
-
-        if (response.ok) {
-          extractedData = await response.json();
-        }
-      } catch (error) {
-        console.log('Content extraction failed, continuing without metadata:', error);
-      }
-
-      // Use extracted data or fallbacks
-      const finalTitle = title || extractedData?.title || url;
-      const extractedDescription = extractedData?.description || null;
-      const extractedFavicon = extractedData?.meta_info?.favicon || null;
-
-      const { data, error } = await supabase
-        .from('bookmarks')
-        .insert({
+      // Call the backend API to create bookmark with content extraction
+      const result = await makeAuthenticatedRequest('/bookmarks', {
+        method: 'POST',
+        body: JSON.stringify({
           team_id: teamId,
-          collection_id: collectionId,
           url,
-          title: finalTitle,
-          description: extractedDescription,
-          favicon_url: extractedFavicon,
-          tags: tags || [],
-          created_by: user.id
+          collection_id: collectionId,
+          tags: tags || []
         })
-        .select(`
-          *,
-          profiles:created_by (
-            user_id,
-            full_name,
-            avatar_url
-          ),
-          collections (
-            id,
-            name,
-            color
-          )
-        `)
-        .single();
+      });
 
-      if (error) throw error;
+      const data = result.bookmark;
 
       // Create team event for activity feed
       await supabase

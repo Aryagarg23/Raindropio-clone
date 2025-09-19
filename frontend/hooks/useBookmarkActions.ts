@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import supabase from '../modules/supabaseClient';
 import { stickyPalette } from '../utils/colors';
-import { getApiBaseUrl } from '../modules/apiClient';
+import { getApiBaseUrl, apiClient } from '../modules/apiClient';
 
 interface UseBookmarkActionsProps {
   user: any;
@@ -451,6 +451,27 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     }
   }
 
+  // Update bookmark basic information (title, description, preview_image)
+  const updateBookmark = async (bookmarkId: string, updates: { title?: string; description?: string; preview_image?: string; image_file?: File }) => {
+    try {
+      // Use the API client to update bookmark
+      const response = await apiClient.updateBookmark(
+        bookmarkId,
+        updates.title || '',
+        updates.description,
+        updates.preview_image,
+        updates.image_file
+      );
+
+      // The real-time subscription will update the UI automatically
+      return response.bookmark;
+    } catch (error) {
+      console.error('Failed to update bookmark:', error);
+      setError('Failed to update bookmark');
+      throw error;
+    }
+  }
+
   return {
     bookmarkAnnotations,
     bookmarkHighlights,
@@ -465,6 +486,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     deleteAnnotation,
     extractContent,
     fetchProxyContent,
-    updateBookmarkTags
+    updateBookmarkTags,
+    updateBookmark
   };
 };

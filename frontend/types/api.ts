@@ -128,6 +128,7 @@ export interface Bookmark {
   title?: string;
   description?: string;
   favicon_url?: string;
+  preview_image?: string;
   tags: string[];
   created_by: string;
   created_at: string;

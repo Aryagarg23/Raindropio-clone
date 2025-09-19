@@ -157,3 +157,65 @@ class BookmarkService(BaseService):
         """
         record = await self.bookmark_repository.get_bookmark_by_id(bookmark_id)
         return Bookmark(**record) if record else None
+
+    async def update_bookmark(
+        self,
+        bookmark_id: str,
+        user_id: str,
+        title: str,
+        description: Optional[str] = None,
+        preview_image: Optional[str] = None
+    ) -> Bookmark:
+        """
+        Update a bookmark
+
+        Args:
+            bookmark_id: The bookmark ID to update
+            user_id: The user ID making the update
+            title: New title
+            description: New description (optional)
+            image_url: New image URL (optional)
+
+        Returns:
+            The updated bookmark
+
+        Raises:
+            HTTPException: If bookmark not found or update fails
+        """
+        from fastapi import HTTPException, status
+
+        # Get current bookmark to verify it exists
+        current_bookmark = await self.get_bookmark_by_id(bookmark_id)
+        if not current_bookmark:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Bookmark not found"
+            )
+
+        # Prepare update data
+        update_data = {
+            "title": title,
+            "updated_at": datetime.datetime.utcnow().isoformat()
+        }
+
+        if description is not None:
+            update_data["description"] = description
+
+        # Only update preview_image if it's provided and not empty
+        if preview_image is not None and preview_image.strip():
+            update_data["preview_image"] = preview_image
+
+        # Update the bookmark in the database
+        updated_record = await self.bookmark_repository.update_bookmark(bookmark_id, update_data)
+
+        if not updated_record:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update bookmark"
+            )
+
+        # Convert to Bookmark model
+        bookmark = Bookmark(**updated_record)
+
+        logger.info(f"Updated bookmark {bookmark_id} by user {user_id}")
+        return bookmark

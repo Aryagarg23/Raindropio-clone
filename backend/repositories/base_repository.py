@@ -40,7 +40,8 @@ class BaseRepository:
             The record if found, None otherwise
         """
         try:
-            response = self.supabase.table(table).select("*").eq("id", id).execute()
+            # Try using match instead of eq for better PostgREST compatibility
+            response = self.supabase.table(table).select("*").match({"id": id}).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             raise Exception(f"Database query failed: {str(e)}")
@@ -75,15 +76,40 @@ class BaseRepository:
             The updated record
         """
         try:
-            response = self.supabase.table(table).update(data).eq("id", id).execute()
+            # Use match instead of eq for better PostgREST compatibility
+            response = self.supabase.table(table).update(data).match({"id": id}).execute()
             return response.data[0]
         except Exception as e:
             # Include full exception representation to help with debugging PostgREST errors
             err_repr = repr(e)
             err_str = str(e)
-            # Log to stdout/stderr via print so it appears in container logs
-            print(f"[BaseRepository.update] Error updating table={table} id={id} data={data}: {err_repr}")
-            raise Exception(f"Database update failed: {err_str}. Full error: {err_repr}")
+            
+            # Check if it's a column not found error
+            if "Could not find the" in err_str and "column" in err_str:
+                print(f"[BaseRepository.update] Column not found error: {err_str}")
+                # Try to update without the problematic columns
+                safe_data = {}
+                for key, value in data.items():
+                    # Skip columns that don't exist
+                    if f"'{key}'" in err_str:
+                        print(f"[BaseRepository.update] Skipping non-existent column: {key}")
+                        continue
+                    safe_data[key] = value
+                
+                if safe_data:
+                    try:
+                        response = self.supabase.table(table).update(safe_data).match({"id": id}).execute()
+                        return response.data[0]
+                    except Exception as retry_error:
+                        print(f"[BaseRepository.update] Retry also failed: {retry_error}")
+                        raise Exception(f"Database update failed: {err_str}. Full error: {err_repr}")
+                else:
+                    # No safe columns to update
+                    raise Exception(f"No valid columns to update: {err_str}. Full error: {err_repr}")
+            else:
+                # Not a column error, re-raise
+                print(f"[BaseRepository.update] Error updating table={table} id={id} data={data}: {err_repr}")
+                raise Exception(f"Database update failed: {err_str}. Full error: {err_repr}")
 
     async def delete(self, table: str, id: str) -> bool:
         """
@@ -94,13 +120,29 @@ class BaseRepository:
             id: The record ID
 
         Returns:
-            True if deleted, False otherwise
+            True if deleted successfully
         """
         try:
-            response = self.supabase.table(table).delete().eq("id", id).execute()
+            response = self.supabase.table(table).delete().match({"id": id}).execute()
             return len(response.data) > 0
         except Exception as e:
             raise Exception(f"Database delete failed: {str(e)}")
+
+    async def get_all(self, table: str) -> List[Dict[str, Any]]:
+        """
+        Get all records from a table.
+
+        Args:
+            table: The table name
+
+        Returns:
+            List of all records
+        """
+        try:
+            response = self.supabase.table(table).select("*").execute()
+            return response.data
+        except Exception as e:
+            raise Exception(f"Database query failed: {str(e)}")
 
     async def get_all(self, table: str) -> List[Dict[str, Any]]:
         """

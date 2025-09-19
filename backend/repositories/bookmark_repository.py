@@ -23,7 +23,7 @@ class BookmarkRepository(BaseRepository):
         """
         return await self.insert("bookmarks", bookmark_data)
 
-    async def get_bookmarks_by_team(self, team_id: str) -> List[Dict[str, Any]]:
+    async def get_team_bookmarks(self, team_id: str) -> List[Dict[str, Any]]:
         """
         Get all bookmarks for a team.
 
@@ -31,13 +31,13 @@ class BookmarkRepository(BaseRepository):
             team_id: The team ID
 
         Returns:
-            List of bookmarks
+            List of bookmarks for the team
         """
         try:
-            response = self.supabase.table("bookmarks").select("*").eq("team_id", team_id).order("created_at", desc=True).execute()
+            response = self.supabase.table("bookmarks").select("*").match({"team_id": team_id}).order("created_at", desc=True).execute()
             return response.data
         except Exception as e:
-            raise Exception(f"Failed to get bookmarks for team {team_id}: {str(e)}")
+            raise Exception(f"Database query failed: {str(e)}")
 
     async def get_bookmark_by_id(self, bookmark_id: str) -> Optional[Dict[str, Any]]:
         """

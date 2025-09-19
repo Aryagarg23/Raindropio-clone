@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useCallback } from "react"
+import React, { useState, useMemo, useCallback, useEffect } from "react"
 import { useRouter } from "next/router"
 import { useTeamSite } from "../../hooks/useTeamSite"
 import { useDragDrop } from "../../hooks/useDragDrop"
@@ -23,7 +23,7 @@ import { buildCollectionTree, flattenCollections, updateCollectionBookmarkCounts
 import { getApiBaseUrl } from '../../modules/apiClient'
 import CreateCollectionModal from "../../components/team-site/collections/CreateCollectionModal"
 import { BookmarkDetailModal } from "../../components/team-site/bookmarks/BookmarkDetailModal"
-import AddBookmarkModal from "../../components/team-site/bookmarks/AddBookmarkModal"
+import { BookmarkEditModal } from "../../components/team-site/bookmarks/BookmarkEditModal"
 import { TeamSiteHeader } from "../../components/team-site/shared/TeamSiteHeader"
 import { TeamSiteMainContent } from "../../components/team-site/shared/TeamSiteMainContent"
 import { DirectoryModal } from "../../components/team-site/shared/DirectoryModal"
@@ -129,6 +129,7 @@ export default function TeamSitePage() {
     extractContent,
     fetchProxyContent,
     updateBookmarkTags,
+    updateBookmark,
     bookmarkAnnotations,
     bookmarkHighlights,
     extractedContent,
@@ -145,7 +146,6 @@ export default function TeamSitePage() {
     showDirectoryModal,
     selectedDirectoryCollection,
     showCreateCollection,
-    showAddBookmark,
     selectedBookmark,
     bookmarkViewMode,
     showHighlightTooltip,
@@ -159,7 +159,6 @@ export default function TeamSitePage() {
     setShowDirectoryModal,
     setSelectedDirectoryCollection,
     setShowCreateCollection,
-    setShowAddBookmark,
     setSelectedBookmark,
     setBookmarkViewMode,
     setShowHighlightTooltip,
@@ -194,6 +193,7 @@ export default function TeamSitePage() {
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [editingTags, setEditingTags] = useState<string | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   const {
     toggleCollection,
@@ -207,7 +207,6 @@ export default function TeamSitePage() {
     setSelectedBookmark,
     setBookmarkViewMode,
     setShowCreateCollection,
-    setShowAddBookmark,
     fetchBookmarkData,
     activeTab,
     updateBookmarkTags,
@@ -235,9 +234,9 @@ export default function TeamSitePage() {
     return getCollectionDirectoryMarkdown(collection, bookmarks)
   }, [bookmarks])
 
-  const copyDirectoryStructureToClipboard = useCallback(async (collection: ExtendedCollection) => {
-    await copyDirectoryStructure(collection, bookmarks)
-  }, [bookmarks])
+  const handleEditBookmark = (bookmark: any) => {
+    setShowEditModal(true)
+  }
 
   const orphanedBookmarks = useMemo(() => bookmarks.filter(bookmark => 
     !bookmark.collection_id || !collections.some(col => col.id === bookmark.collection_id)
@@ -249,6 +248,16 @@ export default function TeamSitePage() {
       bookmark.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bookmark.tags?.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   ), [bookmarks, searchQuery]);
+
+  // Update selectedBookmark when bookmarks array changes (e.g., via realtime updates)
+  useEffect(() => {
+    if (selectedBookmark) {
+      const updatedBookmark = bookmarks.find(b => b.id === selectedBookmark.id);
+      if (updatedBookmark && updatedBookmark !== selectedBookmark) {
+        setSelectedBookmark(updatedBookmark);
+      }
+    }
+  }, [bookmarks, selectedBookmark, setSelectedBookmark]);
 
   if (loading) {
     return (
@@ -363,7 +372,9 @@ export default function TeamSitePage() {
               onHandleBookmarkDragOver={handleBookmarkDragOver}
               onHandleBookmarkDrop={handleBookmarkDrop}
               onCreateCollection={() => setShowCreateCollection(true)}
-              onCreateBookmark={() => setShowAddBookmark(true)}
+              onCreateBookmark={async (url: string) => {
+                await createBookmark(url)
+              }}
               orphanedBookmarks={orphanedBookmarks}
             />
           </div>
@@ -385,14 +396,6 @@ export default function TeamSitePage() {
           onClose={() => setShowCreateCollection(false)}
           onCreate={createCollection}
           collections={collections}
-        />
-      )}
-
-      {showAddBookmark && (
-        <AddBookmarkModal
-          collections={collections}
-          onClose={() => setShowAddBookmark(false)}
-          onCreate={createBookmark}
         />
       )}
 
@@ -435,6 +438,34 @@ export default function TeamSitePage() {
           onSetTagInput={setTagInput}
           onSetShowTagSuggestions={setShowTagSuggestions}
           onSetCommentInputs={() => {}} // TODO: Implement
+          onEdit={() => handleEditBookmark(selectedBookmark)}
+          onCopy={() => {
+            if (selectedBookmark?.url) {
+              navigator.clipboard.writeText(selectedBookmark.url)
+              // You could add a toast notification here
+            }
+          }}
+        />
+      )}
+      {showEditModal && selectedBookmark && (
+        <BookmarkEditModal
+          bookmark={selectedBookmark}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSave={async (updatedBookmark) => {
+            try {
+              await updateBookmark(updatedBookmark.id, {
+                title: updatedBookmark.title,
+                description: updatedBookmark.description,
+                preview_image: updatedBookmark.preview_image,
+                image_file: updatedBookmark.image_file
+              })
+              setShowEditModal(false)
+            } catch (error) {
+              console.error('Failed to save bookmark:', error)
+              // Error is already handled in the hook
+            }
+          }}
         />
       )}
     </main>

@@ -44,7 +44,7 @@ export class ApiError extends Error {
   }
 }
 
-async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}, retries: number = 2) {
+export async function makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}, retries: number = 2) {
   const apiUrl = getApiBaseUrl();
   console.log(`🌐 Making API request to: ${apiUrl}${endpoint}`);
   
@@ -260,5 +260,21 @@ export const apiClient = {
 
   getUserTeams: async (userId: string) => {
     return makeAuthenticatedRequest(`/admin/users/${userId}/teams`);
+  },
+
+  updateBookmark: async (bookmarkId: string, title: string, description?: string, previewImage?: string, imageFile?: File) => {
+    const formData = new FormData();
+    formData.append('title', title);
+    if (description !== undefined) {
+      formData.append('description', description);
+    }
+    if (previewImage !== undefined) {
+      formData.append('preview_image', previewImage);
+    }
+    if (imageFile) {
+      formData.append('image_file', imageFile);
+    }
+
+    return makeAuthenticatedFormRequest(`/bookmarks/${bookmarkId}`, formData, 'PUT');
   },
 };

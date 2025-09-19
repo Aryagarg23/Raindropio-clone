@@ -6,7 +6,7 @@ import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
-import { useBookmarkPreview } from '../../../hooks/useBookmarkPreview';
+import { InlineBookmarkInput } from '../bookmarks/InlineBookmarkInput';
 
 // Safe hostname resolver to avoid throwing during render when URL is invalid/missing
 function safeHostname(url?: string) {
@@ -26,8 +26,6 @@ interface BookmarkListItemProps {
 }
 
 const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmarkClick, bookmarkFilters, onSetBookmarkFilters }) => {
-  const { imageUrl } = useBookmarkPreview(bookmark.url);
-
   const getPlaceholderUrl = (url: string) => {
     const domain = url.replace(/^https?:\/\//, '').split('/')[0] || 'example.com';
     // Use backend placeholder API for better placeholders
@@ -37,7 +35,7 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
     return `${apiBase.replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent(domain)}`;
   };
 
-  const imageSrc = imageUrl || getPlaceholderUrl(bookmark.url);
+  const imageSrc = bookmark.preview_image || getPlaceholderUrl(bookmark.url);
 
   return (
     <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => onBookmarkClick(bookmark)} compact>
@@ -93,6 +91,28 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
             {bookmark.description}
           </p>
         )}
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-1 mb-3 items-center">
+          {bookmark.tags && bookmark.tags.length > 0 && (
+            <>
+              {bookmark.tags.slice(0, 3).map((tag: string, index: number) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full"
+                >
+                  {tag}
+                </span>
+              ))}
+              {bookmark.tags.length > 3 && (
+                <span className="px-2 py-1 bg-grey-accent-100 text-grey-accent-600 text-xs rounded-full">
+                  +{bookmark.tags.length - 3}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+
         <div className="flex items-center justify-between text-xs text-grey-accent-600">
           <div className="flex items-center gap-2">
             <ProfileIcon
@@ -103,19 +123,7 @@ const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmar
               }}
               size="sm"
             />
-            <span
-              className="cursor-pointer hover:text-purple-600"
-              onClick={(e) => {
-                e.stopPropagation();
-                const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
-                if (!bookmarkFilters.selectedCreators.includes(creatorName)) {
-                  onSetBookmarkFilters((prev: any) => ({
-                    ...prev,
-                    selectedCreators: [...prev.selectedCreators, creatorName]
-                  }));
-                }
-              }}
-            >
+            <span>
               {(bookmark as any).profiles?.full_name || 'Unknown'}
             </span>
           </div>
@@ -177,7 +185,7 @@ interface MainTabContentProps {
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
   onCreateCollection: () => void;
-  onCreateBookmark: () => void;
+  onCreateBookmark: (url: string) => Promise<void>;
   orphanedBookmarks: any[];
 }
 
@@ -280,15 +288,7 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
                   : 'All Bookmarks'
                 }
               </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCreateBookmark}
-                className="flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
-                title="Add Bookmark"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
+              <InlineBookmarkInput onCreate={onCreateBookmark} />
             </div>
             <div className="flex items-center gap-2">
               <Button

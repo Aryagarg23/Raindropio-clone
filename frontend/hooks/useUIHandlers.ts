@@ -6,7 +6,7 @@ interface UseUIHandlersProps {
   setSelectedBookmark: (bookmark: any) => void;
   setBookmarkViewMode: (mode: 'proxy' | 'reader' | 'details') => void;
   setShowCreateCollection: (show: boolean) => void;
-  setShowAddBookmark: (show: boolean) => void;
+  setShowAddBookmark?: (show: boolean) => void;
   fetchBookmarkData: (bookmarkId: string) => Promise<void>;
   activeTab: string;
   updateBookmarkTags: (bookmarkId: string, newTags: string[]) => Promise<void>;
@@ -83,7 +83,7 @@ export const useUIHandlers = ({
   const handleCreateAction = useCallback(() => {
     if (activeTab === "collections") {
       setShowCreateCollection(true);
-    } else {
+    } else if (setShowAddBookmark) {
       setShowAddBookmark(true);
     }
   }, [activeTab, setShowCreateCollection, setShowAddBookmark]);

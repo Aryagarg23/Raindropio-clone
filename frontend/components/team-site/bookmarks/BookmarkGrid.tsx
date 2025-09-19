@@ -5,7 +5,6 @@ import { Input } from "../../ui/input";
 import { ExternalLink, Heart, Plus } from "lucide-react";
 import ProfileIcon from "../../ProfileIcon";
 import { FaviconImage } from "../shared/FaviconImage";
-import { useBookmarkPreview } from "../../../hooks/useBookmarkPreview";
 
 interface Bookmark {
   id: string;
@@ -17,6 +16,7 @@ interface Bookmark {
   created_at: string;
   updated_at: string;
   favicon_url?: string;
+  preview_image?: string;
   profiles?: {
     user_id: string;
     full_name?: string;
@@ -43,8 +43,6 @@ function BookmarkCard({
   onSetEditingTags,
   onSetTagInput
 }: BookmarkCardProps) {
-  const { imageUrl, loading } = useBookmarkPreview(bookmark.url);
-
   const updateBookmarkTags = (bookmarkId: string, newTags: string[]) => {
     onUpdateTags(bookmarkId, newTags);
   };
@@ -66,7 +64,7 @@ function BookmarkCard({
     }
   };
 
-  const imageSrc = imageUrl || getPlaceholderUrl(bookmark.url);
+  const imageSrc = bookmark.preview_image || getPlaceholderUrl(bookmark.url);
 
   return (
     <Card
@@ -256,8 +254,6 @@ export function BookmarkGrid({
   return (
     <div className="space-y-2">
       {bookmarks.map((bookmark) => {
-        const { imageUrl } = useBookmarkPreview(bookmark.url);
-        
         // Generate fallback placeholder
         const getPlaceholderUrl = (url: string) => {
           const domain = url.replace(/^https?:\/\//, '').split('/')[0] || 'example.com';
@@ -266,7 +262,7 @@ export function BookmarkGrid({
           return `data:image/svg+xml;base64,${btoa(svg)}`;
         };
 
-        const imageSrc = imageUrl || getPlaceholderUrl(bookmark.url);
+        const imageSrc = bookmark.preview_image || getPlaceholderUrl(bookmark.url);
 
         return (
           <Card key={bookmark.id} className="hover:shadow-md transition-all duration-200 bg-white border-grey-accent-200 hover:border-grey-accent-300 cursor-pointer" onClick={() => onBookmarkClick(bookmark)}>

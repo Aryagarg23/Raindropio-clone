@@ -84,7 +84,7 @@ interface TeamSiteMainContentProps {
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
   onCreateCollection: () => void;
-  onCreateBookmark: () => void;
+  onCreateBookmark: (url: string) => Promise<void>;
 }
 
 export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({

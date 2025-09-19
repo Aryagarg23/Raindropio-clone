@@ -7,7 +7,7 @@ interface PreviewData {
   error?: string;
 }
 
-const PREVIEW_CACHE_KEY = 'bookmark_previews_v5';
+const PREVIEW_CACHE_KEY = 'bookmark_previews_v11';
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CachedPreview {
@@ -158,13 +158,12 @@ export function useBookmarkPreview(bookmarkUrl: string) {
           });
           if (resp && resp.ok) {
             const json: any = await resp.json();
-            const serverImage = json?.meta_info?.image;
-            if (serverImage) {
+            if (json.success && json?.meta_info?.image) {
               // Use image proxy to avoid CORS issues and support more formats
               const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
                 ? process.env.NEXT_PUBLIC_API_URL
                 : 'http://127.0.0.1:8000';
-              imageUrl = `${apiBase.replace(/\/$/, '')}/content/proxy/image?url=${encodeURIComponent(serverImage)}`;
+              imageUrl = `${apiBase.replace(/\/$/, '')}/content/proxy/image?url=${encodeURIComponent(json.meta_info.image)}`;
             }
           }
         } catch (e) {
