@@ -1,4 +1,6 @@
 import React from "react"
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card"
 import { Button } from "../../../ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/tabs"
@@ -62,10 +64,23 @@ export function BookmarkContentViewer({
                       {extractedContent.description}
                     </p>
                   )}
-                  <div
-                    className="prose prose-grey-accent max-w-none"
-                    dangerouslySetInnerHTML={{ __html: extractedContent.content }}
-                  />
+                  {extractedContent.reader_html ? (
+                    <div className="prose prose-grey-accent max-w-none prose-p:mb-6">
+                      <div
+                        className="prose-img:mx-auto prose-img:max-w-full prose-img:max-h-[40rem]"
+                        dangerouslySetInnerHTML={{ __html: extractedContent.reader_html }}
+                      />
+                    </div>
+                  ) : extractedContent.markdown ? (
+                    <div className="prose prose-grey-accent max-w-none prose-p:mb-6">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{extractedContent.markdown}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div
+                      className="prose prose-grey-accent max-w-none prose-p:mb-6"
+                      dangerouslySetInnerHTML={{ __html: extractedContent.content }}
+                    />
+                  )}
                 </div>
               </div>
             ) : (

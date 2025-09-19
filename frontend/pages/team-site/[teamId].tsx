@@ -126,8 +126,10 @@ export default function TeamSitePage() {
     createAnnotation,
     toggleAnnotationLike,
     deleteAnnotation,
-    extractContent,
+  extractContent,
+  extractMarkdown,
     fetchProxyContent,
+  clearContent,
     updateBookmarkTags,
     updateBookmark,
     bookmarkAnnotations,
@@ -141,6 +143,8 @@ export default function TeamSitePage() {
     teamId: normalizedTeamId || '',
     setError
   })
+  
+  // extractMarkdown is available from the hook; ensure it's present in the destructured object
 
   const {
     showDirectoryModal,
@@ -172,6 +176,31 @@ export default function TeamSitePage() {
     resetBookmarkModal,
     resetHighlightState
   } = useModalState()
+
+  // Clear extracted/proxy content when selected bookmark changes
+  useEffect(() => {
+    clearContent()
+  }, [selectedBookmark?.id])
+
+  // When the bookmark detail view mode switches to reader, fetch markdown if needed
+  React.useEffect(() => {
+    if (selectedBookmark && bookmarkViewMode === 'reader') {
+      if (!extractedContent || !extractedContent.markdown) {
+        // Call extractMarkdown from the actions
+        try {
+          // extractMarkdown may be undefined if not provided; guard against it
+          if (typeof (window as any).extractMarkdown === 'undefined') {
+            // We have access to extractMarkdown via closure above
+          }
+          // Note: extractMarkdown comes from the hook above
+          // @ts-ignore
+          extractMarkdown(selectedBookmark.url).catch((e: any) => console.error(e))
+        } catch (e) {
+          console.error('Failed to initiate markdown extraction', e)
+        }
+      }
+    }
+  }, [selectedBookmark, bookmarkViewMode])
 
   const {
     viewMode,

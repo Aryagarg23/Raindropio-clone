@@ -292,6 +292,8 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
               title: data.title,
               description: data.description,
               content: data.content,
+              reader_html: data.reader_html || null,
+              markdown: data.markdown,
               url,
               extractedAt: new Date().toISOString(),
               meta_info: data.meta_info
@@ -361,6 +363,36 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     } catch (error) {
       console.error('Failed to extract content:', error)
       // Content extraction failed - user can still use proxy mode or view details
+    } finally {
+      setIsLoadingContent(false)
+    }
+  }
+
+  // Fetch markdown-only extraction from the backend
+  const extractMarkdown = async (url: string) => {
+    setIsLoadingContent(true)
+    try {
+      const resp = await fetch(`${API_BASE_URL}/content/extract_markdown`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+
+      const json = await resp.json()
+      if (json && json.success !== false) {
+        setExtractedContent((prev: any) => ({
+          ...(prev || {}),
+          title: json.title || (prev && prev.title),
+          markdown: json.markdown || '',
+          reader_html: json.reader_html || prev?.reader_html || null,
+          url,
+          extractedAt: json.extracted_at || new Date().toISOString()
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to extract markdown:', error)
     } finally {
       setIsLoadingContent(false)
     }
@@ -473,6 +505,12 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     }
   }
 
+  // Clear extracted/proxy content
+  const clearContent = () => {
+    setExtractedContent(null)
+    setProxyContent(null)
+  }
+
   return {
     bookmarkAnnotations,
     bookmarkHighlights,
@@ -486,7 +524,9 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     toggleAnnotationLike,
     deleteAnnotation,
     extractContent,
+    extractMarkdown,
     fetchProxyContent,
+  clearContent,
     updateBookmarkTags,
     updateBookmark
   };

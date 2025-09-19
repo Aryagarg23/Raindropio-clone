@@ -182,6 +182,35 @@ const redirectTo = `${frontendBase}/dashboard`; // ✅ Always redirect to dashbo
 - `frontend/hooks/useAuthState.ts`
 - `frontend/modules/supabaseClient.ts`
 
+## Post-Deployment Fixes (2025-09-19)
+
+After deploying the initial fixes we observed intermittent timeouts and occasional `500` errors during profile sync (`POST /users/sync`) in production. The following additional measures were implemented to stop orphaned sync requests, improve diagnostics, and make the client/server behavior more robust:
+
+### Key Fixes
+- **AbortController cancellation for profile syncs**: `useAuthState` now creates a per-sync `AbortController` and aborts any previous in-flight profile sync when a new sync starts or when the component unmounts. This prevents orphaned network requests from lingering and reduces transient contention with backend resources.
+- **API client signal support**: `frontend/modules/apiClient.ts` was extended to accept a caller-provided `AbortSignal` so higher-level hooks can cancel requests they started.
+- **Retry on timeout and 5xx**: The client now performs a single one-time retry for sync requests that time out or return a 5xx response. This reduces the impact of transient network or backend cold-start errors without masking persistent failures.
+- **Realtime subscription cleanup confirmation**: `useRealtimeSubscriptions` now logs confirmation after removing a Supabase realtime channel to make subscription lifecycle visible in logs.
+- **Backend repr(e) diagnostic logging**: Backend repository methods and the `/users/sync` router were modified to print `repr(e)` for exceptions thrown by the Supabase/PostgREST client. These prints capture raw PostgREST response bodies which are crucial to determine whether 500s are caused by RLS/role issues, missing routes, or malformed queries.
+
+### Files Modified (post-deploy)
+- `frontend/hooks/useAuthState.ts` — added AbortController per-sync, retries, in-flight guard, and unmount cleanup.
+- `frontend/modules/apiClient.ts` — forward `AbortSignal` to fetch, masked token logs, and `syncProfileWithSignal` helper.
+- `frontend/hooks/useRealtimeSubscriptions.ts` — improved cleanup and confirmation logging.
+- `backend/repositories/user_repository.py` — print `repr(e)` on DB/PostgREST exceptions.
+- `backend/api/routers/users.py` — print `repr(e)` in `/users/sync` exception handler.
+
+### How to Validate
+- Reproduce the failing login/refresh sequence in a staging or production-like environment.
+- Observe frontend logs for per-sync request IDs, abort messages, and retry attempts.
+- Collect backend logs showing `repr(e)` lines from repository and router prints — these prints include the raw PostgREST response payload and will reveal the exact 500 cause.
+
+### Why reload sometimes 'fixes' it
+Reloading the page aborts active fetches and resets client state which hides race conditions or orphaned requests. Explicit abort + canonical initialization prevents the root cause, so manual reload is no longer required.
+
+### Status
+✅ **DEPLOYED** - Cancellation and diagnostic logging added. Awaiting reproduction logs for final backend root cause confirmation.
+
 ## Status
 ✅ **RESOLVED** - Authorization flow timeout issues fixed and auth state management stabilized.</content>
 <parameter name="filePath">/home/arya/projects/NIS/Raindropio-clone/AUTH_RCA.md

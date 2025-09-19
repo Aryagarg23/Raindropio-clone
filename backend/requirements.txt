@@ -11,6 +11,7 @@ lxml
 newspaper3k
 lxml # for HTML parsing
 lxml-html-clean
+markdownify
 
 # Performance optimizations
 gunicorn

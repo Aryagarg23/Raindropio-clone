@@ -24,6 +24,8 @@
     "i": "^0.3.7",
     "lucide-react": "^0.544.0",
     "mark.js": "^8.11.1",
+  "react-markdown": "^8.0.0",
+  "remark-gfm": "^3.0.1",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
