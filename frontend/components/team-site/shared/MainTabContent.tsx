@@ -1,13 +1,138 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { Grid3X3, List, ExternalLink, Plus } from 'lucide-react';
+import { Grid3X3, List, ExternalLink, Plus, Heart } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
-import { useBookmarkPreview } from '../../../hooks/useBookmarkPreview';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
+import { useBookmarkPreview } from '../../../hooks/useBookmarkPreview';
 
+// Safe hostname resolver to avoid throwing during render when URL is invalid/missing
+function safeHostname(url?: string) {
+  if (!url) return 'site';
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url.replace(/^https?:\/\//, '').split('/')[0] || 'site';
+  }
+}
+
+interface BookmarkListItemProps {
+  bookmark: any;
+  onBookmarkClick: (bookmark: any) => void;
+  bookmarkFilters: any;
+  onSetBookmarkFilters: (filters: any) => void;
+}
+
+const BookmarkListItem: React.FC<BookmarkListItemProps> = ({ bookmark, onBookmarkClick, bookmarkFilters, onSetBookmarkFilters }) => {
+  const { imageUrl } = useBookmarkPreview(bookmark.url);
+
+  const getPlaceholderUrl = (url: string) => {
+    const domain = url.replace(/^https?:\/\//, '').split('/')[0] || 'example.com';
+    // Use backend placeholder API for better placeholders
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://127.0.0.1:8000';
+    return `${apiBase.replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent(domain)}`;
+  };
+
+  const imageSrc = imageUrl || getPlaceholderUrl(bookmark.url);
+
+  return (
+    <Card key={bookmark.id} className="group hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={() => onBookmarkClick(bookmark)} compact>
+      <div className="aspect-video relative overflow-hidden bg-muted">
+        <img
+          src={imageSrc}
+          alt={bookmark.title || bookmark.url}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          data-debug-src={imageSrc}
+          crossOrigin="anonymous"
+          onLoad={(e: React.SyntheticEvent<HTMLImageElement>) => {
+            const el = e.currentTarget;
+            console.debug('BookmarkListItem image loaded', bookmark.id, el.src, el.naturalWidth, el.naturalHeight);
+          }}
+          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+            const el = e.currentTarget;
+            console.warn('BookmarkListItem image error', bookmark.id, el.src);
+            el.src = getPlaceholderUrl(bookmark.url);
+            el.removeAttribute('crossorigin');
+          }}
+        />
+
+        {/* Favicon overlay - bottom-left */}
+        <div className="absolute bottom-2 left-2">
+          <div className="w-8 h-8 rounded bg-white shadow-lg flex items-center justify-center border border-grey-accent-200">
+            <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      <CardContent className="p-3 pt-3 pb-3">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1 min-w-0 pl-0">
+            <h3 className="font-semibold text-grey-accent-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+              {bookmark.title || safeHostname(bookmark.url)}
+            </h3>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(bookmark.url, '_blank', 'noopener,noreferrer');
+            }}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {bookmark.description && (
+          <p className="text-grey-accent-700 text-sm mb-3 line-clamp-2">
+            {bookmark.description}
+          </p>
+        )}
+        <div className="flex items-center justify-between text-xs text-grey-accent-600">
+          <div className="flex items-center gap-2">
+            <ProfileIcon
+              user={{
+                avatar_url: (bookmark as any).profiles?.avatar_url,
+                full_name: (bookmark as any).profiles?.full_name,
+                email: (bookmark as any).profiles?.user_id
+              }}
+              size="sm"
+            />
+            <span
+              className="cursor-pointer hover:text-purple-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
+                if (!bookmarkFilters.selectedCreators.includes(creatorName)) {
+                  onSetBookmarkFilters((prev: any) => ({
+                    ...prev,
+                    selectedCreators: [...prev.selectedCreators, creatorName]
+                  }));
+                }
+              }}
+            >
+              {(bookmark as any).profiles?.full_name || 'Unknown'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>{new Date(bookmark.created_at).toLocaleDateString()}</span>
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-grey-accent-500 hover:text-grey-accent-700" asChild>
+              <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </Button>
+          
+        </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 interface ExtendedCollection {
   id: string;
   name: string;
@@ -85,64 +210,6 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   onCreateBookmark,
   orphanedBookmarks
 }) => {
-  // Small preview area component
-  const BookmarkPreviewArea: React.FC<{ bookmark: any }> = ({ bookmark }) => {
-    const { src, isImage } = useBookmarkPreview(bookmark);
-
-    if (!src) return null;
-
-    if (isImage) {
-      let hostname = '';
-      try { hostname = new URL(bookmark.url).hostname; } catch { hostname = bookmark.url; }
-
-      const apiBase = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL)
-        ? process.env.NEXT_PUBLIC_API_URL
-        : 'http://localhost:8000';
-      const placeholder = `${apiBase.replace(/\/$/, '')}/api/placeholder/600/300?domain=${encodeURIComponent(hostname)}`;
-
-      const [imageSrc, setImageSrc] = useState<string | null>(src);
-
-      useEffect(() => {
-        setImageSrc(src);
-      }, [src]);
-
-      // Dev helper: log which preview URL is being used for each bookmark
-      useEffect(() => {
-        if (process.env.NODE_ENV !== 'production') {
-          try {
-            // eslint-disable-next-line no-console
-            console.debug(`BookmarkPreview - id=${bookmark.id} src=${imageSrc}`);
-          } catch (e) {}
-        }
-      }, [imageSrc, bookmark.id]);
-
-      return (
-        <div className="w-full mb-0 overflow-hidden rounded-t-xl relative">
-          <img
-            src={imageSrc || undefined}
-            alt="preview"
-            className="w-full h-44 md:h-56 object-cover block"
-            onError={() => setImageSrc(placeholder)}
-          />
-
-          {/* Favicon overlay in bottom-left (rounded square) */}
-          <div className="absolute left-3 bottom-3 bg-white/90 rounded-md p-0.5 shadow">
-            <div className="w-9 h-9 overflow-hidden rounded-md">
-              <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-9 h-9" />
-            </div>
-          </div>
-
-          {/* Hostname badge moved to bottom-right */}
-          <div className="absolute right-3 bottom-3 bg-black/40 text-white text-xs px-2 py-1 rounded truncate max-w-[65%]">
-            {hostname}
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   return (
     <div className="space-y-8">
       {/* Collection Tree Sidebar */}
@@ -250,108 +317,13 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
           ) : (
             <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
               {advancedFilteredBookmarks.map((bookmark) => (
-                <Card
+                <BookmarkListItem
                   key={bookmark.id}
-                  compact
-                  className="hover:shadow-lg transition-all duration-200 cursor-pointer group"
-                  onClick={() => onBookmarkClick(bookmark)}
-                >
-                  <BookmarkPreviewArea bookmark={bookmark} />
-                  <CardContent className="px-3 pt-0 pb-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0 pl-0">
-                        <h3 className="font-semibold text-grey-accent-900 group-hover:text-blue-600 transition-colors line-clamp-2">
-                          {bookmark.title || new URL(bookmark.url).hostname}
-                        </h3>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(bookmark.url, '_blank', 'noopener,noreferrer');
-                        }}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    {bookmark.description && (
-                      <p className="text-grey-accent-700 text-sm mb-3 line-clamp-2">
-                        {bookmark.description}
-                      </p>
-                    )}
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1 mb-2 items-center">
-                      {bookmark.tags && bookmark.tags.length > 0 && (
-                        <>
-                          {bookmark.tags.slice(0, 3).map((tag: string, index: number) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-grey-accent-100 text-grey-accent-700 text-xs rounded-full cursor-pointer hover:bg-blue-100 hover:text-blue-800"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Add tag to filter when clicked
-                                if (!bookmarkFilters.selectedTags.includes(tag)) {
-                                  onSetBookmarkFilters((prev: any) => ({
-                                    ...prev,
-                                    selectedTags: [...prev.selectedTags, tag]
-                                  }));
-                                }
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {bookmark.tags.length > 3 && (
-                            <span className="px-2 py-1 bg-grey-accent-100 text-grey-accent-600 text-xs rounded-full">
-                              +{bookmark.tags.length - 3}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-grey-accent-600">
-                      <div className="flex items-center gap-2">
-                        <ProfileIcon
-                          user={{
-                            avatar_url: (bookmark as any).profiles?.avatar_url,
-                            full_name: (bookmark as any).profiles?.full_name,
-                            email: (bookmark as any).profiles?.user_id
-                          }}
-                          size="sm"
-                        />
-                        <span
-                          className="cursor-pointer hover:text-purple-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Add creator to filter when clicked
-                            const creatorName = (bookmark as any).profiles?.full_name || 'Unknown';
-                            if (!bookmarkFilters.selectedCreators.includes(creatorName)) {
-                              onSetBookmarkFilters((prev: any) => ({
-                                ...prev,
-                                selectedCreators: [...prev.selectedCreators, creatorName]
-                              }));
-                            }
-                          }}
-                        >
-                          {(bookmark as any).profiles?.full_name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span>{new Date(bookmark.created_at).toLocaleDateString()}</span>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-grey-accent-500 hover:text-grey-accent-700" asChild>
-                          <a href={bookmark.url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  bookmark={bookmark}
+                  onBookmarkClick={onBookmarkClick}
+                  bookmarkFilters={bookmarkFilters}
+                  onSetBookmarkFilters={onSetBookmarkFilters}
+                />
               ))}
             </div>
           )}

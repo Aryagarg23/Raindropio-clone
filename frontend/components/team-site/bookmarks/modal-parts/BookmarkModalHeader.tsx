@@ -13,7 +13,7 @@ export function BookmarkModalHeader({ bookmark, onClose }: BookmarkModalHeaderPr
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-lg bg-white shadow flex items-center justify-center border border-grey-accent-200">
           <img
-            src={bookmark.preview_image || '/api/placeholder/48/48'}
+            src={`data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#6b7280" rx="4"/><text x="16" y="20" font-family="system-ui" font-size="12" text-anchor="middle" fill="#ffffff">?</text></svg>')}`}
             alt={bookmark.title || bookmark.url}
             className="w-8 h-8 object-cover rounded"
           />

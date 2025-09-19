@@ -1,53 +1,203 @@
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react';
 
-interface BookmarkLike {
-  preview_image?: string | null
-  favicon_url?: string | null
-  url: string
+interface PreviewData {
+  url: string;
+  imageUrl?: string;
+  loading: boolean;
+  error?: string;
 }
 
-// Returns a preview source and a small flag whether it's a full-width image
-export function useBookmarkPreview(bookmark?: BookmarkLike) {
-  return useMemo(() => {
-    if (!bookmark) return { src: null, isImage: false };
+const PREVIEW_CACHE_KEY = 'bookmark_previews_v4';
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
-    // 1) If there is a preview image (scraped thumbnail), use that as full image
-    if (bookmark.preview_image) {
-      return { src: bookmark.preview_image, isImage: true };
+interface CachedPreview {
+  url: string;
+  imageUrl?: string;
+  cachedAt: number;
+}
+
+function getPreviewCache(): Record<string, CachedPreview> {
+  try {
+    const stored = localStorage.getItem(PREVIEW_CACHE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePreviewCache(cache: Record<string, CachedPreview>): void {
+  try {
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Failed to save preview cache:', error);
+  }
+}
+
+function extractPreviewImage(html: string, baseUrl: string): string | undefined {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Try OpenGraph image
+  const ogImage = doc.querySelector('meta[property="og:image"]');
+  if (ogImage) {
+    const imageUrl = ogImage.getAttribute('content');
+    if (imageUrl) return resolveUrl(imageUrl, baseUrl);
+  }
+
+  // Try Twitter card image
+  const twitterImage = doc.querySelector('meta[name="twitter:image"]');
+  if (twitterImage) {
+    const imageUrl = twitterImage.getAttribute('content');
+    if (imageUrl) return resolveUrl(imageUrl, baseUrl);
+  }
+
+  return undefined;
+}
+
+function resolveUrl(url: string, baseUrl: string): string {
+  try {
+    return new URL(url, baseUrl).href;
+  } catch {
+    return url;
+  }
+}
+
+export function useBookmarkPreview(bookmarkUrl: string) {
+  const [preview, setPreview] = useState<PreviewData>(() => {
+    // Initialize with placeholder
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://127.0.0.1:8000';
+    const hostname = (() => {
+      try { return new URL(bookmarkUrl).hostname; } catch { return 'example.com'; }
+    })();
+    const placeholderUrl = `${apiBase.replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent(hostname)}`;
+    
+    return {
+      url: bookmarkUrl,
+      imageUrl: placeholderUrl,
+      loading: false,
+    };
+  });
+
+  useEffect(() => {
+    if (!bookmarkUrl) return;
+
+    // Check cache first
+    const cache = getPreviewCache();
+    const cached = cache[bookmarkUrl];
+
+    if (cached && (Date.now() - cached.cachedAt) < CACHE_EXPIRY) {
+      // Check if cached imageUrl is properly proxied or is a placeholder
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+        ? process.env.NEXT_PUBLIC_API_URL
+        : 'http://127.0.0.1:8000';
+      const isProxied = cached.imageUrl?.startsWith(`${apiBase.replace(/\/$/, '')}/content/proxy/image`);
+      const isPlaceholder = cached.imageUrl?.startsWith(`${apiBase.replace(/\/$/, '')}/api/placeholder`);
+      
+      // For now, allow original URLs to be used directly (they will be handled by crossOrigin and onError fallback)
+      if (isProxied || isPlaceholder || cached.imageUrl?.startsWith('http')) {
+        setPreview({
+          url: bookmarkUrl,
+          imageUrl: cached.imageUrl,
+          loading: false,
+        });
+        return;
+      }
+      // If cached URL is not a valid image URL, refetch
     }
 
-    // 2) No preview image: provide a full-width placeholder image derived from the domain
-    //    (this gives a nicer visual than just showing the favicon in the large area).
-    try {
-      const hostname = new URL(bookmark.url).hostname;
-      const apiBase = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL)
-        ? process.env.NEXT_PUBLIC_API_URL
-        : 'http://localhost:8000';
-      const placeholder = `${apiBase.replace(/\/$/, '')}/api/placeholder/600/300?domain=${encodeURIComponent(hostname)}`;
+    // Fetch preview
+    fetchPreview(bookmarkUrl);
+  }, [bookmarkUrl]);
 
-      // Simple localStorage cache: key per domain, store url + timestamp
+  const fetchPreview = async (url: string) => {
+    setPreview(prev => ({ ...prev, loading: true, error: undefined }));
+
+    try {
+      // Try to fetch the page HTML directly from the browser.
+      // Many sites block cross-origin requests; handle failures gracefully.
+      let html: string | null = null;
+
       try {
-        const cacheKey = `placeholder:${hostname}`;
-        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(cacheKey) : null;
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          // 7 day TTL
-          if (Date.now() - (parsed.t || 0) < 7 * 24 * 60 * 60 * 1000) {
-            return { src: parsed.u || placeholder, isImage: true };
-          }
+        const resp = await fetch(url, { method: 'GET', mode: 'cors' });
+        if (resp.ok) {
+          html = await resp.text();
         }
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(cacheKey, JSON.stringify({ u: placeholder, t: Date.now() }));
-        }
-      } catch (e) {
-        // ignore localStorage errors
+      } catch (err) {
+        // CORS or network error — we'll fallback below
+        html = null;
       }
 
-      return { src: placeholder, isImage: true };
-    } catch {
-      return { src: null, isImage: false };
-    }
-  }, [bookmark]);
-}
+      let imageUrl: string | undefined;
 
-export default useBookmarkPreview;
+      if (html) {
+        imageUrl = extractPreviewImage(html, url);
+        if (imageUrl) {
+          // Return the original image URL directly (frontend will handle CORS with crossOrigin and fallback)
+          // No proxying needed
+        }
+      }
+
+      // If we didn't get an image from the page (or couldn't fetch due to CORS),
+      // construct a placeholder image URL — prefer any server-side placeholder if available,
+      // otherwise use a simple SVG data URL.
+      if (!imageUrl) {
+        // Secondary fallback: request server-side extraction (bypasses CORS).
+        try {
+          const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+            ? process.env.NEXT_PUBLIC_API_URL
+            : 'http://127.0.0.1:8000';
+          const extractUrl = `${apiBase.replace(/\/$/, '')}/content/extract`;
+          const resp = await fetch(extractUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          });
+          if (resp && resp.ok) {
+            const json: any = await resp.json();
+            const serverImage = json?.meta_info?.image;
+            if (serverImage) {
+              // Return the original image URL directly (frontend will handle CORS with crossOrigin and fallback)
+              imageUrl = serverImage;
+            }
+          }
+        } catch (e) {
+          // ignore server fallback errors to keep the hook resilient
+        }
+      }
+
+      if (!imageUrl) {
+        // Final fallback: use server-side placeholder API
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+          ? process.env.NEXT_PUBLIC_API_URL
+          : 'http://127.0.0.1:8000';
+        const hostname = (() => {
+          try { return new URL(url).hostname; } catch { return 'example.com'; }
+        })();
+        imageUrl = `${apiBase.replace(/\/$/, '')}/api/placeholder/400/220?domain=${encodeURIComponent(hostname)}`;
+      }
+
+      // Cache and update
+      const cache = getPreviewCache();
+      cache[url] = { url, imageUrl, cachedAt: Date.now() };
+      savePreviewCache(cache);
+
+      setPreview(prev => ({
+        ...prev,
+        imageUrl,
+        loading: false,
+      }));
+
+    } catch (error) {
+      console.warn('Failed to fetch bookmark preview:', error);
+      setPreview(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }));
+    }
+  };
+
+  return preview;
+}

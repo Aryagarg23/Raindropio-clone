@@ -70,17 +70,6 @@ export const BookmarksTabContent: React.FC<BookmarksTabContentProps> = ({
             onClick={() => onBookmarkClick(bookmark)}
           >
             <CardContent className="p-6">
-              {/* Thumbnail preview (if available) */}
-              {bookmark.preview_image ? (
-                <div className="mb-4">
-                  <img
-                    src={bookmark.preview_image}
-                    alt={bookmark.title || ''}
-                    className="w-full h-40 object-cover rounded-md border border-grey-accent-100"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-              ) : null}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <FaviconImage

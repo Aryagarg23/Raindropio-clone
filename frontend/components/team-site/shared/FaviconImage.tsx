@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 interface FaviconImageProps {
@@ -14,53 +14,56 @@ export const FaviconImage: React.FC<FaviconImageProps> = ({
   size = "w-4 h-4",
   className = ""
 }) => {
-  const [imgSrc, setImgSrc] = useState(() => {
-    try {
-      const hostname = new URL(url).hostname;
-      return faviconUrl || `https://favicon.yandex.net/favicon/${hostname}`;
-    } catch {
-      return null;
+  const [faviconSrc, setFaviconSrc] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    if (faviconUrl) {
+      setFaviconSrc(faviconUrl);
+      return;
     }
-  });
-  const [fallbackCount, setFallbackCount] = useState(0);
 
-  const handleError = () => {
+    // Try to construct favicon URL from the bookmark URL
     try {
-      const hostname = new URL(url).hostname;
+      const urlObj = new URL(url);
+      const siteFavicon = `${urlObj.protocol}//${urlObj.hostname}/favicon.ico`;
+      const googleS2 = `https://s2.googleusercontent.com/s2/favicons?sz=64&domain=${urlObj.hostname}`;
+      setFaviconSrc(siteFavicon);
 
-      if (fallbackCount === 0) {
-        // Try Google's favicon service
-        setImgSrc(`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`);
-        setFallbackCount(1);
-      } else if (fallbackCount === 1) {
-        // Try DuckDuckGo's favicon service
-        setImgSrc(`https://icons.duckduckgo.com/ip3/${hostname}.ico`);
-        setFallbackCount(2);
-      } else if (fallbackCount === 2) {
-        // Try direct favicon from domain
-        setImgSrc(`https://${hostname}/favicon.ico`);
-        setFallbackCount(3);
-      } else {
-        // All failed, show default icon
-        setImgSrc(null);
-        setFallbackCount(4);
-      }
+      // Pre-check site favicon by creating an Image to avoid immediate broken img
+      const img = new Image();
+      img.src = siteFavicon;
+      img.onload = () => setFaviconSrc(siteFavicon);
+      img.onerror = () => setFaviconSrc(googleS2);
     } catch {
-      setImgSrc(null);
-      setFallbackCount(4);
+      setHasError(true);
     }
-  };
+  }, [url, faviconUrl]);
 
-  if (!imgSrc || fallbackCount >= 4) {
+  if (hasError || !faviconSrc) {
     return <ExternalLink className={`${size} text-grey-accent-600 ${className}`} />;
   }
 
   return (
     <img
-      src={imgSrc}
-      alt=""
-      className={`${size} object-contain ${className}`}
-      onError={handleError}
+      src={faviconSrc}
+      alt="favicon"
+      className={`${size} ${className}`}
+      onError={() => {
+        // If the current src was site favicon, try google s2 service before giving up
+        try {
+          const u = new URL(faviconSrc || '');
+          const googleS2 = `https://s2.googleusercontent.com/s2/favicons?sz=64&domain=${u.hostname}`;
+          if (faviconSrc && !faviconSrc.includes('s2.googleusercontent.com')) {
+            setFaviconSrc(googleS2);
+            return;
+          }
+        } catch (e) {
+          // ignore
+        }
+        setHasError(true);
+      }}
+      style={{ objectFit: 'contain' }}
     />
   );
 };
