@@ -55,7 +55,8 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
     const doSync = (async (): Promise<UserProfile | null> => {
       try {
-        const timeoutMs = 15000;
+  // Match apiClient's fetch timeout (50s) to avoid racing and false timeouts
+  const timeoutMs = 50000;
         const syncPromise = apiClient.syncProfile();
 
         const response = await Promise.race([
@@ -70,6 +71,14 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
         return response.profile;
       } catch (err: any) {
         console.error("❌ Profile sync failed:", err);
+        // If the call timed out but we already have a cached profile, prefer that
+        const isTimeout = (err instanceof ApiError && err.code === 'TIMEOUT_ERROR') || (err && err.message === 'sync timeout');
+        if (isTimeout && profileRef.current) {
+          console.warn("⚠️ Sync timed out but using cached profile to avoid UX error");
+          // Return previously cached profile — do not throw so UI stays stable
+          return profileRef.current;
+        }
+
         if (err instanceof ApiError && err.status === 401) {
           console.log("🚫 Unauthorized, clearing user state...");
           setUser(null);
