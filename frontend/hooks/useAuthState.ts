@@ -170,7 +170,7 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       ? process.env.NEXT_PUBLIC_FRONTEND_URL
       : (typeof window !== 'undefined' ? window.location.origin : '');
 
-    const redirectTo = `${frontendBase}${options.redirectToDashboard ? '/dashboard' : '/'}`;
+    const redirectTo = `${frontendBase}/dashboard`; // Always redirect to dashboard after sign in
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -235,7 +235,7 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
     }
 
     return () => subscription?.unsubscribe();
-  }, [router.pathname]); // Only re-run if pathname changes, not router object
+  }, []); // Only run once on mount, not on pathname changes
 
   // Add timeout to prevent infinite loading
   useEffect(() => {
@@ -245,10 +245,10 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
         setError("Loading is taking too long. Please refresh the page or try again.");
         setLoading(false);
       }
-    }, options.redirectToDashboard ? 15000 : 10000);
+    }, 60000); // Increased to 60 seconds to allow for profile sync timeout
 
     return () => clearTimeout(timeout);
-  }, [loading, options.redirectToDashboard]);
+  }, [loading]);
 
   return {
     user,

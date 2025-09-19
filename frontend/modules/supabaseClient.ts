@@ -12,7 +12,7 @@ const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'implicit',
+      flowType: 'pkce', // Use PKCE flow instead of implicit for better security
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
   }
