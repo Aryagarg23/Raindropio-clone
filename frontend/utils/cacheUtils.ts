@@ -3,8 +3,8 @@
 // Global cache clearing function for browser console access
 declare global {
   interface Window {
-    clearBookmarkCache: () => void;
-    getBookmarkCacheStats: () => any;
+    clearBookmarkCache?: () => void;
+    getBookmarkCacheStats?: () => any;
   }
 }
 

@@ -64,7 +64,7 @@ export const useContentCache = () => {
           const validEntries = Object.entries(parsedCache).filter(
             ([_, cached]: [string, any]) => now - cached.timestamp < CACHE_TTL
           )
-          proxyCacheRef.current = Object.fromEntries(validEntries)
+          proxyCacheRef.current = Object.fromEntries(validEntries) as ProxyCache
           console.log(`📦 Loaded ${validEntries.length} valid proxy cache entries from localStorage`)
         }
       } catch (error) {
