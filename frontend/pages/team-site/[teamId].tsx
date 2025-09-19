@@ -376,8 +376,8 @@ export default function TeamSitePage() {
                 setCreateCollectionParentId(parentId);
                 setShowCreateCollection(true);
               }}
-              onCreateBookmark={async (url: string) => {
-                await createBookmark(url)
+              onCreateBookmark={async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
+                await createBookmark(url, title, collectionId, tags)
               }}
               orphanedBookmarks={orphanedBookmarks}
             />

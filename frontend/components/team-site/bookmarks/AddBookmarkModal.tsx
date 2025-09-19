@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Collection } from '../../../types/api';
+import { stickyPalette } from '../../../utils/colors';
 
 interface AddBookmarkModalProps {
   collections: Collection[];
   onClose: () => void;
-  onCreate: (url: string, title?: string, collectionId?: string, tags?: string[]) => void;
+  onCreate: (url: string, title?: string, collectionId?: string, tags?: string[]) => Promise<any> | void;
 }
 
 export default function AddBookmarkModal({
@@ -18,6 +19,7 @@ export default function AddBookmarkModal({
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [collectionId, setCollectionId] = useState('');
+  const [color, setColor] = useState(stickyPalette[0]);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,6 +40,7 @@ export default function AddBookmarkModal({
     setUrl('');
     setTitle('');
     setCollectionId('');
+    setColor(stickyPalette[0]);
     setTagInput('');
     setTags([]);
     setIsSubmitting(false);
@@ -116,6 +119,22 @@ export default function AddBookmarkModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-3">Bookmark Color (optional)</label>
+              <div className="grid grid-cols-5 gap-2 mb-2">
+                {stickyPalette.map((colorOption) => (
+                  <button
+                    key={colorOption}
+                    type="button"
+                    onClick={() => setColor(colorOption)}
+                    className={`w-8 h-8 rounded border-2 ${color === colorOption ? 'border-foreground' : 'border-transparent'}`}
+                    style={{ backgroundColor: colorOption }}
+                    aria-label={`Select color ${colorOption}`}
+                  />
+                ))}
+              </div>
             </div>
 
             <div>

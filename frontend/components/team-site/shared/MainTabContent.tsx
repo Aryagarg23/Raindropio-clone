@@ -8,6 +8,7 @@ import { BookmarkGrid } from '../bookmarks/BookmarkGrid';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
 import { InlineBookmarkInput } from '../bookmarks/InlineBookmarkInput';
+import AddBookmarkModal from '../bookmarks/AddBookmarkModal';
 // ...existing code...
 
 // Safe hostname resolver to avoid throwing during render when URL is invalid/missing
@@ -251,7 +252,7 @@ interface MainTabContentProps {
   onHandleBookmarkDragOver: (e: any, collectionId: string) => void;
   onHandleBookmarkDrop: (e: any, collectionId: string) => void;
   onCreateCollection: (parentId?: string) => void;
-  onCreateBookmark: (url: string) => Promise<void>;
+  onCreateBookmark: (url: string, title?: string, collectionId?: string, tags?: string[]) => Promise<void>;
   orphanedBookmarks: any[];
 }
 
@@ -285,6 +286,7 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   orphanedBookmarks
 }) => {
   const [showAncestorsDropdown, setShowAncestorsDropdown] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const findCollectionPath = (nodes: any[], targetId: string, acc: any[] = []): any[] | null => {
     for (const node of nodes) {
@@ -306,36 +308,55 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
         <div className="lg:col-span-1 lg:pr-6 flex flex-col">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {selectedCollectionId ? (
-                <h2 className="text-2xl font-bold text-grey-accent-900">
-                  <span className="flex items-center gap-2">
-                    {currentPath.map((p: any, idx: number) => (
-                      <React.Fragment key={p.id}>
-                        {idx > 0 && <span className="text-grey-accent-400">&gt;</span>}
+              <h2 className="text-2xl font-bold text-grey-accent-900">
+                <span className="flex items-center gap-2">
+                  {/* Root crumb - always present */}
+                  <button
+                    onClick={() => onSetSelectedCollectionId(null)}
+                    className="text-2xl font-bold text-grey-accent-900 cursor-pointer hover:text-blue-600 transition-colors"
+                    title="Collections (home)"
+                  >
+                    Collections
+                  </button>
+
+                  {currentPath.map((p: any, idx: number) => (
+                    <React.Fragment key={p.id}>
+                      <span className="text-grey-accent-400">&gt;</span>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => onSetSelectedCollectionId(p.id)}
                           className="text-2xl font-bold text-grey-accent-900 cursor-pointer hover:text-blue-600 transition-colors"
                         >
                           {p.name}
                         </button>
-                      </React.Fragment>
-                    ))}
-                  </span>
-                </h2>
-              ) : (
-                <>
-                  <h2 className="text-2xl font-bold text-grey-accent-900">Directory</h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onCreateCollection(selectedCollectionId || undefined)}
-                    className="hidden lg:flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
-                    title="Add Collection"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
+
+                        {/* Only show '+' on the terminal (last) breadcrumb segment */}
+                        {idx === currentPath.length - 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onCreateCollection(p.id)}
+                            className="flex items-center gap-1 text-grey-accent-500 hover:text-grey-accent-800"
+                            title={`Add collection inside ${p.name}`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </span>
+              </h2>
+              {/* desktop add collection button (kept for parity) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onCreateCollection(selectedCollectionId || undefined)}
+                className="hidden lg:flex items-center gap-1 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+                title="Add Collection"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
 
             <Button
@@ -431,6 +452,15 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
                 </span>
               )}
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 text-grey-accent-600 hover:text-grey-accent-900 hover:bg-grey-accent-50"
+              title="Add Bookmark"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -550,6 +580,20 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
           </div>
         </div>
       </div>
+      {showAddModal && (
+        <AddBookmarkModal
+          collections={collections as any}
+          onClose={() => setShowAddModal(false)}
+          onCreate={async (url: string, title?: string, collectionId?: string, tags?: string[]) => {
+            try {
+              await onCreateBookmark(url, title, collectionId, tags);
+            } catch (e) {
+              console.error('Failed to add bookmark from modal', e);
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
