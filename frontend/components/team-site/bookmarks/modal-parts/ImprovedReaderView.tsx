@@ -7,6 +7,7 @@ import { Img } from 'react-image'
 import { Button } from "../../../ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card"
 import { HighlightsDiscussion } from "./HighlightsDiscussion"
+import ProfileIcon from "../../../ProfileIcon"
 import '../../../../utils/cacheDebug'
 
 // Enhanced image component using react-image for better external image handling
@@ -100,7 +101,50 @@ export function ImprovedReaderView({
   })
   const [clientSideContent, setClientSideContent] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const tooltipRef = useRef<HTMLDivElement | null>(null)
   const readerContentRef = useRef<HTMLDivElement>(null)
+
+
+  // Function to show tooltip
+  const showTooltip = (highlightId: string, rect: DOMRect) => {
+    const highlightAnnotations = annotations.filter(ann => ann.highlight_id === highlightId)
+    
+    if (highlightAnnotations.length === 0) return
+
+    // Get most recent comment
+    const mostRecentComment = highlightAnnotations
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+
+    // Remove existing tooltip
+    hideTooltip()
+
+    // Create tooltip element
+    const tooltip = document.createElement('div')
+    tooltip.className = 'fixed z-[9999] bg-white rounded-lg shadow-lg border border-grey-accent-200 p-3 max-w-sm pointer-events-none'
+    tooltip.style.left = `${rect.left}px`
+    tooltip.style.top = `${rect.bottom + 5}px`
+    tooltip.style.transform = 'translateX(0)'
+
+    tooltip.innerHTML = `
+      <div class="text-sm">
+        <div class="font-medium text-grey-accent-900 mb-1">${highlightAnnotations.length} comment${highlightAnnotations.length !== 1 ? 's' : ''}</div>
+        ${mostRecentComment ? `
+          <div class="text-grey-accent-700">"${mostRecentComment.content}" - ${mostRecentComment.creator_name}</div>
+        ` : ''}
+      </div>
+    `
+
+    document.body.appendChild(tooltip)
+    tooltipRef.current = tooltip
+  }
+
+  // Function to hide tooltip
+  const hideTooltip = () => {
+    if (tooltipRef.current) {
+      document.body.removeChild(tooltipRef.current)
+      tooltipRef.current = null
+    }
+  }
 
   // Helper function to apply highlight color styling
   const getHighlightStyle = (color: string) => {
@@ -210,6 +254,20 @@ export function ImprovedReaderView({
           highlightElement.setAttribute('data-highlight-id', highlight.highlight_id || highlight.id)
           highlightElement.setAttribute('data-color', highlightColor)
           highlightElement.title = `Highlighted by ${highlight.creator_name || 'Unknown'}`
+
+          // Add hover handlers for tooltip
+          highlightElement.addEventListener('mouseenter', (e) => {
+            const highlightId = highlight.highlight_id || highlight.id
+            console.log('🎯 Mouse entered highlight:', highlightId)
+            
+            const rect = highlightElement.getBoundingClientRect()
+            showTooltip(highlightId, rect)
+          })
+
+          highlightElement.addEventListener('mouseleave', () => {
+            console.log('🚫 Mouse left highlight')
+            hideTooltip()
+          })
 
           // Add click handler to scroll to annotations section
           highlightElement.addEventListener('click', (e) => {
@@ -521,7 +579,7 @@ export function ImprovedReaderView({
       
       console.log(`🎨 Applying highlight with color:`, highlightColor, 'style:', highlightStyle)
       
-      const highlightSpan = `<mark class="px-1 py-0.5 rounded-sm cursor-pointer hover:opacity-80 transition-all" style="${highlightStyle}" data-highlight-id="${highlight.highlight_id || highlight.id}" data-color="${highlightColor}" title="Highlighted by ${highlight.creator_name || 'Unknown'}" onclick="window.scrollToAnnotation('${highlight.highlight_id || highlight.id}')">${highlightText}</mark>`
+      const highlightSpan = `<mark class="px-1 py-0.5 rounded-sm cursor-pointer hover:opacity-80 transition-all" style="${highlightStyle}" data-highlight-id="${highlight.highlight_id || highlight.id}" data-color="${highlightColor}" title="Highlighted by ${highlight.creator_name || 'Unknown'}" onclick="window.scrollToAnnotation('${highlight.highlight_id || highlight.id}')" onmouseenter="window.showHighlightTooltip('${highlight.highlight_id || highlight.id}', event)" onmouseleave="window.hideHighlightTooltip()">${highlightText}</mark>`
       
       highlightedContent = beforeText + highlightSpan + afterText
       
@@ -548,7 +606,7 @@ export function ImprovedReaderView({
     }
   }, [displayContent, highlights])
 
-  // Set up global scroll function for HTML content highlights
+  // Set up global functions for HTML content highlights
   useEffect(() => {
     // Define global function for HTML content highlight clicks
     (window as any).scrollToAnnotation = (highlightId: string) => {
@@ -576,9 +634,32 @@ export function ImprovedReaderView({
       }
     }
 
+    // Define global functions for tooltip
+    (window as any).showHighlightTooltip = (highlightId: string, event: MouseEvent) => {
+      console.log('🌐 Global: Mouse entered HTML highlight:', highlightId)
+      
+      const rect = (event.target as HTMLElement).getBoundingClientRect()
+      showTooltip(highlightId, rect)
+    }
+
+    (window as any).hideHighlightTooltip = () => {
+      console.log('🌐 Global: Mouse left HTML highlight')
+      hideTooltip()
+    }
+
     // Cleanup function
     return () => {
+      hideTooltip()
       delete (window as any).scrollToAnnotation
+      delete (window as any).showHighlightTooltip
+      delete (window as any).hideHighlightTooltip
+    }
+  }, [])
+
+  // Cleanup tooltip on unmount
+  useEffect(() => {
+    return () => {
+      hideTooltip()
     }
   }, [])
 
@@ -849,6 +930,7 @@ export function ImprovedReaderView({
           </div>
         )}
       </div>
+
     </div>
   )
 }

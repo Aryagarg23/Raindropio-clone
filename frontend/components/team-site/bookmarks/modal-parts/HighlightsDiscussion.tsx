@@ -2,6 +2,46 @@ import React, { useState } from "react"
 import { MessageCircle, ChevronDown, Heart, Highlighter } from "lucide-react"
 import ProfileIcon from "../../../ProfileIcon"
 
+// Helper function to create highlight color styles
+const getHighlightStyles = (color: string) => {
+  // Handle different color formats and edge cases
+  let hex = color.replace('#', '')
+  
+  // Handle 3-digit hex colors
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('')
+  }
+  
+  // Ensure we have a valid 6-digit hex
+  if (hex.length !== 6) {
+    console.warn('Invalid color format:', color, 'falling back to yellow')
+    hex = 'ffeb3b' // Default yellow
+  }
+  
+  try {
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+    
+    if (isNaN(r) || isNaN(g) || isNaN(b)) {
+      throw new Error('Invalid RGB values')
+    }
+    
+    return {
+      backgroundColor: `rgba(${r}, ${g}, ${b}, 0.1)`,
+      borderColor: `rgba(${r}, ${g}, ${b}, 0.3)`,
+      accentColor: `rgb(${r}, ${g}, ${b})`
+    }
+  } catch (error) {
+    console.warn('Color parsing error:', error, 'using fallback')
+    return {
+      backgroundColor: 'rgba(255, 235, 59, 0.1)',
+      borderColor: 'rgba(255, 235, 59, 0.3)',
+      accentColor: 'rgb(255, 235, 59)'
+    }
+  }
+}
+
 interface HighlightsDiscussionProps {
   bookmark: any
   annotations: any[]
@@ -78,13 +118,26 @@ export function HighlightsDiscussion({
         <div className="space-y-6">
           {highlightsWithAnnotations.map((highlight) => {
             const highlightComments = annotations.filter(ann => ann.highlight_id === highlight.highlight_id)
+            const highlightColor = highlight.color || '#ffeb3b'
+            const colorStyles = getHighlightStyles(highlightColor)
             
             return (
               <div key={highlight.highlight_id} data-highlight-id={highlight.highlight_id} className="bg-white rounded-lg shadow-sm border border-grey-accent-200 overflow-hidden">
                 {/* Highlight preview */}
-                <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-yellow-200">
+                <div 
+                  className="p-6 border-b"
+                  style={{
+                    backgroundColor: colorStyles.backgroundColor,
+                    borderBottomColor: colorStyles.borderColor
+                  }}
+                >
                   <div className="flex items-start gap-4">
-                    <div className="w-1 h-16 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                    <div 
+                      className="w-1 h-16 rounded-full flex-shrink-0"
+                      style={{
+                        backgroundColor: colorStyles.accentColor
+                      }}
+                    ></div>
                     <div className="flex-1">
                       <p className="text-grey-accent-900 font-medium leading-relaxed mb-3">
                         "{highlight.selected_text}"

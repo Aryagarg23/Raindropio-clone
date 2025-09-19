@@ -38,6 +38,7 @@
     "@types/mark.js": "^8.11.12",
     "@types/node": "^24.4.0",
     "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
