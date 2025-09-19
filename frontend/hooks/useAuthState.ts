@@ -21,8 +21,15 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
   // Keep a ref to the in-flight sync promise to avoid concurrent races
   const inFlightSync = useRef<Promise<UserProfile | null> | null>(null);
+  // Track an id for the in-flight sync so logs can correlate start/finish
+  const inFlightSyncId = useRef<number | null>(null);
+  // Incremental counter for sync requests (simple deterministic ids)
+  const syncCounter = useRef<number>(0);
   // Ensure initializeAuth only runs once per component lifecycle
   const initializedRef = useRef<boolean>(false);
+  // Track whether initialization is in progress so auth-change handlers
+  // can avoid triggering duplicate or orphaned work during startup.
+  const isInitializingRef = useRef<boolean>(false);
 
   // Handle OAuth redirect tokens from URL hash
   const handleOAuthRedirect = async () => {
@@ -51,9 +58,15 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
   // Sync user profile with backend
   const syncUserProfile = async () => {
-    if (inFlightSync.current) return inFlightSync.current;
+    if (inFlightSync.current) {
+      console.log(`ℹ️ sync already in-flight (id=${inFlightSyncId.current}). Reusing existing promise.`);
+      return inFlightSync.current;
+    }
 
+    const requestId = ++syncCounter.current;
     const doSync = (async (): Promise<UserProfile | null> => {
+      inFlightSyncId.current = requestId;
+      console.log(`▶️ Starting profile sync (id=${requestId})`);
       try {
   // Match apiClient's fetch timeout (50s) to avoid racing and false timeouts
   const timeoutMs = 50000;
@@ -64,19 +77,39 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('sync timeout')), timeoutMs)),
         ]);
 
-        console.log("✅ Profile sync successful:", response);
+        console.log(`✅ Profile sync successful (id=${requestId}):`, response);
         setProfile(response.profile);
         profileRef.current = response.profile;
         options.onProfileChange?.(response.profile);
         return response.profile;
       } catch (err: any) {
-        console.error("❌ Profile sync failed:", err);
+        console.error(`❌ Profile sync failed (id=${requestId}):`, err);
         // If the call timed out but we already have a cached profile, prefer that
         const isTimeout = (err instanceof ApiError && err.code === 'TIMEOUT_ERROR') || (err && err.message === 'sync timeout');
         if (isTimeout && profileRef.current) {
-          console.warn("⚠️ Sync timed out but using cached profile to avoid UX error");
+          console.warn(`⚠️ Sync (id=${requestId}) timed out but using cached profile to avoid UX error`);
           // Return previously cached profile — do not throw so UI stays stable
           return profileRef.current;
+        }
+
+        // If this was a timeout and we don't have a cached profile, try one
+        // immediate retry after a short delay. This helps recover from
+        // transient server cold starts (Render) without requiring user
+        // interaction.
+        if (isTimeout && !profileRef.current) {
+          console.log(`🔁 Sync (id=${requestId}) timed out, retrying once after short delay...`);
+          await new Promise(res => setTimeout(res, 1000));
+          try {
+            const retryResponse = await apiClient.syncProfile();
+            console.log(`✅ Profile sync successful on retry (id=${requestId}):`, retryResponse);
+            setProfile(retryResponse.profile);
+            profileRef.current = retryResponse.profile;
+            options.onProfileChange?.(retryResponse.profile);
+            return retryResponse.profile;
+          } catch (retryErr: any) {
+            console.error(`❌ Retry failed (id=${requestId}):`, retryErr);
+            // fallthrough to original error handling below
+          }
         }
 
         if (err instanceof ApiError && err.status === 401) {
@@ -93,7 +126,9 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
         }
         throw err;
       } finally {
+        console.log(`◀️ Profile sync finished (id=${requestId})`);
         inFlightSync.current = null;
+        inFlightSyncId.current = null;
       }
     })();
 
@@ -105,6 +140,10 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
   const initializeAuth = async () => {
     setLoading(true);
     setError(null);
+
+    // mark that initialization has started so the auth state change handler
+    // can avoid performing overlapping work.
+    isInitializingRef.current = true;
 
     try {
       // Handle OAuth redirect if tokens are present
@@ -159,6 +198,9 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       setError("Failed to initialize authentication. Please refresh the page and try again.");
     }
 
+    // initialization completed
+    isInitializingRef.current = false;
+
     setLoading(false);
   };
 
@@ -200,6 +242,14 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       console.log("🔄 Auth state changed:", event);
 
       if (event === 'SIGNED_IN' && session) {
+        // If the app is still initializing, skip handling SIGNED_IN here.
+        // The `initializeAuth` flow will perform a canonical session fetch
+        // and profile sync once ready. Skipping avoids orphaned sync
+        // requests started before the auth client is fully stable.
+        if (isInitializingRef.current) {
+          console.log("ℹ️ Initialization in progress — deferring SIGNED_IN handling");
+          return;
+        }
         const signedInUser = session.user as AuthUser;
         setUser(signedInUser);
         options.onUserChange?.(signedInUser);

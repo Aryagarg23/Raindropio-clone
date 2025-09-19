@@ -66,7 +66,10 @@ export async function makeAuthenticatedRequest(endpoint: string, options: Reques
       throw new ApiError('No authentication token available', 401, 'UNAUTHORIZED');
     }
 
-    console.log("🔑 Token found, making request...");
+    // Log masked token info for diagnostics (never log full token)
+    const token = session.access_token as string;
+    const masked = token ? `${token.slice(0, 6)}...${token.slice(-6)}` : 'none';
+    console.log(`🔑 Token found (masked=${masked}), making request to ${endpoint}...`);
     
     // Don't set Content-Type for FormData - let browser set it with boundary
     const isFormData = options.body instanceof FormData;
@@ -126,7 +129,7 @@ export async function makeAuthenticatedRequest(endpoint: string, options: Reques
     
     // Handle specific error types
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error("❌ Request timeout");
+      console.error(`❌ Request timeout for ${endpoint}`);
       throw new ApiError('Server startup in progress. Render.com services require ~40 seconds to wake from sleep. Please wait and try again.', 0, 'TIMEOUT_ERROR');
     }
     
