@@ -46,7 +46,7 @@ export function TeamSiteHeader({
 
   const onlineMembers = useMemo(() => {
     const correctedNow = now + (timeSync?.offset || 0);
-    const ONLINE_THRESHOLD_MS = 6000; // 5 minutes
+    const ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
     return presence.filter(p => {
       if (!p.last_seen) return false;
       const lastSeenTime = new Date(p.last_seen).getTime();

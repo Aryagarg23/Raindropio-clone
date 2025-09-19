@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import supabase from '../modules/supabaseClient';
 import { AuthUser, UserProfile } from '../types/api';
@@ -15,8 +15,14 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const profileRef = useRef<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Keep a ref to the in-flight sync promise to avoid concurrent races
+  const inFlightSync = useRef<Promise<UserProfile | null> | null>(null);
+  // Ensure initializeAuth only runs once per component lifecycle
+  const initializedRef = useRef<boolean>(false);
 
   // Handle OAuth redirect tokens from URL hash
   const handleOAuthRedirect = async () => {
@@ -45,27 +51,45 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
 
   // Sync user profile with backend
   const syncUserProfile = async () => {
-    try {
-      const response = await apiClient.syncProfile();
-      console.log("✅ Profile sync successful:", response);
-      setProfile(response.profile);
-      options.onProfileChange?.(response.profile);
-      return response.profile;
-    } catch (error) {
-      console.error("❌ Profile sync failed:", error);
-      if (error instanceof ApiError && error.status === 401) {
-        console.log("🚫 Unauthorized, clearing user state...");
-        setUser(null);
-        setProfile(null);
-        options.onUserChange?.(null);
-        options.onProfileChange?.(null);
-        if (options.redirectToHome) {
-          router.push('/');
+    if (inFlightSync.current) return inFlightSync.current;
+
+    const doSync = (async (): Promise<UserProfile | null> => {
+      try {
+        const timeoutMs = 15000;
+        const syncPromise = apiClient.syncProfile();
+
+        const response = await Promise.race([
+          syncPromise,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('sync timeout')), timeoutMs)),
+        ]);
+
+        console.log("✅ Profile sync successful:", response);
+        setProfile(response.profile);
+        profileRef.current = response.profile;
+        options.onProfileChange?.(response.profile);
+        return response.profile;
+      } catch (err: any) {
+        console.error("❌ Profile sync failed:", err);
+        if (err instanceof ApiError && err.status === 401) {
+          console.log("🚫 Unauthorized, clearing user state...");
+          setUser(null);
+          setProfile(null);
+          profileRef.current = null;
+          options.onUserChange?.(null);
+          options.onProfileChange?.(null);
+          if (options.redirectToHome) {
+            router.push('/');
+          }
+          return null;
         }
-        return null;
+        throw err;
+      } finally {
+        inFlightSync.current = null;
       }
-      throw error;
-    }
+    })();
+
+    inFlightSync.current = doSync;
+    return doSync;
   };
 
   // Initialize authentication state
@@ -102,6 +126,8 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       if (currentUser) {
         console.log("✅ User authenticated");
         if (options.redirectToDashboard) {
+          // clear loading before redirect to avoid timeout
+          setLoading(false);
           router.push('/dashboard');
           return;
         }
@@ -193,10 +219,9 @@ export const useAuthState = (options: UseAuthStateOptions = {}) => {
       }
     });
 
-    // Initialize auth state only once
-    let initialized = false;
-    if (!initialized) {
-      initialized = true;
+    // Initialize auth state only once per component lifecycle
+    if (!initializedRef.current) {
+      initializedRef.current = true;
       initializeAuth();
     }
 

@@ -7,10 +7,14 @@ import requests
 from functools import lru_cache
 import time
 import hashlib
+import threading
 
 # Simple in-memory cache for token validation
 token_cache = {}
-cache_ttl = 300  # 5 minutes
+# Default cache ttl (seconds). Use `TOKEN_CACHE_TTL` from config for runtime value.
+cache_ttl = settings.token_cache_ttl if hasattr(settings, 'token_cache_ttl') else 300
+# Lock to protect token_cache in multi-threaded server environments
+_cache_lock = threading.Lock()
 
 def get_token_hash(token: str) -> str:
     """Get a hash of the token for caching"""
@@ -21,15 +25,16 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
     token_hash = get_token_hash(token)
     current_time = time.time()
     
-    # Check cache first
-    if token_hash in token_cache:
-        cached_data, cached_time = token_cache[token_hash]
-        if current_time - cached_time < cache_ttl:
-            print(f"✅ Using cached token validation for user: {cached_data.get('id', 'unknown')}")
-            return cached_data
-        else:
-            # Remove expired cache entry
-            del token_cache[token_hash]
+    # Check cache first (thread-safe)
+    with _cache_lock:
+        if token_hash in token_cache:
+            cached_data, cached_time = token_cache[token_hash]
+            if current_time - cached_time < cache_ttl:
+                print(f"✅ Using cached token validation for user: {cached_data.get('id', 'unknown')}")
+                return cached_data
+            else:
+                # Remove expired cache entry
+                del token_cache[token_hash]
     
     try:
         print(f"🔐 Validating token with Supabase...")
@@ -58,14 +63,15 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
             
         user_data = response.json()
         
-        # Cache the result
-        token_cache[token_hash] = (user_data, current_time)
-        
-        # Clean old cache entries (simple cleanup)
-        if len(token_cache) > 1000:  # Prevent memory bloat
-            old_entries = [k for k, (_, t) in token_cache.items() if current_time - t > cache_ttl]
-            for k in old_entries:
-                del token_cache[k]
+        # Cache the result (thread-safe)
+        with _cache_lock:
+            token_cache[token_hash] = (user_data, current_time)
+
+            # Clean old cache entries (simple cleanup)
+            if len(token_cache) > 1000:  # Prevent memory bloat
+                old_entries = [k for k, (_, t) in token_cache.items() if current_time - t > cache_ttl]
+                for k in old_entries:
+                    del token_cache[k]
         
         print(f"✅ Token validated and cached for user: {user_data.get('id', 'unknown')}")
         return user_data
