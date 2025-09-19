@@ -314,7 +314,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     try {
       // Try our backend content extraction service first
       try {
-        const response = await fetch(`${API_BASE_URL}/content/extract`, {
+        const response = await fetch(`${API_BASE_URL}/api/content/extract`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -420,7 +420,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
   const extractMarkdown = async (url: string) => {
     setIsLoadingContent(true)
     try {
-      const resp = await fetch(`${API_BASE_URL}/content/extract_markdown`, {
+      const resp = await fetch(`${API_BASE_URL}/api/content/extract_markdown`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
@@ -449,7 +449,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
   // Generate proxy URL to bypass iframe restrictions
   const getProxyUrl = (url: string) => {
     // Try our backend proxy service first
-    const backendProxy = `${API_BASE_URL}/content/proxy?url=${encodeURIComponent(url)}`
+    const backendProxy = `${API_BASE_URL}/api/content/proxy?url=${encodeURIComponent(url)}`
 
     // Fallback CORS proxy services
     const corsProxies = [
@@ -482,7 +482,32 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
       const response = await fetch(proxyUrl)
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        // Try to get detailed error information from our backend
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        
+        try {
+          const contentType = response.headers.get('content-type')
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json()
+            if (errorData.detail) {
+              if (typeof errorData.detail === 'object') {
+                // Structured error from our enhanced backend
+                errorMessage = errorData.detail.last_error || errorData.detail.message || errorMessage
+              } else {
+                // Simple string error
+                errorMessage = errorData.detail
+              }
+            }
+          }
+        } catch (parseError) {
+          // Fall back to original error if we can't parse the response
+          console.warn('Could not parse error response:', parseError)
+        }
+        
+        // For proxy errors, don't throw - let the component handle the error state gracefully
+        console.warn(`Proxy request failed: ${errorMessage}`)
+        setProxyContent(null) // This will trigger the component's error UI and archive fallback
+        return // Exit early, don't throw
       }
 
       // Check if response is JSON (from our backend) or raw HTML
@@ -519,7 +544,9 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
       setProxyContent(htmlContent)
     } catch (error) {
       console.error('Failed to fetch proxy content:', error)
-      // Proxy loading failed - user can still try reader mode or view details
+      // Set proxy content to null and let the component handle the error state
+      setProxyContent(null)
+      // The component will show error UI when proxyContent is null and loading is false
     } finally {
       setIsLoadingProxy(false)
     }
