@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from api.routers import users, teams, admin, content
-from api.routers import placeholder
+from api.routers import users, teams, admin, content, placeholder
 from core.config import settings
 from core.logging import setup_logging, get_logger
 from core.rate_limiting import RateLimitMiddleware
@@ -151,7 +150,6 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Include routers
 app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(admin.router)

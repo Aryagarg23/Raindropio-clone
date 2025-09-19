@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300" preserveAspectRatio="xMidYMid slice">
-  <rect width="100%" height="100%" fill="hsl(233 70% 45%)" />
-  <g fill="#ffffff" fill-opacity="0.92">
-    <text x="50%" y="50%" dy="0.35em" font-family="Inter, Roboto, system-ui, -apple-system, 'Segoe UI', Arial" font-size="51" text-anchor="middle">TE</text>
-  </g>
-</svg>

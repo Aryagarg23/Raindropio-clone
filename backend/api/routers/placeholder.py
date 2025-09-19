@@ -66,6 +66,40 @@ async def placeholder_svg(w: int, h: int, domain: Optional[str] = None):
     # font sizing tuned to image height
     font_size = max(24, int(min(w, h) * 0.17))
 
+    # Convert HSL to RGB for better compatibility
+    try:
+        # Parse HSL and convert to hex
+        import re
+        hsl_match = re.match(r'hsl\((\d+)\s+(\d+)%\s+(\d+)%\)', bg)
+        if hsl_match:
+            h, s, l = map(int, hsl_match.groups())
+            # Simple HSL to RGB conversion
+            c = (1 - abs(2 * l / 100 - 1)) * (s / 100)
+            x = c * (1 - abs((h / 60) % 2 - 1))
+            m = l / 100 - c / 2
+            
+            if 0 <= h < 60:
+                r, g, b = c, x, 0
+            elif 60 <= h < 120:
+                r, g, b = x, c, 0
+            elif 120 <= h < 180:
+                r, g, b = 0, c, x
+            elif 180 <= h < 240:
+                r, g, b = 0, x, c
+            elif 240 <= h < 300:
+                r, g, b = x, 0, c
+            else:
+                r, g, b = c, 0, x
+            
+            r = int((r + m) * 255)
+            g = int((g + m) * 255)
+            b = int((b + m) * 255)
+            bg = f'#{r:02x}{g:02x}{b:02x}'
+        else:
+            bg = '#6b7280'  # fallback gray
+    except Exception:
+        bg = '#6b7280'  # fallback gray
+
     # Use a filesystem cache shared across processes/teams so everyone reuses the same placeholder
     try:
         # normalize main domain (strip path/port/subdomain)
@@ -108,6 +142,9 @@ async def placeholder_svg(w: int, h: int, domain: Optional[str] = None):
             pass
 
     headers = {
-        'Cache-Control': 'public, max-age=604800, stale-while-revalidate=86400'
+        'Cache-Control': 'public, max-age=604800, stale-while-revalidate=86400',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': '*',
     }
     return Response(content=svg, media_type='image/svg+xml', headers=headers)

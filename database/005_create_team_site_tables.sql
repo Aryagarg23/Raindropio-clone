@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS public.bookmarks (
   title text,
   description text,
   favicon_url text,
-  preview_image text,
   tags text[] DEFAULT '{}',
   created_by uuid REFERENCES public.profiles(user_id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now(),

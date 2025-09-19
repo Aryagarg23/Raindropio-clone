@@ -1,7 +1,7 @@
 """
 Content extraction and embedding utilities for bypassing iframe restrictions
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, HttpUrl
 import httpx
 import asyncio
@@ -25,11 +25,6 @@ class ContentExtractionResponse(BaseModel):
     meta_info: dict
     extracted_at: str
     success: bool
-
-class ScreenshotRequest(BaseModel):
-    url: HttpUrl
-    width: int = 1200
-    height: int = 800
 
 @router.post("/extract", response_model=ContentExtractionResponse)
 async def extract_content(request: ContentExtractionRequest):
@@ -241,26 +236,6 @@ async def extract_content(request: ContentExtractionRequest):
                             meta_info['image'] = img_src
                             break
             
-            # Fallback: Try domain logo services (Clearbit, etc.)
-            if not meta_info['image']:
-                parsed_url = urlparse(url)
-                domain = parsed_url.netloc
-                
-                # Try Clearbit logo service
-                if domain and '.' in domain:
-                    # Remove www. prefix for better logo detection
-                    clean_domain = domain.replace('www.', '')
-                    meta_info['image'] = f"https://logo.clearbit.com/{clean_domain}"
-            
-            # Final fallback: Generate a simple text-based thumbnail URL
-            # This could be handled by a service that creates text-based images
-            if not meta_info['image']:
-                # For now, we'll leave this empty and let the frontend handle it
-                # Could integrate with services like:
-                # - https://dummyimage.com/ for text-based thumbnails
-                # - https://via.placeholder.com/ for generic placeholders
-                pass
-            
             # Extract favicon
             favicon_url = ""
             
@@ -325,34 +300,6 @@ async def extract_content(request: ContentExtractionRequest):
         logger.error(f"Content extraction failed for {url}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to extract content: {str(e)}")
 
-@router.post("/screenshot")
-async def generate_screenshot(request: ScreenshotRequest):
-    """
-    Generate a screenshot of a web page (requires additional setup)
-    This is a placeholder - you would need to integrate with a service like:
-    - Puppeteer/Playwright
-    - ScreenshotAPI
-    - HTMLCSStoImage
-    - etc.
-    """
-    try:
-        # Placeholder implementation
-        # In a real implementation, you would:
-        # 1. Use Puppeteer/Playwright to take screenshots
-        # 2. Or integrate with a screenshot service API
-        # 3. Store the image and return the URL
-        
-        return {
-            "success": False,
-            "message": "Screenshot service not implemented yet",
-            "url": str(request.url),
-            "placeholder_image": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4gIDxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZjNmNGY2Ii8+ICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlhYTBhNiIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U2NyZWVuc2hvdCBOb3QgQXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg=="
-        }
-        
-    except Exception as e:
-        logger.error(f"Screenshot generation failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Failed to generate screenshot: {str(e)}")
-
 @router.get("/proxy")
 async def proxy_content(url: str):
     """
@@ -377,3 +324,53 @@ async def proxy_content(url: str):
     except Exception as e:
         logger.error(f"Proxy request failed for {url}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to proxy content: {str(e)}")
+
+@router.get("/proxy/image")
+async def proxy_image(url: str):
+    """
+    Proxy images to bypass CORS restrictions and support more formats
+    """
+    try:
+        # Extract domain from URL for Referer header
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        referer = f"{parsed_url.scheme}://{parsed_url.netloc}/"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': referer,
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers, follow_redirects=True)
+            response.raise_for_status()
+
+            # Get content type from response
+            content_type = response.headers.get('content-type', 'image/jpeg')
+
+            # Return the image data with proper headers
+            return Response(
+                content=response.content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET",
+                    "Access-Control-Allow-Headers": "*",
+                    "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Image proxy request failed for {url}: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to proxy image: {str(e)}")

@@ -7,7 +7,7 @@ interface PreviewData {
   error?: string;
 }
 
-const PREVIEW_CACHE_KEY = 'bookmark_previews_v4';
+const PREVIEW_CACHE_KEY = 'bookmark_previews_v5';
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CachedPreview {
@@ -95,8 +95,7 @@ export function useBookmarkPreview(bookmarkUrl: string) {
       const isProxied = cached.imageUrl?.startsWith(`${apiBase.replace(/\/$/, '')}/content/proxy/image`);
       const isPlaceholder = cached.imageUrl?.startsWith(`${apiBase.replace(/\/$/, '')}/api/placeholder`);
       
-      // For now, allow original URLs to be used directly (they will be handled by crossOrigin and onError fallback)
-      if (isProxied || isPlaceholder || cached.imageUrl?.startsWith('http')) {
+      if (isProxied || isPlaceholder) {
         setPreview({
           url: bookmarkUrl,
           imageUrl: cached.imageUrl,
@@ -104,7 +103,7 @@ export function useBookmarkPreview(bookmarkUrl: string) {
         });
         return;
       }
-      // If cached URL is not a valid image URL, refetch
+      // If cached URL is not properly formatted, refetch
     }
 
     // Fetch preview
@@ -134,8 +133,11 @@ export function useBookmarkPreview(bookmarkUrl: string) {
       if (html) {
         imageUrl = extractPreviewImage(html, url);
         if (imageUrl) {
-          // Return the original image URL directly (frontend will handle CORS with crossOrigin and fallback)
-          // No proxying needed
+          // Use image proxy to avoid CORS issues and support more formats
+          const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+            ? process.env.NEXT_PUBLIC_API_URL
+            : 'http://127.0.0.1:8000';
+          imageUrl = `${apiBase.replace(/\/$/, '')}/content/proxy/image?url=${encodeURIComponent(imageUrl)}`;
         }
       }
 
@@ -158,8 +160,11 @@ export function useBookmarkPreview(bookmarkUrl: string) {
             const json: any = await resp.json();
             const serverImage = json?.meta_info?.image;
             if (serverImage) {
-              // Return the original image URL directly (frontend will handle CORS with crossOrigin and fallback)
-              imageUrl = serverImage;
+              // Use image proxy to avoid CORS issues and support more formats
+              const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '')
+                ? process.env.NEXT_PUBLIC_API_URL
+                : 'http://127.0.0.1:8000';
+              imageUrl = `${apiBase.replace(/\/$/, '')}/content/proxy/image?url=${encodeURIComponent(serverImage)}`;
             }
           }
         } catch (e) {
