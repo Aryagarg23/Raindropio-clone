@@ -424,19 +424,28 @@ export function ImprovedReaderView({
 
   // Text selection handling for highlights
   const handleTextSelection = (event: MouseEvent) => {
+    console.log('🎯 handleTextSelection called', { 
+      hasCallbacks: !!(onSetShowHighlightTooltip && onSetTooltipPosition && onSetPendingSelection)
+    })
+
     if (!onSetShowHighlightTooltip || !onSetTooltipPosition || !onSetPendingSelection) {
+      console.log('⚠️ Missing required callbacks for text selection')
       return
     }
 
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) {
+      console.log('⚠️ No text selection found')
       return
     }
 
     const selectedText = selection.toString().trim()
     if (selectedText.length === 0) {
+      console.log('⚠️ Selected text is empty')
       return
     }
+
+    console.log('✅ Valid text selection detected:', selectedText.substring(0, 50) + '...')
 
     // Get the selected range
     const range = selection.getRangeAt(0)
@@ -493,6 +502,13 @@ export function ImprovedReaderView({
     const tooltipX = rect.left + (rect.width / 2)
     const tooltipY = rect.top - 10
 
+    console.log('📍 Tooltip positioning:', { 
+      rect, 
+      tooltipX, 
+      tooltipY,
+      selectedText: selectedText.substring(0, 30) + '...'
+    })
+
     // Set the selection data with all required fields
     onSetPendingSelection({
       text: selectedText,
@@ -506,12 +522,27 @@ export function ImprovedReaderView({
 
     onSetTooltipPosition({ x: tooltipX, y: tooltipY })
     onSetShowHighlightTooltip(true)
+
+    console.log('✅ Highlight tooltip should now be visible')
   }
 
   // Mouse up event handler
   const handleMouseUp = (event: MouseEvent) => {
+    console.log('🖱️ Mouse up event detected')
     // Small delay to ensure selection is complete
     setTimeout(() => handleTextSelection(event), 10)
+  }
+
+  // Handle clicks outside the reader content to clear selections
+  const handleDocumentClick = (event: MouseEvent) => {
+    const readerContent = readerContentRef.current
+    if (readerContent && !readerContent.contains(event.target as Node)) {
+      console.log('🖱️ Click outside reader content, clearing selection')
+      if (onSetShowHighlightTooltip && onSetPendingSelection) {
+        onSetShowHighlightTooltip(false)
+        onSetPendingSelection(null)
+      }
+    }
   }
 
   // Add/remove event listeners
@@ -521,10 +552,14 @@ export function ImprovedReaderView({
       return
     }
 
+    console.log('📝 Adding text selection event listeners')
     readerContent.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('click', handleDocumentClick)
     
     return () => {
+      console.log('🧹 Removing text selection event listeners')
       readerContent.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('click', handleDocumentClick)
     }
   }, [onSetShowHighlightTooltip])
 

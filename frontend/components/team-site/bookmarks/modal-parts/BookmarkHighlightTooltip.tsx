@@ -14,6 +14,7 @@ interface BookmarkHighlightTooltipProps {
   highlightColor: string
   newAnnotation: string
   colorOptions: string[]
+  showHighlightTooltip?: boolean
   onSetHighlightColor: (color: string) => void
   onSetNewAnnotation: (annotation: string) => void
   onSetShowHighlightTooltip: (show: boolean) => void
@@ -29,6 +30,7 @@ export const BookmarkHighlightTooltip: React.FC<BookmarkHighlightTooltipProps> =
   highlightColor,
   newAnnotation,
   colorOptions,
+  showHighlightTooltip = true,
   onSetHighlightColor,
   onSetNewAnnotation,
   onSetShowHighlightTooltip,
@@ -37,11 +39,18 @@ export const BookmarkHighlightTooltip: React.FC<BookmarkHighlightTooltipProps> =
   onCreateAnnotation,
   bookmark
 }) => {
-  if (!pendingSelection) return null
+  if (!pendingSelection || !showHighlightTooltip) return null
+
+  console.log('🎨 BookmarkHighlightTooltip rendering with:', { 
+    pendingSelection: !!pendingSelection, 
+    showHighlightTooltip,
+    tooltipPosition,
+    selectedText: pendingSelection?.text?.substring(0, 30) + '...'
+  })
 
   return (
     <div
-      className="absolute z-50 bg-white border border-grey-accent-300 rounded-lg shadow-lg p-4"
+      className="fixed z-50 bg-white border border-grey-accent-300 rounded-lg shadow-lg p-4"
       style={{
         left: tooltipPosition.x,
         top: tooltipPosition.y,

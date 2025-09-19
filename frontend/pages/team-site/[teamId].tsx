@@ -126,6 +126,7 @@ export default function TeamSitePage() {
     createAnnotation,
     toggleAnnotationLike,
     deleteAnnotation,
+    deleteHighlight,
   extractContent,
   extractMarkdown,
     fetchProxyContent,
@@ -464,6 +465,7 @@ export default function TeamSitePage() {
           onCreateAnnotation={createAnnotation}
           onToggleAnnotationLike={toggleAnnotationLike}
           onDeleteAnnotation={deleteAnnotation}
+          onDeleteHighlight={deleteHighlight}
           onExtractContent={extractContent}
           onFetchProxyContent={fetchProxyContent}
           onUpdateTags={updateSelectedBookmarkTags}

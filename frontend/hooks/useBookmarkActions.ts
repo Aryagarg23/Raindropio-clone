@@ -298,6 +298,40 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     }
   }
 
+  // Delete highlight (and orphan any associated annotations)
+  const deleteHighlight = async (highlightId: string, selectedBookmarkId?: string) => {
+    try {
+      // First, orphan any annotations linked to this highlight
+      const { error: orphanError } = await supabase
+        .from('annotations')
+        .update({ highlight_id: null })
+        .eq('highlight_id', highlightId)
+
+      if (orphanError) {
+        console.error('Error orphaning annotations:', orphanError)
+        // Continue with highlight deletion even if orphaning fails
+      }
+
+      // Then delete the highlight
+      const { error: highlightError } = await supabase
+        .from('highlights')
+        .delete()
+        .eq('id', highlightId)
+
+      if (highlightError) throw highlightError
+
+      console.log('✅ Highlight deleted and annotations orphaned successfully')
+
+      // Refresh bookmark data
+      if (selectedBookmarkId) {
+        fetchBookmarkData(selectedBookmarkId)
+      }
+    } catch (error) {
+      console.error('Error deleting highlight:', error)
+      setError('Failed to delete highlight')
+    }
+  }
+
   // Extract content from URL for reader mode
   const extractContent = async (url: string) => {
     // Check cache first
@@ -610,6 +644,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     createAnnotation,
     toggleAnnotationLike,
     deleteAnnotation,
+    deleteHighlight,
     extractContent,
     extractMarkdown,
     fetchProxyContent,

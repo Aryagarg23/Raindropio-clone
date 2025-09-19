@@ -34,10 +34,11 @@ interface BookmarkDetailModalProps {
   commentInputs: { [key: string]: string }
   onClose: () => void
   onViewModeChange: (mode: 'reader' | 'proxy' | 'details') => void
-  onCreateHighlight: (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string) => Promise<any>
+  onCreateHighlight: (bookmarkId: string, selectedText: string, startOffset: number, endOffset: number, textBefore?: string, textAfter?: string, highlightColor?: string, xpathStart?: string, xpathEnd?: string) => Promise<any>
   onCreateAnnotation: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
   onToggleAnnotationLike: (annotationId: string) => Promise<void>
   onDeleteAnnotation: (annotationId: string) => Promise<void>
+  onDeleteHighlight: (highlightId: string, selectedBookmarkId?: string) => Promise<void>
   onExtractContent: (url: string) => Promise<void>
   onFetchProxyContent: (url: string) => Promise<void>
   onUpdateTags: (tags: string[]) => Promise<void>
@@ -92,6 +93,7 @@ export function BookmarkDetailModal({
   onCreateAnnotation,
   onToggleAnnotationLike,
   onDeleteAnnotation,
+  onDeleteHighlight,
   onExtractContent,
   onFetchProxyContent,
   onUpdateTags,
@@ -173,6 +175,7 @@ export function BookmarkDetailModal({
             onCreateAnnotation={onCreateAnnotation}
             onToggleAnnotationLike={onToggleAnnotationLike}
             onDeleteAnnotation={onDeleteAnnotation}
+            onDeleteHighlight={onDeleteHighlight}
             onSetCommentInputs={onSetCommentInputs}
           />
 
@@ -205,6 +208,7 @@ export function BookmarkDetailModal({
           highlightColor={highlightColor}
           newAnnotation={newAnnotation}
           colorOptions={colorOptions}
+          showHighlightTooltip={showHighlightTooltip}
           onSetHighlightColor={onSetHighlightColor}
           onSetNewAnnotation={onSetNewAnnotation}
           onSetShowHighlightTooltip={onSetShowHighlightTooltip}

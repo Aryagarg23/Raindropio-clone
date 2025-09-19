@@ -40,6 +40,7 @@ interface BookmarkContentViewerProps {
   onCreateAnnotation?: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
   onToggleAnnotationLike?: (annotationId: string) => Promise<void>
   onDeleteAnnotation?: (annotationId: string) => Promise<void>
+  onDeleteHighlight?: (highlightId: string, selectedBookmarkId?: string) => Promise<void>
   onSetCommentInputs?: (inputs: { [key: string]: string }) => void
 }
 
@@ -64,6 +65,7 @@ export function BookmarkContentViewer({
   onCreateAnnotation,
   onToggleAnnotationLike,
   onDeleteAnnotation,
+  onDeleteHighlight,
   onSetCommentInputs
 }: BookmarkContentViewerProps) {
   return (
@@ -161,6 +163,10 @@ export function BookmarkContentViewer({
               <HighlightsDetailsView
                 annotations={annotations}
                 highlights={highlights}
+                bookmark={bookmark}
+                user={user}
+                onDeleteAnnotation={onDeleteAnnotation}
+                onDeleteHighlight={onDeleteHighlight}
               />
 
               {/* General Annotations (not linked to highlights) */}
@@ -198,12 +204,25 @@ export function BookmarkContentViewer({
                                 </p>
                               </div>
                               
-                              {/* Like count (read-only) */}
-                              {annotation.like_count > 0 && (
-                                <div className="flex items-center gap-1 mt-2 text-xs text-grey-accent-500">
-                                  <span>❤️ {annotation.like_count}</span>
-                                </div>
-                              )}
+                              {/* Actions */}
+                              <div className="flex items-center gap-2 mt-2">
+                                {/* Like count (read-only) */}
+                                {annotation.like_count > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-grey-accent-500">
+                                    <span>❤️ {annotation.like_count}</span>
+                                  </div>
+                                )}
+                                
+                                {/* Delete button for own annotations */}
+                                {user && annotation.creator_id === user.id && onDeleteAnnotation && (
+                                  <button
+                                    onClick={() => onDeleteAnnotation(annotation.annotation_id)}
+                                    className="text-xs text-grey-accent-500 hover:text-red-600 px-2 py-1 rounded-full hover:bg-red-50 transition-colors ml-auto"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         ))}

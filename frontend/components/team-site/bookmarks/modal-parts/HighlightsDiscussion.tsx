@@ -212,30 +212,13 @@ export function HighlightsDiscussion({
                                 </p>
                               </div>
                               
-                              {/* Like button */}
-                              <div className="flex items-center gap-2 mt-2">
-                                <button
-                                  onClick={() => onToggleAnnotationLike(annotation.annotation_id)}
-                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors ${
-                                    annotation.user_has_liked 
-                                      ? 'text-red-600 bg-red-50 hover:bg-red-100' 
-                                      : 'text-grey-accent-600 hover:text-red-600 hover:bg-red-50'
-                                  }`}
-                                >
-                                  <Heart className={`w-3 h-3 ${annotation.user_has_liked ? 'fill-current' : ''}`} />
-                                  <span>{annotation.like_count || 0}</span>
-                                </button>
-                                
-                                {/* Delete button for own comments */}
-                                {annotation.creator_id === user.id && (
-                                  <button
-                                    onClick={() => onDeleteAnnotation(annotation.annotation_id)}
-                                    className="text-xs text-grey-accent-500 hover:text-red-600 px-2 py-1 rounded-full hover:bg-red-50 transition-colors"
-                                  >
-                                    Delete
-                                  </button>
-                                )}
-                              </div>
+                              {/* Like count (read-only for reader view) */}
+                              {annotation.like_count > 0 && (
+                                <div className="flex items-center gap-1 mt-2 text-xs text-grey-accent-500">
+                                  <Heart className="w-3 h-3 fill-current text-red-500" />
+                                  <span>{annotation.like_count}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
