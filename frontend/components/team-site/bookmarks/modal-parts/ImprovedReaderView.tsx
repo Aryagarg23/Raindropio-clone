@@ -6,6 +6,7 @@ import rehypeRaw from 'rehype-raw'
 import { Img } from 'react-image'
 import { Button } from "../../../ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card"
+import { HighlightsDiscussion } from "./HighlightsDiscussion"
 import '../../../../utils/cacheDebug'
 
 // Enhanced image component using react-image for better external image handling
@@ -47,16 +48,45 @@ interface ImprovedReaderViewProps {
   extractedContent?: any
   isLoadingContent: boolean
   onRetryExtraction: () => void
+  
+  // Highlighting props
+  highlights?: any[]
+  annotations?: any[]
+  bookmark?: any
+  user?: any
+  teamId?: string
+  commentInputs?: { [key: string]: string }
+  onSetShowHighlightTooltip?: (show: boolean) => void
+  onSetTooltipPosition?: (position: { x: number; y: number }) => void
+  onSetPendingSelection?: (selection: { text: string; startOffset: number; endOffset: number } | null) => void
+  onCreateAnnotation?: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
+  onToggleAnnotationLike?: (annotationId: string) => Promise<void>
+  onDeleteAnnotation?: (annotationId: string) => Promise<void>
+  onSetCommentInputs?: (inputs: { [key: string]: string }) => void
 }
 
 export function ImprovedReaderView({
   url,
   extractedContent,
   isLoadingContent,
-  onRetryExtraction
+  onRetryExtraction,
+  highlights = [],
+  annotations = [],
+  bookmark,
+  user,
+  teamId,
+  commentInputs = {},
+  onSetShowHighlightTooltip,
+  onSetTooltipPosition,
+  onSetPendingSelection,
+  onCreateAnnotation,
+  onToggleAnnotationLike,
+  onDeleteAnnotation,
+  onSetCommentInputs
 }: ImprovedReaderViewProps) {
   const [clientSideContent, setClientSideContent] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const readerContentRef = useRef<HTMLDivElement>(null)
 
   // Client-side fallback using Mozilla Readability
   const processWithReadability = async () => {
@@ -131,6 +161,127 @@ export function ImprovedReaderView({
     }
   }
 
+  // Text selection handling for highlights
+  const handleTextSelection = (event: MouseEvent) => {
+    if (!onSetShowHighlightTooltip || !onSetTooltipPosition || !onSetPendingSelection) {
+      return
+    }
+
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) {
+      return
+    }
+
+    const selectedText = selection.toString().trim()
+    if (selectedText.length === 0) {
+      return
+    }
+
+    // Get the selected range
+    const range = selection.getRangeAt(0)
+    const readerContent = readerContentRef.current
+    
+    if (!readerContent || !readerContent.contains(range.commonAncestorContainer)) {
+      return
+    }
+
+    // Calculate text offsets within the reader content
+    const walker = document.createTreeWalker(
+      readerContent,
+      NodeFilter.SHOW_TEXT,
+      null
+    )
+
+    let textOffset = 0
+    let startOffset = 0
+    let endOffset = 0
+    let foundStart = false
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      const nodeText = node.textContent || ''
+      
+      if (node === range.startContainer) {
+        startOffset = textOffset + range.startOffset
+        foundStart = true
+      }
+      
+      if (node === range.endContainer) {
+        endOffset = textOffset + range.endOffset
+        break
+      }
+      
+      textOffset += nodeText.length
+    }
+
+    if (!foundStart) {
+      return
+    }
+
+    // Position the tooltip
+    const rect = range.getBoundingClientRect()
+    const tooltipX = rect.left + (rect.width / 2)
+    const tooltipY = rect.top - 10
+
+    // Set the selection data
+    onSetPendingSelection({
+      text: selectedText,
+      startOffset,
+      endOffset
+    })
+
+    onSetTooltipPosition({ x: tooltipX, y: tooltipY })
+    onSetShowHighlightTooltip(true)
+  }
+
+  // Mouse up event handler
+  const handleMouseUp = (event: MouseEvent) => {
+    // Small delay to ensure selection is complete
+    setTimeout(() => handleTextSelection(event), 10)
+  }
+
+  // Add/remove event listeners
+  useEffect(() => {
+    const readerContent = readerContentRef.current
+    if (!readerContent || !onSetShowHighlightTooltip) {
+      return
+    }
+
+    readerContent.addEventListener('mouseup', handleMouseUp)
+    
+    return () => {
+      readerContent.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [onSetShowHighlightTooltip])
+
+  // Function to render existing highlights in content
+  const renderContentWithHighlights = (content: string) => {
+    if (!highlights || highlights.length === 0) {
+      return content
+    }
+
+    // Sort highlights by start offset to process them in order
+    const sortedHighlights = [...highlights].sort((a, b) => a.start_offset - b.start_offset)
+    
+    let highlightedContent = content
+    let offset = 0
+    
+    sortedHighlights.forEach((highlight) => {
+      const startPos = highlight.start_offset + offset
+      const endPos = highlight.end_offset + offset
+      const beforeText = highlightedContent.substring(0, startPos)
+      const highlightText = highlightedContent.substring(startPos, endPos)
+      const afterText = highlightedContent.substring(endPos)
+      
+      const highlightSpan = `<mark class="bg-yellow-200 border-l-2 border-yellow-400 px-1 py-0.5 rounded-sm cursor-pointer hover:bg-yellow-300 transition-colors" data-highlight-id="${highlight.highlight_id}" title="Highlighted by ${highlight.creator_name}">${highlightText}</mark>`
+      
+      highlightedContent = beforeText + highlightSpan + afterText
+      offset += highlightSpan.length - highlightText.length
+    })
+    
+    return highlightedContent
+  }
+
   // Show client-side content if available and server-side failed
   const displayContent = clientSideContent || extractedContent
   const isContentAvailable = displayContent && (displayContent.success !== false)
@@ -199,7 +350,7 @@ export function ImprovedReaderView({
         </header>
 
         {/* Article Content */}
-        <article className="prose prose-lg prose-grey-accent max-w-none">
+        <article ref={readerContentRef} className="prose prose-lg prose-grey-accent max-w-none select-text">
           {displayContent.markdown ? (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -354,16 +505,16 @@ export function ImprovedReaderView({
           ) : displayContent.reader_html ? (
             <div
               className="prose-img:mx-auto prose-img:max-w-full prose-img:max-h-[40rem] prose-img:rounded-lg prose-img:shadow-sm"
-              dangerouslySetInnerHTML={{ __html: displayContent.reader_html }}
+              dangerouslySetInnerHTML={{ __html: renderContentWithHighlights(displayContent.reader_html) }}
             />
           ) : displayContent.htmlContent ? (
             <div
               className="prose-img:mx-auto prose-img:max-w-full prose-img:max-h-[40rem] prose-img:rounded-lg prose-img:shadow-sm"
-              dangerouslySetInnerHTML={{ __html: displayContent.htmlContent }}
+              dangerouslySetInnerHTML={{ __html: renderContentWithHighlights(displayContent.htmlContent) }}
             />
           ) : displayContent.content ? (
             <div className="whitespace-pre-wrap leading-relaxed text-grey-accent-700">
-              {displayContent.content}
+              <span dangerouslySetInnerHTML={{ __html: renderContentWithHighlights(displayContent.content) }} />
             </div>
           ) : (
             <div className="text-center text-grey-accent-500 py-8">
@@ -382,6 +533,22 @@ export function ImprovedReaderView({
               )}
             </div>
           </footer>
+        )}
+
+        {/* Highlights & Discussion Section */}
+        {bookmark && user && onCreateAnnotation && onToggleAnnotationLike && onDeleteAnnotation && onSetCommentInputs && (
+          <HighlightsDiscussion
+            bookmark={bookmark}
+            annotations={annotations}
+            highlights={highlights}
+            user={user}
+            teamId={teamId || ''}
+            commentInputs={commentInputs}
+            onCreateAnnotation={onCreateAnnotation}
+            onToggleAnnotationLike={onToggleAnnotationLike}
+            onDeleteAnnotation={onDeleteAnnotation}
+            onSetCommentInputs={onSetCommentInputs}
+          />
         )}
       </div>
     </div>

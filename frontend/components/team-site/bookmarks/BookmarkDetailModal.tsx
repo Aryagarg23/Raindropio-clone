@@ -148,9 +148,19 @@ export function BookmarkDetailModal({
             highlights={highlights}
             annotations={annotations}
             bookmark={bookmark}
+            user={user}
+            teamId={teamId}
+            commentInputs={commentInputs}
             onViewModeChange={onViewModeChange}
             onExtractContent={onExtractContent}
             onFetchProxyContent={onFetchProxyContent}
+            onSetShowHighlightTooltip={onSetShowHighlightTooltip}
+            onSetTooltipPosition={onSetTooltipPosition}
+            onSetPendingSelection={onSetPendingSelection}
+            onCreateAnnotation={onCreateAnnotation}
+            onToggleAnnotationLike={onToggleAnnotationLike}
+            onDeleteAnnotation={onDeleteAnnotation}
+            onSetCommentInputs={onSetCommentInputs}
           />
 
           <BookmarkAnnotationsSidebar

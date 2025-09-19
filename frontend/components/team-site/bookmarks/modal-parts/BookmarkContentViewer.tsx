@@ -17,9 +17,21 @@ interface BookmarkContentViewerProps {
   isLoadingProxy: boolean
   highlights: any[]
   annotations: any[]
+  user?: any
+  teamId?: string
+  commentInputs?: { [key: string]: string }
   onViewModeChange: (mode: 'reader' | 'proxy' | 'details') => void
   onExtractContent: (url: string) => Promise<void>
   onFetchProxyContent: (url: string) => Promise<void>
+  
+  // Highlighting props
+  onSetShowHighlightTooltip?: (show: boolean) => void
+  onSetTooltipPosition?: (position: { x: number; y: number }) => void
+  onSetPendingSelection?: (selection: { text: string; startOffset: number; endOffset: number } | null) => void
+  onCreateAnnotation?: (bookmarkId: string, content: string, highlightId?: string) => Promise<any>
+  onToggleAnnotationLike?: (annotationId: string) => Promise<void>
+  onDeleteAnnotation?: (annotationId: string) => Promise<void>
+  onSetCommentInputs?: (inputs: { [key: string]: string }) => void
 }
 
 export function BookmarkContentViewer({
@@ -31,9 +43,19 @@ export function BookmarkContentViewer({
   isLoadingProxy,
   highlights,
   annotations,
+  user,
+  teamId,
+  commentInputs,
   onViewModeChange,
   onExtractContent,
-  onFetchProxyContent
+  onFetchProxyContent,
+  onSetShowHighlightTooltip,
+  onSetTooltipPosition,
+  onSetPendingSelection,
+  onCreateAnnotation,
+  onToggleAnnotationLike,
+  onDeleteAnnotation,
+  onSetCommentInputs
 }: BookmarkContentViewerProps) {
   return (
     <div className="flex-1 flex flex-col">
@@ -57,6 +79,19 @@ export function BookmarkContentViewer({
               extractedContent={extractedContent}
               isLoadingContent={isLoadingContent}
               onRetryExtraction={() => onExtractContent(bookmark.url)}
+              highlights={highlights}
+              annotations={annotations}
+              bookmark={bookmark}
+              user={user}
+              teamId={teamId}
+              commentInputs={commentInputs}
+              onSetShowHighlightTooltip={onSetShowHighlightTooltip}
+              onSetTooltipPosition={onSetTooltipPosition}
+              onSetPendingSelection={onSetPendingSelection}
+              onCreateAnnotation={onCreateAnnotation}
+              onToggleAnnotationLike={onToggleAnnotationLike}
+              onDeleteAnnotation={onDeleteAnnotation}
+              onSetCommentInputs={onSetCommentInputs}
             />
           </TabsContent>
 

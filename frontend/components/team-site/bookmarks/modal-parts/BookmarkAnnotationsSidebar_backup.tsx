@@ -112,6 +112,7 @@ export function BookmarkAnnotationsSidebar({
                       avatar_url: annotation.creator_avatar,
                       full_name: annotation.creator_name,
                     }}
+                    userId={annotation.creator_id}
                     size="sm"
                   />
                   <div className="flex-1">
