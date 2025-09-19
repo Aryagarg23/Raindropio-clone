@@ -8,10 +8,8 @@ import { usePresence } from './usePresence';
 export function useTeamSite(teamId: string | string[] | undefined) {
   const actualTeamId = Array.isArray(teamId) ? teamId[0] : teamId;
 
-  // Error state shared across hooks
   const [error, setError] = useState<string | null>(null);
 
-  // Use the smaller hooks
   const { user, profile, loading: authLoading, checkAuth } = useAuth(actualTeamId);
   const {
     collections,
@@ -20,6 +18,8 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     presence,
     dataLoading,
     dataError,
+    hasMoreEvents,
+    loadMoreEvents,
     setCollections,
     setBookmarks,
     setTeamEvents,
@@ -34,7 +34,6 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     setError
   );
 
-  // Use realtime subscriptions hook
   useRealtimeSubscriptions({
     teamId: actualTeamId || '',
     user,
@@ -45,7 +44,6 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     setPresence
   });
 
-  // Use presence hook
   usePresence({
     teamId: actualTeamId || '',
     user,
@@ -53,10 +51,8 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     dataLoading
   });
 
-  // Combined loading state
   const loading = authLoading || dataLoading || actionLoading;
 
-  // Combined error state
   useEffect(() => {
     if (dataError) {
       setError(dataError);
@@ -64,7 +60,6 @@ export function useTeamSite(teamId: string | string[] | undefined) {
   }, [dataError]);
 
   return {
-    // State
     user,
     profile,
     loading,
@@ -73,12 +68,10 @@ export function useTeamSite(teamId: string | string[] | undefined) {
     bookmarks,
     teamEvents,
     presence,
-
-    // State setters (for optimistic updates)
+    hasMoreEvents,
+    loadMoreEvents,
     setCollections,
     setBookmarks,
-
-    // Actions
     createCollection,
     deleteCollection,
     createBookmark,

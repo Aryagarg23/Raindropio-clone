@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Grid3X3, List, ExternalLink, Plus } from 'lucide-react';
 import ProfileIcon from '../../ProfileIcon';
 import { FaviconImage } from './FaviconImage';
+import { useBookmarkPreview } from '../../../hooks/useBookmarkPreview';
 import { CollectionTreeRenderer } from '../collections/CollectionTreeRenderer';
 import { OrphanedBookmarksList } from './DirectoryTreeView';
 
@@ -84,6 +85,64 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
   onCreateBookmark,
   orphanedBookmarks
 }) => {
+  // Small preview area component
+  const BookmarkPreviewArea: React.FC<{ bookmark: any }> = ({ bookmark }) => {
+    const { src, isImage } = useBookmarkPreview(bookmark);
+
+    if (!src) return null;
+
+    if (isImage) {
+      let hostname = '';
+      try { hostname = new URL(bookmark.url).hostname; } catch { hostname = bookmark.url; }
+
+      const apiBase = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL)
+        ? process.env.NEXT_PUBLIC_API_URL
+        : 'http://localhost:8000';
+      const placeholder = `${apiBase.replace(/\/$/, '')}/api/placeholder/600/300?domain=${encodeURIComponent(hostname)}`;
+
+      const [imageSrc, setImageSrc] = useState<string | null>(src);
+
+      useEffect(() => {
+        setImageSrc(src);
+      }, [src]);
+
+      // Dev helper: log which preview URL is being used for each bookmark
+      useEffect(() => {
+        if (process.env.NODE_ENV !== 'production') {
+          try {
+            // eslint-disable-next-line no-console
+            console.debug(`BookmarkPreview - id=${bookmark.id} src=${imageSrc}`);
+          } catch (e) {}
+        }
+      }, [imageSrc, bookmark.id]);
+
+      return (
+        <div className="w-full mb-0 overflow-hidden rounded-t-xl relative">
+          <img
+            src={imageSrc || undefined}
+            alt="preview"
+            className="w-full h-44 md:h-56 object-cover block"
+            onError={() => setImageSrc(placeholder)}
+          />
+
+          {/* Favicon overlay in bottom-left (rounded square) */}
+          <div className="absolute left-3 bottom-3 bg-white/90 rounded-md p-0.5 shadow">
+            <div className="w-9 h-9 overflow-hidden rounded-md">
+              <FaviconImage url={bookmark.url} faviconUrl={bookmark.favicon_url} size="w-9 h-9" />
+            </div>
+          </div>
+
+          {/* Hostname badge moved to bottom-right */}
+          <div className="absolute right-3 bottom-3 bg-black/40 text-white text-xs px-2 py-1 rounded truncate max-w-[65%]">
+            {hostname}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="space-y-8">
       {/* Collection Tree Sidebar */}
@@ -193,25 +252,17 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
               {advancedFilteredBookmarks.map((bookmark) => (
                 <Card
                   key={bookmark.id}
+                  compact
                   className="hover:shadow-lg transition-all duration-200 cursor-pointer group"
                   onClick={() => onBookmarkClick(bookmark)}
                 >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <FaviconImage
-                          url={bookmark.url}
-                          faviconUrl={bookmark.favicon_url}
-                          size="w-5 h-5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-grey-accent-900 truncate group-hover:text-blue-600 transition-colors">
-                            {bookmark.title || new URL(bookmark.url).hostname}
-                          </h3>
-                          <p className="text-sm text-grey-accent-600 truncate">
-                            {new URL(bookmark.url).hostname}
-                          </p>
-                        </div>
+                  <BookmarkPreviewArea bookmark={bookmark} />
+                  <CardContent className="px-3 pt-0 pb-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0 pl-0">
+                        <h3 className="font-semibold text-grey-accent-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                          {bookmark.title || new URL(bookmark.url).hostname}
+                        </h3>
                       </div>
                       <Button
                         size="sm"
@@ -227,13 +278,13 @@ export const MainTabContent: React.FC<MainTabContentProps> = ({
                     </div>
 
                     {bookmark.description && (
-                      <p className="text-grey-accent-700 text-sm mb-4 line-clamp-2">
+                      <p className="text-grey-accent-700 text-sm mb-3 line-clamp-2">
                         {bookmark.description}
                       </p>
                     )}
 
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-1 mb-3 items-center">
+                    <div className="flex flex-wrap gap-1 mb-2 items-center">
                       {bookmark.tags && bookmark.tags.length > 0 && (
                         <>
                           {bookmark.tags.slice(0, 3).map((tag: string, index: number) => (

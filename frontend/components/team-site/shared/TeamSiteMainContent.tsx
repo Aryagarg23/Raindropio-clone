@@ -54,6 +54,7 @@ interface TeamSiteMainContentProps {
   parentCollections: ExtendedCollection[];
   allFlatCollections: ExtendedCollection[];
   teamEvents: any[];
+  onLoadMoreEvents?: () => void;
   selectedDirectoryCollection: ExtendedCollection | null;
   showDirectoryModal: boolean;
   orphanedBookmarks: any[];
@@ -136,7 +137,8 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
   onHandleBookmarkDragOver,
   onHandleBookmarkDrop,
   onCreateCollection,
-  onCreateBookmark
+  onCreateBookmark,
+  onLoadMoreEvents
 }) => {
   return (
     <div className="w-full">
@@ -237,7 +239,7 @@ export const TeamSiteMainContent: React.FC<TeamSiteMainContentProps> = ({
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-6 mt-6">
-          <ActivityTabContent teamEvents={teamEvents} />
+          <ActivityTabContent teamEvents={teamEvents} onLoadMoreEvents={onLoadMoreEvents} />
         </TabsContent>
       </Tabs>
 

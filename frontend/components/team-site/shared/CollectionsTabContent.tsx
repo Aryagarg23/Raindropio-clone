@@ -1,4 +1,5 @@
 import React from 'react';
+import { stickyPalette } from '../../../utils/colors';
 import { Card, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Folder, Copy } from 'lucide-react';
@@ -81,7 +82,7 @@ export const CollectionsTabContent: React.FC<CollectionsTabContentProps> = ({
                 <div className="flex items-center gap-3">
                   <div 
                     className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: collection.color || '#6B7280' }}
+                    style={{ backgroundColor: collection.color || stickyPalette[0] }}
                   >
                     <Folder className="w-5 h-5 text-white" />
                   </div>

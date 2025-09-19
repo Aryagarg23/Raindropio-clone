@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Collection } from '../../../types/api';
+import { stickyPalette } from '../../../utils/colors';
 
 interface CreateCollectionModalProps {
   onClose: () => void;
@@ -17,7 +18,7 @@ export default function CreateCollectionModal({
 }: CreateCollectionModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#A0D2EB');
+  const [color, setColor] = useState('#FFEB3B');
   const [parentId, setParentId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,7 +37,7 @@ export default function CreateCollectionModal({
   const resetForm = () => {
     setName('');
     setDescription('');
-    setColor('#A0D2EB');
+    setColor('#FFEB3B');
     setParentId('');
     setIsSubmitting(false);
   };
@@ -64,10 +65,7 @@ export default function CreateCollectionModal({
     }
   };
 
-  const colorOptions = [
-    '#A0D2EB', '#E57373', '#C41230', '#81C784', '#FFB74D',
-    '#BA68C8', '#4FC3F7', '#FF8A65', '#9CCC65', '#F06292'
-  ];
+  const colorOptions = stickyPalette;
 
   return (
     <div

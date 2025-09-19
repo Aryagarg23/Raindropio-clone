@@ -2,12 +2,18 @@ import * as React from 'react'
 
 import { cn } from '../../lib/utils'
 
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+type CardProps = React.ComponentProps<'div'> & {
+  compact?: boolean;
+};
+
+function Card({ className, compact = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
       className={cn(
-        'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
+        'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border shadow-sm',
+        // only add vertical padding when not compact
+        !compact && 'py-6',
         className,
       )}
       {...props}

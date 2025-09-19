@@ -29,19 +29,16 @@ import { TeamSiteMainContent } from "../../components/team-site/shared/TeamSiteM
 import { DirectoryModal } from "../../components/team-site/shared/DirectoryModal"
 import { GlobalLoadingState } from "../../components/shared/GlobalLoadingState"
 
-// Extend window object for highlight clicking
 declare global {
   interface Window {
     selectHighlightForAnnotation: (highlightId: string, selectedText: string) => void
   }
 }
 
-// API configuration (resolved at runtime)
 const API_BASE_URL = (() => {
   try {
     return getApiBaseUrl();
   } catch (e) {
-    // If getApiBaseUrl throws in production (missing env), rethrow
     if (process.env.NODE_ENV === 'production') throw e;
     return 'http://localhost:8000';
   }
@@ -65,13 +62,10 @@ interface ExtendedCollection {
   parentId?: string
 }
 
-
-
 export default function TeamSitePage() {
   const router = useRouter()
   const { teamId } = router.query
 
-  // Normalize teamId to string for consistent usage and guard against literal 'undefined'/'null'
   const normalizedTeamId = (() => {
     let id: string | undefined;
     if (typeof teamId === 'string') id = teamId;
@@ -91,6 +85,8 @@ export default function TeamSitePage() {
     bookmarks,
     teamEvents,
     presence,
+    hasMoreEvents,
+    loadMoreEvents,
     createCollection,
     deleteCollection,
     createBookmark,
@@ -221,45 +217,28 @@ export default function TeamSitePage() {
     bookmarkFilters
   })
 
-  // Get all unique tags from bookmarks
   const allTags = useMemo(() => getAllTags(bookmarks), [bookmarks])
-
-  // Get available tags with usage counts for tag suggestions
   const availableTags = useMemo(() => getAvailableTags(bookmarks), [bookmarks])
-
-  // Get all unique creators
   const allCreators = useMemo(() => getAllCreators(bookmarks), [bookmarks])
-
-  // Apply advanced filters to bookmarks
   const advancedFilteredBookmarks = useMemo(() => filterBookmarks(bookmarks, bookmarkFilters), [bookmarks, bookmarkFilters]);
-
   const nestedCollections = useMemo(() => {
     const tree = buildCollectionTree(collections);
     return updateCollectionBookmarkCounts(tree, bookmarks);
   }, [collections, bookmarks]);
 
   const allFlatCollections = useMemo(() => flattenCollections(nestedCollections), [nestedCollections]);
-
-  // Get all unique collection creators
   const allCollectionCreators = useMemo(() => getAllCollectionCreators(allFlatCollections), [allFlatCollections])
-
-  // Get parent collections for filter
   const parentCollections = useMemo(() => getParentCollections(allFlatCollections), [allFlatCollections])
-
-  // Apply filters to collections
   const filteredCollections = useMemo(() => filterCollections(allFlatCollections, collectionFilters, bookmarks), [allFlatCollections, collectionFilters, bookmarks])
 
-  // Generate directory structure in markdown format
   const generateDirectoryStructure = useCallback((collection: ExtendedCollection): string => {
     return getCollectionDirectoryMarkdown(collection, bookmarks)
   }, [bookmarks])
 
-  // Copy directory structure to clipboard
   const copyDirectoryStructureToClipboard = useCallback(async (collection: ExtendedCollection) => {
     await copyDirectoryStructure(collection, bookmarks)
   }, [bookmarks])
 
-  // Get orphaned bookmarks (bookmarks without a collection or with invalid collection_id)
   const orphanedBookmarks = useMemo(() => bookmarks.filter(bookmark => 
     !bookmark.collection_id || !collections.some(col => col.id === bookmark.collection_id)
   ), [bookmarks, collections]);
@@ -335,61 +314,61 @@ export default function TeamSitePage() {
       <div className="container mx-auto px-4 pt-8 pb-12">
         <div className="card-subtle p-6">
             <TeamSiteMainContent
-        activeTab={activeTab}
-        viewMode={viewMode}
-        searchQuery={searchQuery}
-        collections={collections}
-        bookmarks={bookmarks}
-        nestedCollections={nestedCollections}
-        expandedCollections={expandedCollections}
-        selectedCollectionId={selectedCollectionId}
-        advancedFilteredBookmarks={advancedFilteredBookmarks}
-        bookmarkFilters={bookmarkFilters}
-        showFilters={showFilters}
-        filteredCollections={filteredCollections}
-        collectionFilters={collectionFilters}
-        showCollectionFilters={showCollectionFilters}
-        allTags={allTags}
-        allCreators={allCreators}
-        allCollectionCreators={allCollectionCreators}
-        parentCollections={parentCollections}
-        allFlatCollections={allFlatCollections}
-        teamEvents={teamEvents}
-        selectedDirectoryCollection={selectedDirectoryCollection}
-        showDirectoryModal={showDirectoryModal}
-        onActiveTabChange={setActiveTab}
-        onSearchQueryChange={setSearchQuery}
-        onViewModeChange={setViewMode}
-        onToggleCollection={toggleCollection}
-        onSelectCollection={handleCollectionSelect}
-        onBookmarkClick={handleBookmarkClick}
-        onSetBookmarkFilters={setBookmarkFilters}
-        onSetShowFilters={setShowFilters}
-        onSetCollectionFilters={setCollectionFilters}
-        onSetShowCollectionFilters={setShowCollectionFilters}
-        onSetSelectedDirectoryCollection={setSelectedDirectoryCollection}
-        onSetShowDirectoryModal={setShowDirectoryModal}
-        onCopyDirectoryStructure={copyDirectoryStructure}
-        dragOverData={dragOverData}
-        draggedCollection={draggedCollection}
-        draggedBookmark={draggedBookmark}
-        dragOverTarget={dragOverTarget}
-        onHandleDragStart={handleDragStart}
-        onHandleDragEnd={handleDragEnd}
-        onHandleDragOver={handleDragOver}
-        onHandleDragLeave={handleDragLeave}
-        onHandleDrop={handleDrop}
-        onHandleBookmarkDragStart={handleBookmarkDragStart}
-        onHandleBookmarkDragOver={handleBookmarkDragOver}
-        onHandleBookmarkDrop={handleBookmarkDrop}
-        onCreateCollection={() => setShowCreateCollection(true)}
-        onCreateBookmark={() => setShowAddBookmark(true)}
-        orphanedBookmarks={orphanedBookmarks}
-      />
+              activeTab={activeTab}
+              viewMode={viewMode}
+              searchQuery={searchQuery}
+              collections={collections}
+              bookmarks={bookmarks}
+              nestedCollections={nestedCollections}
+              expandedCollections={expandedCollections}
+              selectedCollectionId={selectedCollectionId}
+              advancedFilteredBookmarks={advancedFilteredBookmarks}
+              bookmarkFilters={bookmarkFilters}
+              showFilters={showFilters}
+              filteredCollections={filteredCollections}
+              collectionFilters={collectionFilters}
+              showCollectionFilters={showCollectionFilters}
+              allTags={allTags}
+              allCreators={allCreators}
+              allCollectionCreators={allCollectionCreators}
+              parentCollections={parentCollections}
+              allFlatCollections={allFlatCollections}
+              teamEvents={teamEvents}
+              onLoadMoreEvents={loadMoreEvents}
+              selectedDirectoryCollection={selectedDirectoryCollection}
+              showDirectoryModal={showDirectoryModal}
+              onActiveTabChange={setActiveTab}
+              onSearchQueryChange={setSearchQuery}
+              onViewModeChange={setViewMode}
+              onToggleCollection={toggleCollection}
+              onSelectCollection={handleCollectionSelect}
+              onBookmarkClick={handleBookmarkClick}
+              onSetBookmarkFilters={setBookmarkFilters}
+              onSetShowFilters={setShowFilters}
+              onSetCollectionFilters={setCollectionFilters}
+              onSetShowCollectionFilters={setShowCollectionFilters}
+              onSetSelectedDirectoryCollection={setSelectedDirectoryCollection}
+              onSetShowDirectoryModal={setShowDirectoryModal}
+              onCopyDirectoryStructure={copyDirectoryStructure}
+              dragOverData={dragOverData}
+              draggedCollection={draggedCollection}
+              draggedBookmark={draggedBookmark}
+              dragOverTarget={dragOverTarget}
+              onHandleDragStart={handleDragStart}
+              onHandleDragEnd={handleDragEnd}
+              onHandleDragOver={handleDragOver}
+              onHandleDragLeave={handleDragLeave}
+              onHandleDrop={handleDrop}
+              onHandleBookmarkDragStart={handleBookmarkDragStart}
+              onHandleBookmarkDragOver={handleBookmarkDragOver}
+              onHandleBookmarkDrop={handleBookmarkDrop}
+              onCreateCollection={() => setShowCreateCollection(true)}
+              onCreateBookmark={() => setShowAddBookmark(true)}
+              orphanedBookmarks={orphanedBookmarks}
+            />
           </div>
       </div>
 
-      {/* Directory Structure Modal */}
       <DirectoryModal
         isOpen={showDirectoryModal}
         collection={selectedDirectoryCollection}
@@ -401,7 +380,6 @@ export default function TeamSitePage() {
         onCopy={copyDirectoryStructure}
       />
 
-      {/* Create Collection Modal */}
       {showCreateCollection && (
         <CreateCollectionModal
           onClose={() => setShowCreateCollection(false)}
@@ -410,7 +388,6 @@ export default function TeamSitePage() {
         />
       )}
 
-      {/* Add Bookmark Modal */}
       {showAddBookmark && (
         <AddBookmarkModal
           collections={collections}
@@ -419,7 +396,6 @@ export default function TeamSitePage() {
         />
       )}
 
-      {/* Bookmark Detail Modal */}
       {selectedBookmark && (
         <BookmarkDetailModal
           bookmark={selectedBookmark}
@@ -464,4 +440,3 @@ export default function TeamSitePage() {
     </main>
   )
 }
-

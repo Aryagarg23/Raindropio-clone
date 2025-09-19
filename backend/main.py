@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from api.routers import users, teams, admin, content
+from api.routers import placeholder
 from core.config import settings
 from core.logging import setup_logging, get_logger
 from core.rate_limiting import RateLimitMiddleware
@@ -41,6 +42,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
+    # Allow dynamic origins (reflect the request's Origin) while still permitting credentials.
+    # Using a permissive regex here ensures the middleware will echo the request Origin
+    # back in `Access-Control-Allow-Origin` for matching requests.
+    allow_origin_regex=r".*",
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=[
         "accept",
@@ -151,6 +156,7 @@ app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(admin.router)
 app.include_router(content.router)
+app.include_router(placeholder.router)
 
 @app.get("/")
 def read_root():

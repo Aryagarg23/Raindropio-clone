@@ -51,16 +51,9 @@ interface BookmarkDetailModalProps {
   onSetCommentInputs: (inputs: { [key: string]: string }) => void
 }
 
-const colorOptions = [
-  '#ffeb3b', // Yellow
-  '#4ade80', // Green
-  '#60a5fa', // Blue
-  '#f87171', // Red
-  '#fb7185', // Pink
-  '#a78bfa', // Purple
-  '#fbbf24', // Amber
-  '#34d399', // Emerald
-]
+import { stickyPalette } from '../../../utils/colors';
+
+const colorOptions = stickyPalette;
 
 export function BookmarkDetailModal({
   bookmark,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import supabase from '../modules/supabaseClient';
+import { stickyPalette } from '../utils/colors';
 import { getApiBaseUrl } from '../modules/apiClient';
 
 interface UseBookmarkActionsProps {
@@ -107,7 +108,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
         text_after: textAfter || null,
         start_offset: startOffset,
         end_offset: endOffset,
-        color: highlightColor || '#ffeb3b',
+  color: highlightColor || stickyPalette[0],
         created_by: user.id
       }
 

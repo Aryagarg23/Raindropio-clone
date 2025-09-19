@@ -1,11 +1,11 @@
 import React from 'react';
 
 interface ProfileIconProps {
-  user: {
+  user?: {
     avatar_url?: string;
     full_name?: string;
     email?: string;
-  };
+  } | null;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
@@ -21,11 +21,11 @@ export default function ProfileIcon({ user, size = 'md', className = '' }: Profi
 
   const sizeClass = sizeClasses[size];
 
-  if (user.avatar_url) {
+  if (user && user.avatar_url) {
     return (
       <img
         src={user.avatar_url}
-        alt={user.full_name || user.email || 'User'}
+        alt={user.full_name || user?.email || 'User'}
         className={`${sizeClass} rounded-full object-cover shadow-sm border border-white ${className}`}
         onError={(e) => {
           // Hide broken image and show fallback
@@ -36,7 +36,7 @@ export default function ProfileIcon({ user, size = 'md', className = '' }: Profi
   }
 
   // Fallback to initials
-  const initials = (user.full_name || user.email || 'U')[0].toUpperCase();
+  const initials = (user?.full_name || user?.email || 'U')[0].toUpperCase();
 
   return (
     <div className={`${sizeClass} rounded-full bg-gradient-to-br from-grey-accent-600 to-grey-accent-700 flex items-center justify-center text-white font-semibold shadow-sm ${className}`}>

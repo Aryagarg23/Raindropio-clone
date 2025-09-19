@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import supabase from '../modules/supabaseClient';
 import { getApiBaseUrl } from '../modules/apiClient';
+import { stickyPalette } from '../utils/colors';
 
 export function useTeamActions(teamId: string, user: any, profile: any, setError: (error: string | null) => void) {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Create collection
-  const createCollection = async (name: string, description?: string, color: string = '#3b82f6', parentId?: string) => {
+  const createCollection = async (name: string, description?: string, color: string = stickyPalette[0], parentId?: string) => {
     if (!teamId || !user) return;
 
     try {

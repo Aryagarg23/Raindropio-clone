@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { stickyPalette } from '../utils/colors';
 
 export interface ModalState {
   // Directory modal
@@ -90,7 +91,7 @@ export const useModalState = (): ModalState & ModalActions => {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [pendingSelection, setPendingSelection] = useState<{ text: string; startOffset: number; endOffset: number } | null>(null);
   const [newAnnotation, setNewAnnotation] = useState('');
-  const [highlightColor, setHighlightColor] = useState('#ffeb3b');
+  const [highlightColor, setHighlightColor] = useState(stickyPalette[0]);
   const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([]);
   const [bookmarkHighlights, setBookmarkHighlights] = useState<any[]>([]);
 

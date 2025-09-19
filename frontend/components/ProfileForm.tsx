@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getClosestColorName } from "../utils/colors";
+import { getClosestColorName, stickyPalette } from "../utils/colors";
 import { apiClient, ApiError } from "../modules/apiClient";
 import { AuthUser, UserProfile } from "../types/api";
 
@@ -12,7 +12,7 @@ interface ProfileFormProps {
 export default function ProfileForm({ user, profile, onProfileUpdated }: ProfileFormProps) {
   const [name, setName] = useState(profile?.full_name || "");
   const [avatar, setAvatar] = useState<File | null>(null);
-  const [color, setColor] = useState(profile?.favorite_color || "#A0D2EB");
+  const [color, setColor] = useState(profile?.favorite_color || stickyPalette[0]);
   const [submitting, setSubmitting] = useState(false);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
