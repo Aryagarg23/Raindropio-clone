@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from api.routers import users, teams, admin, content, placeholder
+from api.routers import users, teams, admin, content, placeholder, bookmarks
 from core.config import settings
 from core.logging import setup_logging, get_logger
 from core.rate_limiting import RateLimitMiddleware
@@ -79,8 +79,8 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 # Add timeout middleware
 app.add_middleware(TimeoutMiddleware, timeout=30.0)
 
-# Add rate limiting middleware (60 requests per minute)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+# Add rate limiting middleware (500 for content, 300 for general API)
+app.add_middleware(RateLimitMiddleware)
 
 # Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -154,6 +154,7 @@ app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(admin.router)
 app.include_router(content.router)
+app.include_router(bookmarks.router)
 app.include_router(placeholder.router)
 
 @app.get("/")

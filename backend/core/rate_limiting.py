@@ -83,9 +83,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Middleware for rate limiting API requests
     """
 
-    def __init__(self, app, requests_per_minute: int = 60, exclude_paths: list = None):
+    def __init__(self, app, requests_per_minute: int = 600, exclude_paths: list = None):
         super().__init__(app)
-        self.rate_limiter = RateLimiter(requests_per_minute)
+        # Different rate limits for different types of endpoints
+        self.rate_limiters = {
+            'content': RateLimiter(500),  # Content extraction and proxying
+            'default': RateLimiter(requests_per_minute),  # General API calls
+        }
         self.exclude_paths = exclude_paths or ["/health", "/metrics"]
 
     async def dispatch(self, request: Request, call_next):
@@ -95,13 +99,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Use client IP as rate limiting key
         client_ip = self._get_client_ip(request)
+        
+        # Choose appropriate rate limiter based on path
+        if request.url.path.startswith('/content/'):
+            rate_limiter = self.rate_limiters['content']
+        else:
+            rate_limiter = self.rate_limiters['default']
 
-        if not self.rate_limiter.is_allowed(client_ip):
-            reset_time = self.rate_limiter.get_reset_time(client_ip)
+        if not rate_limiter.is_allowed(client_ip):
+            reset_time = rate_limiter.get_reset_time(client_ip)
             logger.warning("Rate limit exceeded",
-                         client_ip=client_ip,
-                         path=request.url.path,
-                         reset_in_seconds=round(reset_time))
+                         extra={
+                             "client_ip": client_ip,
+                             "path": request.url.path,
+                             "reset_in_seconds": round(reset_time)
+                         })
 
             raise HTTPException(
                 status_code=429,
@@ -113,10 +125,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         if isinstance(response, Response):
-            remaining = self.rate_limiter.get_remaining_requests(client_ip)
-            reset_time = self.rate_limiter.get_reset_time(client_ip)
+            remaining = rate_limiter.get_remaining_requests(client_ip)
+            reset_time = rate_limiter.get_reset_time(client_ip)
 
-            response.headers["X-RateLimit-Limit"] = str(self.rate_limiter.requests_per_minute)
+            response.headers["X-RateLimit-Limit"] = str(rate_limiter.requests_per_minute)
             response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Reset"] = str(round(time.time() + reset_time))
 
