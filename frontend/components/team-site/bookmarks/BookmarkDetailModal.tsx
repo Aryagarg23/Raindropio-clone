@@ -20,7 +20,15 @@ interface BookmarkDetailModalProps {
   highlightColor: string
   showHighlightTooltip: boolean
   tooltipPosition: { x: number; y: number }
-  pendingSelection: { text: string; startOffset: number; endOffset: number } | null
+  pendingSelection: { 
+    text: string; 
+    startOffset: number; 
+    endOffset: number;
+    xpathStart?: string;
+    xpathEnd?: string;
+    textBefore?: string;
+    textAfter?: string;
+  } | null
   extractedContent: any
   isLoadingContent: boolean
   proxyContent: string | null
