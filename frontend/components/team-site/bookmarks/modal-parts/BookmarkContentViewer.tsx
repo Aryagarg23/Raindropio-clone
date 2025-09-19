@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../ui/card"
 import { Button } from "../../../ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/tabs"
 import ProfileIcon from "../../../ProfileIcon"
+import { ImprovedReaderView } from "./ImprovedReaderView"
+import { ImprovedProxyView } from "./ImprovedProxyView"
 
 interface BookmarkContentViewerProps {
   viewMode: 'reader' | 'proxy' | 'details'
@@ -16,6 +18,8 @@ interface BookmarkContentViewerProps {
   highlights: any[]
   annotations: any[]
   onViewModeChange: (mode: 'reader' | 'proxy' | 'details') => void
+  onExtractContent: (url: string) => Promise<void>
+  onFetchProxyContent: (url: string) => Promise<void>
 }
 
 export function BookmarkContentViewer({
@@ -27,7 +31,9 @@ export function BookmarkContentViewer({
   isLoadingProxy,
   highlights,
   annotations,
-  onViewModeChange
+  onViewModeChange,
+  onExtractContent,
+  onFetchProxyContent
 }: BookmarkContentViewerProps) {
   return (
     <div className="flex-1 flex flex-col">
@@ -46,94 +52,21 @@ export function BookmarkContentViewer({
       <div className="flex-1 overflow-hidden">
         <Tabs value={viewMode} className="h-full">
           <TabsContent value="reader" className="h-full m-0">
-            {isLoadingContent ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-grey-accent-600 mb-4"></div>
-                  <p className="text-grey-accent-600">Extracting content...</p>
-                </div>
-              </div>
-            ) : extractedContent ? (
-              <div className="h-full overflow-y-auto p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-3xl font-bold text-grey-accent-900 mb-4">
-                    {extractedContent.title}
-                  </h1>
-                  {extractedContent.description && (
-                    <p className="text-lg text-grey-accent-700 mb-6">
-                      {extractedContent.description}
-                    </p>
-                  )}
-                  {extractedContent.reader_html ? (
-                    <div className="prose prose-grey-accent max-w-none prose-p:mb-6">
-                      <div
-                        className="prose-img:mx-auto prose-img:max-w-full prose-img:max-h-[40rem]"
-                        dangerouslySetInnerHTML={{ __html: extractedContent.reader_html }}
-                      />
-                    </div>
-                  ) : extractedContent.markdown ? (
-                    <div className="prose prose-grey-accent max-w-none prose-p:mb-6">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{extractedContent.markdown}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div
-                      className="prose prose-grey-accent max-w-none prose-p:mb-6"
-                      dangerouslySetInnerHTML={{ __html: extractedContent.content }}
-                    />
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">📄</div>
-                  <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
-                    Failed to Extract Content
-                  </h3>
-                  <p className="text-grey-accent-600 mb-4">
-                    Unable to extract readable content from this page
-                  </p>
-                  <Button onClick={() => onViewModeChange('proxy')} variant="outline">
-                    Try Proxy View
-                  </Button>
-                </div>
-              </div>
-            )}
+            <ImprovedReaderView
+              url={bookmark.url}
+              extractedContent={extractedContent}
+              isLoadingContent={isLoadingContent}
+              onRetryExtraction={() => onExtractContent(bookmark.url)}
+            />
           </TabsContent>
 
           <TabsContent value="proxy" className="h-full m-0">
-            {isLoadingProxy ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-grey-accent-600 mb-4"></div>
-                  <p className="text-grey-accent-600">Loading proxy content...</p>
-                </div>
-              </div>
-            ) : proxyContent ? (
-              <div className="h-full">
-                <iframe
-                  srcDoc={proxyContent}
-                  className="w-full h-full border-0"
-                  sandbox="allow-scripts allow-same-origin"
-                  title="Proxy content"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🌐</div>
-                  <h3 className="text-xl font-semibold text-grey-accent-900 mb-2">
-                    Proxy View Unavailable
-                  </h3>
-                  <p className="text-grey-accent-600 mb-4">
-                    Unable to load content through proxy
-                  </p>
-                  <Button onClick={() => onViewModeChange('reader')} variant="outline">
-                    Try Reader View
-                  </Button>
-                </div>
-              </div>
-            )}
+            <ImprovedProxyView
+              url={bookmark.url}
+              proxyContent={proxyContent}
+              isLoadingProxy={isLoadingProxy}
+              onFetchProxyContent={() => onFetchProxyContent(bookmark.url)}
+            />
           </TabsContent>
 
           <TabsContent value="details" className="h-full m-0 overflow-y-auto p-6">

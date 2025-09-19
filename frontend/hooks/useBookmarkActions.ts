@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import supabase from '../modules/supabaseClient';
 import { stickyPalette } from '../utils/colors';
 import { getApiBaseUrl, apiClient } from '../modules/apiClient';
+import { useContentCache } from './useContentCache';
+import { setGlobalCacheFunctions, clearGlobalCacheFunctions } from '../utils/cacheUtils';
 
 interface UseBookmarkActionsProps {
   user: any;
@@ -13,9 +15,30 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
   const [bookmarkAnnotations, setBookmarkAnnotations] = useState<any[]>([]);
   const [bookmarkHighlights, setBookmarkHighlights] = useState<any[]>([]);
   const [extractedContent, setExtractedContent] = useState<any>(null);
-  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [proxyContent, setProxyContent] = useState<string | null>(null);
   const [isLoadingProxy, setIsLoadingProxy] = useState(false);
+  
+  // Use the content caching system
+  const {
+    isLoadingContent,
+    setIsLoadingContent,
+    getCachedContent,
+    setCachedContent,
+    getCachedProxyContent,
+    setCachedProxyContent,
+    clearCache,
+    cleanupExpiredCache,
+    getCacheStats
+  } = useContentCache();
+
+  // Register global cache functions for debugging
+  useEffect(() => {
+    setGlobalCacheFunctions(clearCache, getCacheStats);
+    
+    return () => {
+      clearGlobalCacheFunctions();
+    };
+  }, [clearCache, getCacheStats]);
 
   const API_BASE_URL = (() => {
     try {
@@ -273,6 +296,16 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
 
   // Extract content from URL for reader mode
   const extractContent = async (url: string) => {
+    // Check cache first
+    const cachedContent = getCachedContent(url)
+    if (cachedContent) {
+      setExtractedContent(cachedContent)
+      return
+    }
+
+    // Clean up expired cache entries periodically
+    cleanupExpiredCache()
+
     setIsLoadingContent(true)
     try {
       // Try our backend content extraction service first
@@ -288,7 +321,7 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
         if (response.ok) {
           const data = await response.json()
           if (data.success) {
-            setExtractedContent({
+            const contentData = {
               title: data.title,
               description: data.description,
               content: data.content,
@@ -297,7 +330,11 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
               url,
               extractedAt: new Date().toISOString(),
               meta_info: data.meta_info
-            })
+            }
+            
+            // Cache the successful result
+            setCachedContent(url, contentData)
+            setExtractedContent(contentData)
             return
           }
         }
@@ -352,13 +389,20 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
           }
         }
 
-        setExtractedContent({
+        const fallbackContentData = {
           title,
           description,
           content,
+          reader_html: content,
+          markdown: '',
           url,
-          extractedAt: new Date().toISOString()
-        })
+          extractedAt: new Date().toISOString(),
+          meta_info: {}
+        }
+        
+        // Cache the fallback result too
+        setCachedContent(url, fallbackContentData)
+        setExtractedContent(fallbackContentData)
       }
     } catch (error) {
       console.error('Failed to extract content:', error)
@@ -416,6 +460,16 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
 
   // Fetch proxy content for rendering
   const fetchProxyContent = async (url: string) => {
+    // Check cache first
+    const cachedProxyContent = getCachedProxyContent(url)
+    if (cachedProxyContent) {
+      setProxyContent(cachedProxyContent)
+      return
+    }
+
+    // Clean up expired cache entries periodically
+    cleanupExpiredCache()
+
     setIsLoadingProxy(true)
     setProxyContent(null)
 
@@ -456,6 +510,8 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
           return `src="${baseUrl.origin}/${src}"`
         })
 
+      // Cache the successful result
+      setCachedProxyContent(url, htmlContent)
       setProxyContent(htmlContent)
     } catch (error) {
       console.error('Failed to fetch proxy content:', error)
@@ -526,8 +582,9 @@ export const useBookmarkActions = ({ user, teamId, setError }: UseBookmarkAction
     extractContent,
     extractMarkdown,
     fetchProxyContent,
-  clearContent,
+    clearContent,
     updateBookmarkTags,
-    updateBookmark
+    updateBookmark,
+    clearContentCache: clearCache
   };
 };

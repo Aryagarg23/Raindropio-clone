@@ -32,14 +32,6 @@ def cleanup_cache():
     if expired_keys:
         logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
 
-def clear_cache():
-    """Clear all cached extraction results"""
-    global extraction_cache
-    count = len(extraction_cache)
-    extraction_cache.clear()
-    logger.info(f"Cleared {count} cached extraction results")
-    return count
-
 class ContentExtractionRequest(BaseModel):
     url: HttpUrl
 
@@ -51,14 +43,6 @@ class ContentExtractionResponse(BaseModel):
     meta_info: dict
     extracted_at: str
     success: bool
-
-@router.post("/clear-cache")
-async def clear_extraction_cache():
-    """
-    Clear all cached extraction results
-    """
-    count = clear_cache()
-    return {"message": f"Cleared {count} cached extraction results"}
 
 @router.post("/extract")
 async def extract_content(request: ContentExtractionRequest):
@@ -201,10 +185,6 @@ async def proxy_image(url: str):
     """
     Proxy images to bypass CORS restrictions and support more formats
     """
-    # Skip data URLs - they don't need proxying
-    if url.startswith('data:'):
-        raise HTTPException(status_code=400, detail="Data URLs do not need proxying")
-    
     # Try different User-Agents in order of success rate
     user_agents = [
         # Mobile Safari (most successful)
@@ -231,11 +211,11 @@ async def proxy_image(url: str):
                 'Sec-Fetch-Mode': 'no-cors',
                 'Sec-Fetch-Site': 'cross-site',
             }
-
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(url, headers=headers, follow_redirects=True)
                 response.raise_for_status()
-
+                
                 # Validate that this is actually an image
                 content_type = response.headers.get('content-type', '').lower()
                 if not any(img_type in content_type for img_type in ['image/', 'application/octet-stream']):
@@ -253,7 +233,7 @@ async def proxy_image(url: str):
                         "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
                     }
                 )
-        
+                
         except Exception as e:
             last_error = e
             logger.warning(f"Failed to fetch image with User-Agent {user_agent[:50]}...: {str(e)}")

@@ -149,6 +149,8 @@ export function BookmarkDetailModal({
             annotations={annotations}
             bookmark={bookmark}
             onViewModeChange={onViewModeChange}
+            onExtractContent={onExtractContent}
+            onFetchProxyContent={onFetchProxyContent}
           />
 
           <BookmarkAnnotationsSidebar
