@@ -8,6 +8,10 @@ python-multipart
 requests
 beautifulsoup4
 lxml
+newspaper3k
+lxml # for HTML parsing
+lxml-html-clean
+
 # Performance optimizations
 gunicorn
 asyncio-throttle
